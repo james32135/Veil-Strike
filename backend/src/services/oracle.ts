@@ -214,6 +214,69 @@ const PRICE_SOURCES: { name: string; fn: () => Promise<OraclePrices | null> }[] 
   { name: 'CryptoCompare', fn: fetchFromCryptoCompare },
 ];
 
+// Dedicated ALEO price sources (many exchanges don't list ALEO)
+const ALEO_SOURCES: { name: string; fn: () => Promise<number> }[] = [
+  {
+    name: 'CoinGecko-ALEO',
+    fn: async () => {
+      const res = await fetchWithTimeout('https://api.coingecko.com/api/v3/simple/price?ids=aleo&vs_currencies=usd');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as { aleo?: { usd?: number } };
+      if (!data.aleo?.usd) throw new Error('no price');
+      return data.aleo.usd;
+    },
+  },
+  {
+    name: 'Gate.io-ALEO',
+    fn: async () => {
+      const res = await fetchWithTimeout('https://api.gateio.ws/api/v4/spot/tickers?currency_pair=ALEO_USDT', 5000);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as Array<{ last: string }>;
+      const p = parseFloat(data[0]?.last);
+      if (!p || p <= 0) throw new Error('no price');
+      return p;
+    },
+  },
+  {
+    name: 'MEXC-ALEO',
+    fn: async () => {
+      const res = await fetchWithTimeout('https://api.mexc.com/api/v3/ticker/price?symbol=ALEOUSDT', 5000);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as { price: string };
+      const p = parseFloat(data.price);
+      if (!p || p <= 0) throw new Error('no price');
+      return p;
+    },
+  },
+  {
+    name: 'HTX-ALEO',
+    fn: async () => {
+      const res = await fetchWithTimeout('https://api.huobi.pro/market/detail/merged?symbol=aleousdt', 5000);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as { tick?: { close: number } };
+      const p = data.tick?.close;
+      if (!p || p <= 0) throw new Error('no price');
+      return p;
+    },
+  },
+];
+
+async function fetchAleoPrice(): Promise<number> {
+  for (const source of ALEO_SOURCES) {
+    try {
+      const price = await source.fn();
+      if (price > 0) {
+        console.log(`[Oracle] ALEO price via ${source.name}: $${price}`);
+        return price;
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[Oracle] ${source.name} failed: ${msg}`);
+    }
+  }
+  return 0;
+}
+
 // ─── Main fetch with fallback chain ─────────────────────────────────────────
 
 export async function fetchOraclePrices(): Promise<OraclePrices> {
@@ -221,9 +284,13 @@ export async function fetchOraclePrices(): Promise<OraclePrices> {
     try {
       const prices = await source.fn();
       if (prices && prices.btc > 0) {
-        // If a source doesn't list ALEO, keep the last known value
-        if (prices.aleo === 0 && cachedPrices.aleo > 0) {
-          prices.aleo = cachedPrices.aleo;
+        // If main source doesn't have ALEO, fetch it separately
+        if (prices.aleo === 0 || prices.aleo === undefined) {
+          prices.aleo = await fetchAleoPrice();
+          // Still 0? Use last known value
+          if (prices.aleo === 0 && cachedPrices.aleo > 0) {
+            prices.aleo = cachedPrices.aleo;
+          }
         }
         cachedPrices = prices;
         if (lastSource !== source.name) {

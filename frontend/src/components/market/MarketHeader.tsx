@@ -11,7 +11,8 @@ const statusConfig: Record<string, { label: string; variant: 'success' | 'warnin
   active: { label: 'Active', variant: 'success' },
   closed: { label: 'Closed', variant: 'warning' },
   resolved: { label: 'Resolved', variant: 'info' },
-  disputed: { label: 'Disputed', variant: 'danger' },
+  cancelled: { label: 'Cancelled', variant: 'danger' },
+  pending_resolution: { label: 'Pending Resolution', variant: 'warning' },
 };
 
 export default function MarketHeader({ market }: MarketHeaderProps) {

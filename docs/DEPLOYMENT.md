@@ -32,7 +32,7 @@ export ENDPOINT="https://api.explorer.provable.com/v1"
 
 ```bash
 # Build the Leo program
-cd contract/veil_strike_v2
+cd contract/veil_strike_v3
 leo build
 
 # Deploy to testnet
@@ -103,7 +103,7 @@ npm run build
 Set environment variables:
 ```
 VITE_API_BASE=https://your-api-domain.com/api
-VITE_PROGRAM_ID=veil_strike_v2.aleo
+VITE_PROGRAM_ID=veil_strike_v3.aleo
 ```
 
 ### Backend (Railway/Render/VPS)

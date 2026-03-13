@@ -8,8 +8,6 @@ frontend/dist/
 backend/dist/
 
 # Leo build
-contract/veil_strike_v1/build/
-contract/veil_strike_v1/outputs/
 contract/veil_strike_v2/build/
 contract/veil_strike_v2/outputs/
 
@@ -36,3 +34,7 @@ npm-debug.log*
 *.aleo.key
 *.prover
 *.verifier
+
+# Private docs (local only)
+about.md
+summary.md

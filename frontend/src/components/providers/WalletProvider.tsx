@@ -8,7 +8,7 @@ import '@provablehq/aleo-wallet-adaptor-react-ui/dist/styles.css';
 import { useWalletStore } from '@/stores/walletStore';
 import { useEffect } from 'react';
 
-const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'veil_strike_v2.aleo';
+const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'veil_strike_v3.aleo';
 const NETWORK = import.meta.env.VITE_NETWORK === 'mainnet' ? Network.MAINNET : Network.TESTNET;
 
 interface WalletProviderProps {
@@ -40,7 +40,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
       network={NETWORK}
       autoConnect
       decryptPermission={DecryptPermission.UponRequest}
-      programs={[PROGRAM_ID, 'credits.aleo']}
+      programs={[PROGRAM_ID, 'credits.aleo', 'test_usdcx_stablecoin.aleo']}
     >
       <WalletModalProvider>
         <WalletSync>

@@ -163,6 +163,88 @@ export function buildAddLiquidityUsdcxTx(
   ], 1_000_000);
 }
 
+// ========== Market Lifecycle ==========
+
+export function buildCloseMarketTx(marketId: string): AleoTransaction {
+  return buildTransaction(TRANSITIONS.CLOSE_MARKET, [marketId], 500_000);
+}
+
+export function buildResolveMarketTx(marketId: string, winningOutcome: number): AleoTransaction {
+  return buildTransaction(TRANSITIONS.RESOLVE_MARKET, [marketId, `${winningOutcome}u8`], 500_000);
+}
+
+export function buildFinalizeResolutionTx(marketId: string): AleoTransaction {
+  return buildTransaction(TRANSITIONS.FINALIZE_RESOLUTION, [marketId], 500_000);
+}
+
+export function buildCancelMarketTx(marketId: string): AleoTransaction {
+  return buildTransaction(TRANSITIONS.CANCEL_MARKET, [marketId], 500_000);
+}
+
+// ========== Dispute ==========
+
+export function buildDisputeResolutionTx(
+  marketId: string,
+  proposedOutcome: number,
+  nonce: string,
+  creditsRecord: string
+): AleoTransaction {
+  return buildTransaction(TRANSITIONS.DISPUTE, [
+    marketId,
+    `${proposedOutcome}u8`,
+    nonce,
+    creditsRecord,
+  ], 1_000_000);
+}
+
+export function buildClaimDisputeBondTx(receiptRecord: string): AleoTransaction {
+  return buildTransaction(TRANSITIONS.CLAIM_DISPUTE_BOND, [receiptRecord], 500_000);
+}
+
+// ========== ALEO Redemption ==========
+
+export function buildRedeemSharesTx(sharesRecord: string): AleoTransaction {
+  return buildTransaction(TRANSITIONS.REDEEM, [sharesRecord], 1_000_000);
+}
+
+export function buildClaimRefundTx(sharesRecord: string): AleoTransaction {
+  return buildTransaction(TRANSITIONS.CLAIM_REFUND, [sharesRecord], 1_000_000);
+}
+
+export function buildWithdrawLpResolvedTx(lpTokenRecord: string, minTokensOut: string): AleoTransaction {
+  return buildTransaction(TRANSITIONS.WITHDRAW_LP, [lpTokenRecord, minTokensOut], 1_000_000);
+}
+
+export function buildClaimLpRefundTx(lpTokenRecord: string, minTokensOut: string): AleoTransaction {
+  return buildTransaction(TRANSITIONS.CLAIM_LP_REFUND, [lpTokenRecord, minTokensOut], 1_000_000);
+}
+
+export function buildWithdrawCreatorFeesTx(marketId: string, expectedAmount: string): AleoTransaction {
+  return buildTransaction(TRANSITIONS.WITHDRAW_CREATOR_FEES, [marketId, expectedAmount], 500_000);
+}
+
+// ========== USDCx Redemption ==========
+
+export function buildRedeemSharesUsdcxTx(sharesRecord: string): AleoTransaction {
+  return buildTransaction(TRANSITIONS.REDEEM_USDCX, [sharesRecord], 1_000_000);
+}
+
+export function buildClaimRefundUsdcxTx(sharesRecord: string): AleoTransaction {
+  return buildTransaction(TRANSITIONS.CLAIM_REFUND_USDCX, [sharesRecord], 1_000_000);
+}
+
+export function buildWithdrawLpResolvedUsdcxTx(lpTokenRecord: string, minTokensOut: string): AleoTransaction {
+  return buildTransaction(TRANSITIONS.WITHDRAW_LP_USDCX, [lpTokenRecord, minTokensOut], 1_000_000);
+}
+
+export function buildClaimLpRefundUsdcxTx(lpTokenRecord: string, minTokensOut: string): AleoTransaction {
+  return buildTransaction(TRANSITIONS.CLAIM_LP_REFUND_USDCX, [lpTokenRecord, minTokensOut], 1_000_000);
+}
+
+export function buildWithdrawFeesUsdcxTx(marketId: string, expectedAmount: string): AleoTransaction {
+  return buildTransaction(TRANSITIONS.WITHDRAW_FEES_USDCX, [marketId, expectedAmount], 500_000);
+}
+
 /**
  * Generate a random nonce for transactions.
  */

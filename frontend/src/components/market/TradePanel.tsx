@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import type { Market } from '@/types';
-import { calculatePrices, estimateBuySharesExact, calculateFees } from '@/utils/fpmm';
+import { calculatePrices, estimateBuySharesExact, estimateSellTokensOut, calculateFees } from '@/utils/fpmm';
 import { formatAleo, parseAleoInput } from '@/utils/format';
 import { PRECISION, API_BASE } from '@/constants';
 import { useTransaction } from '@/hooks/useTransaction';
-import { buildBuySharesPrivateTx, buildBuySharesUsdcxTx, generateNonce } from '@/utils/transactions';
+import { buildBuySharesPrivateTx, buildBuySharesUsdcxTx, buildSellSharesTx, buildSellSharesUsdcxTx, generateNonce } from '@/utils/transactions';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTradeStore } from '@/stores/tradeStore';
 import Button from '@/components/shared/Button';
@@ -18,7 +18,8 @@ export default function TradePanel({ market }: TradePanelProps) {
   const [selectedOutcome, setSelectedOutcome] = useState(0);
   const [amount, setAmount] = useState('');
   const [mode, setMode] = useState<'buy' | 'sell'>('buy');
-  const { status, execute, fetchCreditsRecord } = useTransaction();
+  const [selectedShareRecord, setSelectedShareRecord] = useState<string | null>(null);
+  const { status, execute, fetchCreditsRecord, fetchShareRecords } = useTransaction();
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
   const addTrade = useTradeStore((s) => s.addTrade);
 
@@ -28,55 +29,103 @@ export default function TradePanel({ market }: TradePanelProps) {
   const prices = calculatePrices(market.reserves);
   const amountMicro = parseAleoInput(amount);
   const { totalFee } = calculateFees(amountMicro);
+
+  // For buy: amountMicro = tokens in, estimate shares out
+  // For sell: amountMicro = shares to sell, estimate tokens out
   const exactShares = mode === 'buy'
     ? estimateBuySharesExact(market.reserves, selectedOutcome, amountMicro)
-    : 0n;
-  const estimatedShares = Number(exactShares);
+    : BigInt(amountMicro);
+  const sellEstimate = mode === 'sell'
+    ? estimateSellTokensOut(market.reserves, selectedOutcome, amountMicro)
+    : { tokensOut: 0, sharesUsed: 0 };
+  const estimatedShares = mode === 'buy' ? Number(exactShares) : sellEstimate.tokensOut;
 
   const priceImpact = amountMicro > 0 && market.totalLiquidity > 0
     ? (amountMicro / market.totalLiquidity) * 100
     : 0;
 
   const handleTrade = async () => {
-    if (amountMicro < 1000 || exactShares <= 0n) return;
+    if (mode === 'buy') {
+      if (amountMicro < 1000 || exactShares <= 0n) return;
 
-    const nonce = generateNonce();
-    const minShares = exactShares * 95n / 100n;
-    const typeSuffix = isUsdcx ? 'u128' : 'u64';
+      const nonce = generateNonce();
+      const minShares = exactShares * 95n / 100n;
+      const typeSuffix = 'u128';
 
-    let tx;
-    if (isUsdcx) {
-      tx = buildBuySharesUsdcxTx(
-        market.id, selectedOutcome,
-        `${amountMicro}${typeSuffix}`, `${exactShares}${typeSuffix}`, `${minShares}${typeSuffix}`,
-        nonce
-      );
+      let tx;
+      if (isUsdcx) {
+        tx = buildBuySharesUsdcxTx(
+          market.id, selectedOutcome,
+          `${amountMicro}${typeSuffix}`, `${exactShares}${typeSuffix}`, `${minShares}${typeSuffix}`,
+          nonce
+        );
+      } else {
+        const record = await fetchCreditsRecord(amountMicro);
+        if (!record) return;
+        tx = buildBuySharesPrivateTx(
+          market.id, selectedOutcome,
+          `${amountMicro}${typeSuffix}`, `${exactShares}${typeSuffix}`, `${minShares}${typeSuffix}`,
+          nonce, record
+        );
+      }
+      const txId = await execute(tx);
+      if (txId) {
+        addTrade({
+          marketId: market.id,
+          type: 'buy',
+          outcome: market.outcomes[selectedOutcome],
+          amount: amountMicro,
+          shares: Number(exactShares),
+          price: prices[selectedOutcome] / PRECISION,
+          timestamp: Date.now(),
+        });
+        setAmount('');
+        const refreshChain = () => fetch(`${API_BASE}/markets/refresh`, { method: 'POST' }).then(() => fetchMarkets()).catch(() => fetchMarkets());
+        refreshChain();
+        setTimeout(refreshChain, 15000);
+        setTimeout(refreshChain, 30000);
+      }
     } else {
-      const record = await fetchCreditsRecord(amountMicro);
-      if (!record) return;
-      tx = buildBuySharesPrivateTx(
-        market.id, selectedOutcome,
-        `${amountMicro}${typeSuffix}`, `${exactShares}${typeSuffix}`, `${minShares}${typeSuffix}`,
-        nonce, record
-      );
-    }
-    const txId = await execute(tx);
-    if (txId) {
-      addTrade({
-        marketId: market.id,
-        type: 'buy',
-        outcome: market.outcomes[selectedOutcome],
-        amount: amountMicro,
-        shares: estimatedShares,
-        price: prices[selectedOutcome] / PRECISION,
-        timestamp: Date.now(),
-      });
-      setAmount('');
-      // Wait for chain finalization then refresh reserves
-      const refreshChain = () => fetch(`${API_BASE}/markets/refresh`, { method: 'POST' }).then(() => fetchMarkets()).catch(() => fetchMarkets());
-      refreshChain();
-      setTimeout(refreshChain, 15000);
-      setTimeout(refreshChain, 30000);
+      // Sell mode: user enters shares to sell, we find matching record
+      if (amountMicro < 1000 || sellEstimate.tokensOut <= 0) return;
+
+      // Find a share record for the selected outcome
+      let shareRecord = selectedShareRecord;
+      if (!shareRecord) {
+        const records = await fetchShareRecords();
+        const match = records.find(
+          (r) => r.marketId === market.id && r.outcome === selectedOutcome + 1 && r.quantity >= amountMicro
+        );
+        if (!match) return;
+        shareRecord = match.plaintext;
+        setSelectedShareRecord(shareRecord);
+      }
+
+      const tokensDesired = `${sellEstimate.tokensOut}u128`;
+      const maxShares = `${amountMicro}u128`;
+
+      const tx = isUsdcx
+        ? buildSellSharesUsdcxTx(shareRecord, tokensDesired, maxShares)
+        : buildSellSharesTx(shareRecord, tokensDesired, maxShares);
+
+      const txId = await execute(tx);
+      if (txId) {
+        addTrade({
+          marketId: market.id,
+          type: 'sell',
+          outcome: market.outcomes[selectedOutcome],
+          amount: sellEstimate.tokensOut,
+          shares: amountMicro,
+          price: prices[selectedOutcome] / PRECISION,
+          timestamp: Date.now(),
+        });
+        setAmount('');
+        setSelectedShareRecord(null);
+        const refreshChain = () => fetch(`${API_BASE}/markets/refresh`, { method: 'POST' }).then(() => fetchMarkets()).catch(() => fetchMarkets());
+        refreshChain();
+        setTimeout(refreshChain, 15000);
+        setTimeout(refreshChain, 30000);
+      }
     }
   };
 
@@ -131,7 +180,7 @@ export default function TradePanel({ market }: TradePanelProps) {
       {/* Amount input */}
       <div className="mb-5">
         <label className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-2 block">
-          Amount ({tokenLabel})
+          {mode === 'buy' ? `Amount (${tokenLabel})` : 'Shares to Sell'}
         </label>
         <div className="relative">
           <input
@@ -144,7 +193,7 @@ export default function TradePanel({ market }: TradePanelProps) {
             className="input-field pr-16"
           />
           <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-mono">
-            {tokenLabel}
+            {mode === 'buy' ? tokenLabel : 'Shares'}
           </span>
         </div>
         <div className="flex gap-2 mt-2">
@@ -164,8 +213,10 @@ export default function TradePanel({ market }: TradePanelProps) {
       {amountMicro > 0 && (
         <div className="space-y-2 mb-5 p-3 bg-dark-200/50 rounded-xl">
           <div className="flex justify-between text-xs">
-            <span className="text-gray-500">Est. Shares</span>
-            <span className="font-mono text-gray-300">{formatAleo(estimatedShares)}</span>
+            <span className="text-gray-500">{mode === 'buy' ? 'Est. Shares' : 'Est. Return'}</span>
+            <span className="font-mono text-gray-300">
+              {mode === 'buy' ? formatAleo(estimatedShares) : `${formatAleo(sellEstimate.tokensOut)} ${tokenLabel}`}
+            </span>
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-gray-500">Fee (2%)</span>
@@ -178,8 +229,10 @@ export default function TradePanel({ market }: TradePanelProps) {
             </span>
           </div>
           <div className="flex justify-between text-xs pt-2 border-t border-dark-400/30">
-            <span className="text-gray-400 font-medium">Potential Payout</span>
-            <span className="font-mono text-teal font-medium">{formatAleo(estimatedShares)} {tokenLabel}</span>
+            <span className="text-gray-400 font-medium">{mode === 'buy' ? 'Potential Payout' : 'You Receive'}</span>
+            <span className="font-mono text-teal font-medium">
+              {mode === 'buy' ? formatAleo(estimatedShares) : formatAleo(sellEstimate.tokensOut)} {tokenLabel}
+            </span>
           </div>
         </div>
       )}

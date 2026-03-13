@@ -16,32 +16,32 @@ import { API_BASE } from '@/constants';
 const ASSET_MARKET_MAP: Record<string, { aleo: { id: string; reserves: number[] }; usdcx: { id: string; reserves: number[] } }> = {
   BTC: {
     aleo: {
-      id: '1453931991308580475428975090349277804251679422043348343263566005521045252998field',
+      id: '455294369202814481808572296872385613210766523398587823774432937118229435492field',
       reserves: [1_000_000, 1_000_000],
     },
     usdcx: {
-      id: '6066728251858600342700806646539409753846149537378370966005549823841603389494field',
-      reserves: [2_000_000, 2_000_000],
+      id: '4272505381541829772121013816865257197231947507909388371821957605106869138124field',
+      reserves: [1_000_000, 1_000_000],
     },
   },
   ETH: {
     aleo: {
-      id: '8292926655901621437805687927045387826605222498023779464600572253470472422042field',
+      id: '2985899309493287288033109462171337384878765389403150014680153091857858070707field',
       reserves: [1_000_000, 1_000_000],
     },
     usdcx: {
-      id: '7022657257321819297207938773900392153922045789642273474510137796309875038910field',
-      reserves: [2_000_000, 2_000_000],
+      id: '4852943562597258903747171372224887618868232466193807856465246683075526845657field',
+      reserves: [1_000_000, 1_000_000],
     },
   },
   ALEO: {
     aleo: {
-      id: '875462563816638972930909946596281093653347951171132855649321634026236611657field',
+      id: '7209234236981629163723310973365078776830204734745925629370880472855317936451field',
       reserves: [1_000_000, 1_000_000],
     },
     usdcx: {
-      id: '413067812168342966855392966668324178189004844866130452902307116022507222212field',
-      reserves: [2_000_000, 2_000_000],
+      id: '7065470738032358578092482552162988342737541647713361902926285601518107221702field',
+      reserves: [1_000_000, 1_000_000],
     },
   },
 };
@@ -90,6 +90,7 @@ function RoundCard({ round }: { round: LightningRound }) {
   // Get live reserves from store for this asset's market (based on selected token)
   const assetMarkets = ASSET_MARKET_MAP[round.asset];
   const chainMarket = assetMarkets?.[tokenType];
+  const hasUsdcxMarket = !!assetMarkets?.usdcx?.id;
   const liveMarket = allMarkets.find((m) => m.id === chainMarket?.id);
   const liveReserves = liveMarket?.reserves ?? chainMarket?.reserves ?? [2_000_000, 2_000_000];
 
@@ -211,6 +212,7 @@ function RoundCard({ round }: { round: LightningRound }) {
           <div className="mb-3">
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs text-gray-500">Token</label>
+              {hasUsdcxMarket && (
               <div className="flex rounded-lg border border-dark-400/50 overflow-hidden">
                 <button
                   onClick={() => setTokenType('aleo')}
@@ -233,6 +235,7 @@ function RoundCard({ round }: { round: LightningRound }) {
                   USDCx
                 </button>
               </div>
+              )}
             </div>
             <label className="text-xs text-gray-500 mb-1 block">Amount ({tokenLabel})</label>
             <div className="flex gap-2">

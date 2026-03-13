@@ -12,7 +12,7 @@ echo ""
 
 # Build Leo contract
 echo "[1/3] Building Leo contract..."
-cd "$ROOT_DIR/contract/veil_strike_v2"
+cd "$ROOT_DIR/contract/veil_strike_v3"
 leo build
 echo "  ✓ Contract built"
 

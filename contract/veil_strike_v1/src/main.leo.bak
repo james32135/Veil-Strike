@@ -1,0 +1,1308 @@
+// ============================================================================
+// VEIL STRIKE v1 — Privacy-First Prediction Market Protocol on Aleo
+// ============================================================================
+// FPMM (Fixed Product Market Maker) with complete-set minting/burning.
+// Privacy-first: ALL bets, sells, redemptions, refunds use private records.
+// Supports 2-5 outcome markets, lightning rounds, prediction pools, ZK streaks.
+//
+// PRIVACY MODEL:
+//   - NO user addresses passed to finalize functions (except admin verification)
+//   - All deposits via transfer_private_to_public (hides depositor)
+//   - All payouts via transfer_public_to_private (hides recipient)
+//   - Market ID derived from nonce hash only (no creator address linkage)
+//
+// FPMM MATH:
+//   Buy:  shares_out = (r_i + a) - r_i * prod(r_k/(r_k+a)) for active k!=i
+//   Sell: r_i_new = r_i * prod(r_k/(r_k-p)), shares_needed = r_i_new - r_i + p
+//   Fees: 0.5% protocol + 0.5% creator + 1% LP = 2% total
+//
+// 20 transitions total.
+// ============================================================================
+
+import credits.aleo;
+
+program veil_strike_v1.aleo {
+
+    // ========================================================================
+    // CONSTANTS
+    // ========================================================================
+
+    const PRECISION: u64 = 1_000_000u64;
+    const FEE_PROTOCOL: u64 = 5_000u64;       // 0.5%
+    const FEE_CREATOR: u64 = 5_000u64;        // 0.5%
+    const FEE_LP: u64 = 10_000u64;            // 1.0%
+    const FEE_TOTAL: u64 = 20_000u64;         // 2.0%
+    const MIN_LIQUIDITY: u64 = 1_000_000u64;  // 1 ALEO minimum
+    const MIN_TRADE: u64 = 1_000u64;          // 0.001 ALEO minimum trade
+    const MIN_DISPUTE_BOND: u64 = 1_000_000u64; // 1 ALEO bond
+    const CHALLENGE_WINDOW: u64 = 2880u64;    // ~12 hours at 15s blocks
+
+    const STATUS_ACTIVE: u8 = 0u8;
+    const STATUS_CLOSED: u8 = 1u8;
+    const STATUS_RESOLVED: u8 = 2u8;
+    const STATUS_FINALIZED: u8 = 3u8;
+    const STATUS_CANCELLED: u8 = 4u8;
+    const STATUS_DISPUTED: u8 = 5u8;
+
+    const MARKET_EVENT: u8 = 0u8;
+    const MARKET_LIGHTNING: u8 = 1u8;
+
+    const TOKEN_ALEO: u8 = 0u8;
+
+    // ========================================================================
+    // RECORDS
+    // ========================================================================
+
+    record SharePosition {
+        owner: address,
+        market_id: field,
+        outcome_index: u8,
+        share_amount: u64,
+        entry_price: u64,
+        token_type: u8,
+        is_lightning: bool,
+    }
+
+    record PoolMembership {
+        owner: address,
+        pool_id: field,
+        deposit_amount: u64,
+        pool_share_pct: u64,
+        token_type: u8,
+    }
+
+    record LPReceipt {
+        owner: address,
+        market_id: field,
+        liquidity_amount: u64,
+        token_type: u8,
+    }
+
+    record WinReceipt {
+        owner: address,
+        market_id: field,
+        payout_amount: u64,
+        token_type: u8,
+    }
+
+    record RefundReceipt {
+        owner: address,
+        market_id: field,
+        refund_amount: u64,
+    }
+
+    record StreakRecord {
+        owner: address,
+        consecutive_wins: u64,
+        total_bets: u64,
+        total_wins: u64,
+        last_market_id: field,
+    }
+
+    record DisputeBond {
+        owner: address,
+        market_id: field,
+        bond_amount: u64,
+        proposed_outcome: u8,
+    }
+
+    // ========================================================================
+    // STRUCTS (for hashing)
+    // ========================================================================
+
+    struct MarketNonce {
+        nonce: field,
+    }
+
+    struct PoolNonce {
+        nonce: field,
+    }
+
+    // ========================================================================
+    // MAPPINGS
+    // ========================================================================
+
+    // Market metadata
+    mapping markets: field => u64;
+    mapping market_status: field => u8;
+    mapping market_outcomes: field => u8;
+    mapping market_type: field => u8;
+    mapping market_token: field => u8;
+    mapping market_deadline: field => u64;
+    mapping market_resolution_outcome: field => u8;
+
+    // FPMM reserves per outcome slot
+    mapping reserve_0: field => u64;
+    mapping reserve_1: field => u64;
+    mapping reserve_2: field => u64;
+    mapping reserve_3: field => u64;
+    mapping reserve_4: field => u64;
+
+    // Total shares minted per outcome
+    mapping total_shares_0: field => u64;
+    mapping total_shares_1: field => u64;
+    mapping total_shares_2: field => u64;
+    mapping total_shares_3: field => u64;
+    mapping total_shares_4: field => u64;
+
+    // Market stats
+    mapping market_liquidity: field => u64;
+    mapping market_volume: field => u64;
+    mapping market_trade_count: field => u64;
+
+    // Fees
+    mapping protocol_fees: field => u64;
+    mapping creator_fees: field => u64;
+
+    // Oracle
+    mapping oracle_btc_price: field => u64;
+    mapping oracle_eth_price: field => u64;
+    mapping oracle_aleo_price: field => u64;
+    mapping oracle_last_update: field => u64;
+
+    // Lightning market specifics
+    mapping lightning_target_price: field => u64;
+    mapping lightning_asset: field => u8;
+    mapping lightning_direction: field => u8;
+
+    // Protocol state
+    mapping protocol_admin: field => address;
+    mapping total_markets: field => u64;
+    mapping total_volume: field => u64;
+    mapping active_market_count: field => u64;
+
+    // Pool mappings
+    mapping pool_market: field => field;
+    mapping pool_outcome: field => u8;
+    mapping pool_total: field => u64;
+    mapping pool_member_count: field => u64;
+    mapping pool_status: field => u8;
+
+    // Nonces
+    mapping used_nonces: field => bool;
+
+    // ========================================================================
+    // 1. INITIALIZE
+    // ========================================================================
+
+    async transition initialize(
+        admin: address,
+        btc_price: u64,
+        eth_price: u64,
+        aleo_price: u64
+    ) -> Future {
+        return finalize_initialize(admin, btc_price, eth_price, aleo_price);
+    }
+
+    async function finalize_initialize(
+        admin: address,
+        btc_price: u64,
+        eth_price: u64,
+        aleo_price: u64
+    ) {
+        let exists: bool = protocol_admin.contains(1field);
+        assert(!exists);
+
+        protocol_admin.set(1field, admin);
+        oracle_btc_price.set(1field, btc_price);
+        oracle_eth_price.set(1field, eth_price);
+        oracle_aleo_price.set(1field, aleo_price);
+        oracle_last_update.set(1field, block.height as u64);
+        total_markets.set(1field, 0u64);
+        total_volume.set(1field, 0u64);
+        active_market_count.set(1field, 0u64);
+        protocol_fees.set(1field, 0u64);
+    }
+
+    // ========================================================================
+    // 2. UPDATE ORACLE PRICES (admin only)
+    // ========================================================================
+
+    async transition update_oracle_prices(
+        btc: u64,
+        eth: u64,
+        aleo: u64
+    ) -> Future {
+        return finalize_update_oracle(self.signer, btc, eth, aleo);
+    }
+
+    async function finalize_update_oracle(
+        caller: address,
+        btc: u64,
+        eth: u64,
+        aleo: u64
+    ) {
+        let admin: address = protocol_admin.get(1field);
+        assert_eq(caller, admin);
+
+        oracle_btc_price.set(1field, btc);
+        oracle_eth_price.set(1field, eth);
+        oracle_aleo_price.set(1field, aleo);
+        oracle_last_update.set(1field, block.height as u64);
+    }
+
+    // ========================================================================
+    // 3. CREATE EVENT MARKET
+    // ========================================================================
+    // PRIVACY: Creator address NOT passed to finalize.
+
+    async transition create_event_market(
+        payment: credits.aleo/credits,
+        initial_liquidity: u64,
+        num_outcomes: u8,
+        deadline: u64,
+        market_nonce: field
+    ) -> (LPReceipt, credits.aleo/credits, Future) {
+        assert(num_outcomes >= 2u8 && num_outcomes <= 5u8);
+        assert(initial_liquidity >= MIN_LIQUIDITY);
+
+        let market_id: field = BHP256::hash_to_field(MarketNonce { nonce: market_nonce });
+
+        let receipt: LPReceipt = LPReceipt {
+            owner: self.caller,
+            market_id: market_id,
+            liquidity_amount: initial_liquidity,
+            token_type: TOKEN_ALEO,
+        };
+
+        let (change, transfer_future): (credits.aleo/credits, Future) =
+            credits.aleo/transfer_private_to_public(payment, self.address, initial_liquidity);
+
+        return (receipt, change, finalize_create_event(
+            transfer_future,
+            market_id,
+            initial_liquidity,
+            num_outcomes,
+            deadline
+        ));
+    }
+
+    async function finalize_create_event(
+        transfer_future: Future,
+        market_id: field,
+        initial_liquidity: u64,
+        num_outcomes: u8,
+        deadline: u64
+    ) {
+        transfer_future.await();
+
+        let exists: bool = markets.contains(market_id);
+        assert(!exists);
+
+        let current_height: u64 = block.height as u64;
+        assert(deadline > current_height);
+
+        markets.set(market_id, 1u64);
+        market_status.set(market_id, STATUS_ACTIVE);
+        market_outcomes.set(market_id, num_outcomes);
+        market_type.set(market_id, MARKET_EVENT);
+        market_token.set(market_id, TOKEN_ALEO);
+        market_deadline.set(market_id, deadline);
+
+        let per_outcome: u64 = initial_liquidity / (num_outcomes as u64);
+        reserve_0.set(market_id, per_outcome);
+        reserve_1.set(market_id, per_outcome);
+        let r2: u64 = num_outcomes >= 3u8 ? per_outcome : 0u64;
+        let r3: u64 = num_outcomes >= 4u8 ? per_outcome : 0u64;
+        let r4: u64 = num_outcomes >= 5u8 ? per_outcome : 0u64;
+        reserve_2.set(market_id, r2);
+        reserve_3.set(market_id, r3);
+        reserve_4.set(market_id, r4);
+
+        total_shares_0.set(market_id, per_outcome);
+        total_shares_1.set(market_id, per_outcome);
+        total_shares_2.set(market_id, r2);
+        total_shares_3.set(market_id, r3);
+        total_shares_4.set(market_id, r4);
+
+        market_liquidity.set(market_id, initial_liquidity);
+        market_volume.set(market_id, 0u64);
+        market_trade_count.set(market_id, 0u64);
+        creator_fees.set(market_id, 0u64);
+
+        let ct: u64 = total_markets.get_or_use(1field, 0u64);
+        total_markets.set(1field, ct + 1u64);
+        let ca: u64 = active_market_count.get_or_use(1field, 0u64);
+        active_market_count.set(1field, ca + 1u64);
+    }
+
+    // ========================================================================
+    // 4. CREATE LIGHTNING MARKET
+    // ========================================================================
+
+    async transition create_lightning_market(
+        payment: credits.aleo/credits,
+        initial_liquidity: u64,
+        asset: u8,
+        target_price: u64,
+        duration: u64,
+        market_nonce: field
+    ) -> (LPReceipt, credits.aleo/credits, Future) {
+        assert(initial_liquidity >= MIN_LIQUIDITY);
+        assert(asset <= 1u8);
+
+        let market_id: field = BHP256::hash_to_field(MarketNonce { nonce: market_nonce });
+
+        let receipt: LPReceipt = LPReceipt {
+            owner: self.caller,
+            market_id: market_id,
+            liquidity_amount: initial_liquidity,
+            token_type: TOKEN_ALEO,
+        };
+
+        let (change, transfer_future): (credits.aleo/credits, Future) =
+            credits.aleo/transfer_private_to_public(payment, self.address, initial_liquidity);
+
+        return (receipt, change, finalize_create_lightning(
+            transfer_future,
+            market_id,
+            initial_liquidity,
+            asset,
+            target_price,
+            duration
+        ));
+    }
+
+    async function finalize_create_lightning(
+        transfer_future: Future,
+        market_id: field,
+        initial_liquidity: u64,
+        asset: u8,
+        target_price: u64,
+        duration: u64
+    ) {
+        transfer_future.await();
+
+        let exists: bool = markets.contains(market_id);
+        assert(!exists);
+
+        let current_height: u64 = block.height as u64;
+        let deadline: u64 = current_height + duration;
+
+        markets.set(market_id, 1u64);
+        market_status.set(market_id, STATUS_ACTIVE);
+        market_outcomes.set(market_id, 2u8);
+        market_type.set(market_id, MARKET_LIGHTNING);
+        market_token.set(market_id, TOKEN_ALEO);
+        market_deadline.set(market_id, deadline);
+
+        lightning_target_price.set(market_id, target_price);
+        lightning_asset.set(market_id, asset);
+        lightning_direction.set(market_id, 0u8);
+
+        let per_outcome: u64 = initial_liquidity / 2u64;
+        reserve_0.set(market_id, per_outcome);
+        reserve_1.set(market_id, per_outcome);
+        reserve_2.set(market_id, 0u64);
+        reserve_3.set(market_id, 0u64);
+        reserve_4.set(market_id, 0u64);
+
+        total_shares_0.set(market_id, per_outcome);
+        total_shares_1.set(market_id, per_outcome);
+        total_shares_2.set(market_id, 0u64);
+        total_shares_3.set(market_id, 0u64);
+        total_shares_4.set(market_id, 0u64);
+
+        market_liquidity.set(market_id, initial_liquidity);
+        market_volume.set(market_id, 0u64);
+        market_trade_count.set(market_id, 0u64);
+        creator_fees.set(market_id, 0u64);
+
+        let ct: u64 = total_markets.get_or_use(1field, 0u64);
+        total_markets.set(1field, ct + 1u64);
+        let ca: u64 = active_market_count.get_or_use(1field, 0u64);
+        active_market_count.set(1field, ca + 1u64);
+    }
+
+    // ========================================================================
+    // 5. BUY SHARES (PRIVATE)
+    // ========================================================================
+    // FPMM complete-set minting. Frontend pre-computes expected_shares from
+    // current reserves. Finalize validates shares_out >= min_shares.
+    // PRIVACY: NO buyer address passed to finalize.
+
+    async transition buy_shares_private(
+        payment: credits.aleo/credits,
+        amount: u64,
+        market_id: field,
+        outcome: u8,
+        expected_shares: u64,
+        min_shares: u64,
+        nonce: field
+    ) -> (SharePosition, credits.aleo/credits, Future) {
+        assert(amount >= MIN_TRADE);
+        assert(outcome <= 4u8);
+        assert(expected_shares > 0u64);
+
+        let entry: u64 = (amount * PRECISION) / expected_shares;
+
+        let position: SharePosition = SharePosition {
+            owner: self.caller,
+            market_id: market_id,
+            outcome_index: outcome,
+            share_amount: expected_shares,
+            entry_price: entry,
+            token_type: TOKEN_ALEO,
+            is_lightning: false,
+        };
+
+        let (change, transfer_future): (credits.aleo/credits, Future) =
+            credits.aleo/transfer_private_to_public(payment, self.address, amount);
+
+        return (position, change, finalize_buy_shares(
+            transfer_future,
+            market_id,
+            outcome,
+            amount,
+            expected_shares,
+            min_shares,
+            nonce
+        ));
+    }
+
+    async function finalize_buy_shares(
+        transfer_future: Future,
+        market_id: field,
+        outcome: u8,
+        amount: u64,
+        expected_shares: u64,
+        min_shares: u64,
+        nonce: field
+    ) {
+        transfer_future.await();
+
+        let nonce_used: bool = used_nonces.get_or_use(nonce, false);
+        assert(!nonce_used);
+        used_nonces.set(nonce, true);
+
+        let status: u8 = market_status.get(market_id);
+        assert_eq(status, STATUS_ACTIVE);
+
+        let deadline: u64 = market_deadline.get(market_id);
+        let current_height: u64 = block.height as u64;
+        assert(current_height <= deadline);
+
+        let num_outcomes: u8 = market_outcomes.get(market_id);
+        assert(outcome < num_outcomes);
+
+        // Calculate fees — protocol + creator deducted, LP fee stays in pool
+        let protocol_fee: u64 = amount * FEE_PROTOCOL / PRECISION;
+        let creator_fee: u64 = amount * FEE_CREATOR / PRECISION;
+        let amount_to_pool: u64 = amount - protocol_fee - creator_fee;
+
+        // Get current reserves
+        let r0: u64 = reserve_0.get(market_id);
+        let r1: u64 = reserve_1.get(market_id);
+        let r2: u64 = reserve_2.get(market_id);
+        let r3: u64 = reserve_3.get(market_id);
+        let r4: u64 = reserve_4.get(market_id);
+
+        // Target reserve (outcome being purchased)
+        let r_i: u64 = outcome == 0u8 ? r0 :
+                       (outcome == 1u8 ? r1 :
+                       (outcome == 2u8 ? r2 :
+                       (outcome == 3u8 ? r3 : r4)));
+
+        let a: u128 = amount_to_pool as u128;
+
+        // FPMM step division: r_i_new = r_i * prod(r_k / (r_k + a))
+        // Uses u128 for intermediate math to prevent overflow
+        let step0: u128 = r_i as u128;
+
+        let step1: u128 = outcome != 0u8 ?
+            (step0 * (r0 as u128)) / ((r0 as u128) + a) : step0;
+
+        let step2: u128 = outcome != 1u8 ?
+            (step1 * (r1 as u128)) / ((r1 as u128) + a) : step1;
+
+        let apply3: bool = outcome != 2u8 && num_outcomes >= 3u8;
+        let step3: u128 = apply3 ?
+            (step2 * (r2 as u128)) / ((r2 as u128) + a) : step2;
+
+        let apply4: bool = outcome != 3u8 && num_outcomes >= 4u8;
+        let step4: u128 = apply4 ?
+            (step3 * (r3 as u128)) / ((r3 as u128) + a) : step3;
+
+        let apply5: bool = outcome != 4u8 && num_outcomes >= 5u8;
+        let step5: u128 = apply5 ?
+            (step4 * (r4 as u128)) / ((r4 as u128) + a) : step4;
+
+        let r_i_new: u64 = step5 as u64;
+        let shares_out_u128: u128 = ((r_i as u128) + a) - step5;
+        let shares_out: u64 = shares_out_u128 as u64;
+
+        assert(shares_out >= min_shares);
+        assert(shares_out >= expected_shares);
+        assert(shares_out > 0u64);
+
+        // Update reserves: non-target += amount_to_pool, target = r_i_new
+        let atp: u64 = amount_to_pool;
+        let new_r0: u64 = outcome == 0u8 ? r_i_new : (r0 + atp);
+        let new_r1: u64 = outcome == 1u8 ? r_i_new : (r1 + atp);
+        let nr2_act: u64 = outcome == 2u8 ? r_i_new : (r2 + atp);
+        let new_r2: u64 = num_outcomes >= 3u8 ? nr2_act : 0u64;
+        let nr3_act: u64 = outcome == 3u8 ? r_i_new : (r3 + atp);
+        let new_r3: u64 = num_outcomes >= 4u8 ? nr3_act : 0u64;
+        let nr4_act: u64 = outcome == 4u8 ? r_i_new : (r4 + atp);
+        let new_r4: u64 = num_outcomes >= 5u8 ? nr4_act : 0u64;
+
+        reserve_0.set(market_id, new_r0);
+        reserve_1.set(market_id, new_r1);
+        reserve_2.set(market_id, new_r2);
+        reserve_3.set(market_id, new_r3);
+        reserve_4.set(market_id, new_r4);
+
+        // Update total shares for purchased outcome
+        let ts: u64 = outcome == 0u8 ? total_shares_0.get(market_id) :
+                      (outcome == 1u8 ? total_shares_1.get(market_id) :
+                      (outcome == 2u8 ? total_shares_2.get(market_id) :
+                      (outcome == 3u8 ? total_shares_3.get(market_id) :
+                       total_shares_4.get(market_id))));
+        let new_ts: u64 = ts + shares_out;
+        let set_0: u64 = outcome == 0u8 ? new_ts : total_shares_0.get(market_id);
+        let set_1: u64 = outcome == 1u8 ? new_ts : total_shares_1.get(market_id);
+        let set_2: u64 = outcome == 2u8 ? new_ts : total_shares_2.get(market_id);
+        let set_3: u64 = outcome == 3u8 ? new_ts : total_shares_3.get(market_id);
+        let set_4: u64 = outcome == 4u8 ? new_ts : total_shares_4.get(market_id);
+        total_shares_0.set(market_id, set_0);
+        total_shares_1.set(market_id, set_1);
+        total_shares_2.set(market_id, set_2);
+        total_shares_3.set(market_id, set_3);
+        total_shares_4.set(market_id, set_4);
+
+        // Update stats
+        let vol: u64 = market_volume.get(market_id);
+        market_volume.set(market_id, vol + amount);
+        let tc: u64 = market_trade_count.get(market_id);
+        market_trade_count.set(market_id, tc + 1u64);
+        let ml: u64 = market_liquidity.get(market_id);
+        market_liquidity.set(market_id, ml + amount_to_pool);
+
+        let tv: u64 = total_volume.get_or_use(1field, 0u64);
+        total_volume.set(1field, tv + amount);
+
+        // Distribute fees
+        let pf: u64 = protocol_fees.get_or_use(1field, 0u64);
+        protocol_fees.set(1field, pf + protocol_fee);
+        let cf: u64 = creator_fees.get_or_use(market_id, 0u64);
+        creator_fees.set(market_id, cf + creator_fee);
+    }
+
+    // ========================================================================
+    // 6. SELL SHARES (tokens-desired approach, no sqrt)
+    // ========================================================================
+    // User specifies tokens_desired. Contract computes shares_needed.
+    // Returns remainder SharePosition with reduced share_amount.
+    // PRIVACY: Seller hidden via transfer_public_to_private.
+
+    async transition sell_shares(
+        position: SharePosition,
+        tokens_desired: u64,
+        max_shares_used: u64
+    ) -> (SharePosition, credits.aleo/credits, Future) {
+        assert(position.token_type == TOKEN_ALEO);
+        assert(tokens_desired >= MIN_TRADE);
+        assert(max_shares_used > 0u64);
+        assert(max_shares_used <= position.share_amount);
+
+        // Compute fees in transition (constants only)
+        let protocol_fee: u64 = tokens_desired * FEE_PROTOCOL / PRECISION;
+        let creator_fee: u64 = tokens_desired * FEE_CREATOR / PRECISION;
+        let lp_fee: u64 = tokens_desired * FEE_LP / PRECISION;
+        let net_tokens: u64 = tokens_desired - protocol_fee - creator_fee - lp_fee;
+
+        let (payout_record, transfer_future): (credits.aleo/credits, Future) =
+            credits.aleo/transfer_public_to_private(self.caller, net_tokens);
+
+        let remainder: SharePosition = SharePosition {
+            owner: self.caller,
+            market_id: position.market_id,
+            outcome_index: position.outcome_index,
+            share_amount: position.share_amount - max_shares_used,
+            entry_price: position.entry_price,
+            token_type: TOKEN_ALEO,
+            is_lightning: position.is_lightning,
+        };
+
+        return (remainder, payout_record, finalize_sell_shares(
+            transfer_future,
+            position.market_id,
+            position.outcome_index,
+            tokens_desired,
+            max_shares_used,
+            net_tokens
+        ));
+    }
+
+    async function finalize_sell_shares(
+        transfer_future: Future,
+        market_id: field,
+        outcome: u8,
+        tokens_desired: u64,
+        max_shares_used: u64,
+        net_tokens: u64
+    ) {
+        transfer_future.await();
+
+        let status: u8 = market_status.get(market_id);
+        assert_eq(status, STATUS_ACTIVE);
+
+        let deadline: u64 = market_deadline.get(market_id);
+        let current_height: u64 = block.height as u64;
+        assert(current_height <= deadline);
+
+        let num_outcomes: u8 = market_outcomes.get(market_id);
+        assert(outcome < num_outcomes);
+
+        // Recompute fees
+        let protocol_fee: u64 = tokens_desired * FEE_PROTOCOL / PRECISION;
+        let creator_fee: u64 = tokens_desired * FEE_CREATOR / PRECISION;
+        let lp_fee: u64 = tokens_desired * FEE_LP / PRECISION;
+        let pool_tokens_out: u64 = tokens_desired - lp_fee;
+
+        // Fee tracking
+        let pf: u64 = protocol_fees.get_or_use(1field, 0u64);
+        protocol_fees.set(1field, pf + protocol_fee);
+        let cf: u64 = creator_fees.get_or_use(market_id, 0u64);
+        creator_fees.set(market_id, cf + creator_fee);
+
+        // Get reserves
+        let r0: u64 = reserve_0.get(market_id);
+        let r1: u64 = reserve_1.get(market_id);
+        let r2: u64 = reserve_2.get(market_id);
+        let r3: u64 = reserve_3.get(market_id);
+        let r4: u64 = reserve_4.get(market_id);
+
+        let r_i: u64 = outcome == 0u8 ? r0 :
+                       (outcome == 1u8 ? r1 :
+                       (outcome == 2u8 ? r2 :
+                       (outcome == 3u8 ? r3 : r4)));
+
+        let p: u128 = pool_tokens_out as u128;
+
+        // FPMM sell: r_i_new = r_i * prod(r_k / (r_k - p)) for active k != i
+        // Safe subtraction guards prevent underflow
+        let sub0: u64 = outcome != 0u8 ? pool_tokens_out : 0u64;
+        assert(r0 >= sub0);
+        let den0: u128 = (r0 - sub0) as u128;
+        let safe_den0: u128 = den0 == 0u128 ? 1u128 : den0;
+        let step0: u128 = r_i as u128;
+        let step1: u128 = outcome != 0u8 ?
+            (step0 * (r0 as u128)) / safe_den0 : step0;
+
+        let sub1: u64 = outcome != 1u8 ? pool_tokens_out : 0u64;
+        assert(r1 >= sub1);
+        let den1: u128 = (r1 - sub1) as u128;
+        let safe_den1: u128 = den1 == 0u128 ? 1u128 : den1;
+        let step2: u128 = outcome != 1u8 ?
+            (step1 * (r1 as u128)) / safe_den1 : step1;
+
+        let apply3: bool = outcome != 2u8 && num_outcomes >= 3u8;
+        let sub2: u64 = apply3 ? pool_tokens_out : 0u64;
+        assert(r2 >= sub2);
+        let den2_raw: u128 = (r2 - sub2) as u128;
+        let safe_den2: u128 = den2_raw == 0u128 ? 1u128 : den2_raw;
+        let step3: u128 = apply3 ?
+            (step2 * (r2 as u128)) / safe_den2 : step2;
+
+        let apply4: bool = outcome != 3u8 && num_outcomes >= 4u8;
+        let sub3: u64 = apply4 ? pool_tokens_out : 0u64;
+        assert(r3 >= sub3);
+        let den3_raw: u128 = (r3 - sub3) as u128;
+        let safe_den3: u128 = den3_raw == 0u128 ? 1u128 : den3_raw;
+        let step4: u128 = apply4 ?
+            (step3 * (r3 as u128)) / safe_den3 : step3;
+
+        let apply5: bool = outcome != 4u8 && num_outcomes >= 5u8;
+        let sub4: u64 = apply5 ? pool_tokens_out : 0u64;
+        assert(r4 >= sub4);
+        let den4_raw: u128 = (r4 - sub4) as u128;
+        let safe_den4: u128 = den4_raw == 0u128 ? 1u128 : den4_raw;
+        let step5: u128 = apply5 ?
+            (step4 * (r4 as u128)) / safe_den4 : step4;
+
+        let r_i_new: u64 = step5 as u64;
+        let shares_needed_u128: u128 = step5 - (r_i as u128) + p;
+        let shares_needed: u64 = shares_needed_u128 as u64;
+        assert(shares_needed <= max_shares_used);
+        assert(shares_needed > 0u64);
+
+        // Reserve update: non-target -= pool_tokens_out, target = r_i_new
+        let new_r0: u64 = outcome == 0u8 ? r_i_new : (r0 - sub0);
+        let new_r1: u64 = outcome == 1u8 ? r_i_new : (r1 - sub1);
+        let nr2_act: u64 = outcome == 2u8 ? r_i_new : (r2 - sub2);
+        let new_r2: u64 = num_outcomes >= 3u8 ? nr2_act : 0u64;
+        let nr3_act: u64 = outcome == 3u8 ? r_i_new : (r3 - sub3);
+        let new_r3: u64 = num_outcomes >= 4u8 ? nr3_act : 0u64;
+        let nr4_act: u64 = outcome == 4u8 ? r_i_new : (r4 - sub4);
+        let new_r4: u64 = num_outcomes >= 5u8 ? nr4_act : 0u64;
+
+        reserve_0.set(market_id, new_r0);
+        reserve_1.set(market_id, new_r1);
+        reserve_2.set(market_id, new_r2);
+        reserve_3.set(market_id, new_r3);
+        reserve_4.set(market_id, new_r4);
+
+        // Update stats
+        let vol: u64 = market_volume.get(market_id);
+        market_volume.set(market_id, vol + tokens_desired);
+        let ml: u64 = market_liquidity.get(market_id);
+        let capped_out: u64 = pool_tokens_out <= ml ? pool_tokens_out : ml;
+        market_liquidity.set(market_id, ml - capped_out);
+        let tv: u64 = total_volume.get_or_use(1field, 0u64);
+        total_volume.set(1field, tv + tokens_desired);
+    }
+
+    // ========================================================================
+    // 7. ADD LIQUIDITY
+    // ========================================================================
+    // PRIVACY: NO LP address passed to finalize.
+
+    async transition add_liquidity(
+        payment: credits.aleo/credits,
+        amount: u64,
+        market_id: field,
+        nonce: field
+    ) -> (LPReceipt, credits.aleo/credits, Future) {
+        assert(amount >= MIN_LIQUIDITY);
+
+        let receipt: LPReceipt = LPReceipt {
+            owner: self.caller,
+            market_id: market_id,
+            liquidity_amount: amount,
+            token_type: TOKEN_ALEO,
+        };
+
+        let (change, transfer_future): (credits.aleo/credits, Future) =
+            credits.aleo/transfer_private_to_public(payment, self.address, amount);
+
+        return (receipt, change, finalize_add_liquidity(
+            transfer_future,
+            market_id,
+            amount,
+            nonce
+        ));
+    }
+
+    async function finalize_add_liquidity(
+        transfer_future: Future,
+        market_id: field,
+        amount: u64,
+        nonce: field
+    ) {
+        transfer_future.await();
+
+        let nonce_used: bool = used_nonces.get_or_use(nonce, false);
+        assert(!nonce_used);
+        used_nonces.set(nonce, true);
+
+        let status: u8 = market_status.get(market_id);
+        assert_eq(status, STATUS_ACTIVE);
+
+        let deadline: u64 = market_deadline.get(market_id);
+        let current_height: u64 = block.height as u64;
+        assert(current_height <= deadline);
+
+        let num_outcomes: u8 = market_outcomes.get(market_id);
+
+        // Get current reserves
+        let r0: u64 = reserve_0.get(market_id);
+        let r1: u64 = reserve_1.get(market_id);
+        let r2: u64 = reserve_2.get(market_id);
+        let r3: u64 = reserve_3.get(market_id);
+        let r4: u64 = reserve_4.get(market_id);
+
+        let total_reserves: u128 = (r0 as u128) + (r1 as u128) + (r2 as u128)
+                                 + (r3 as u128) + (r4 as u128);
+        assert(total_reserves > 0u128);
+
+        // Add proportionally to all reserves
+        let a128: u128 = amount as u128;
+        let add_0: u64 = ((a128 * (r0 as u128)) / total_reserves) as u64;
+        let add_1: u64 = ((a128 * (r1 as u128)) / total_reserves) as u64;
+        let add_2: u64 = ((a128 * (r2 as u128)) / total_reserves) as u64;
+        let add_3: u64 = ((a128 * (r3 as u128)) / total_reserves) as u64;
+        let add_4: u64 = amount - add_0 - add_1 - add_2 - add_3;
+
+        reserve_0.set(market_id, r0 + add_0);
+        reserve_1.set(market_id, r1 + add_1);
+        reserve_2.set(market_id, r2 + add_2);
+        reserve_3.set(market_id, r3 + add_3);
+        reserve_4.set(market_id, r4 + add_4);
+
+        let ml: u64 = market_liquidity.get(market_id);
+        market_liquidity.set(market_id, ml + amount);
+    }
+
+    // ========================================================================
+    // 8. REMOVE LIQUIDITY
+    // ========================================================================
+
+    async transition remove_liquidity(
+        lp_receipt: LPReceipt
+    ) -> (credits.aleo/credits, Future) {
+        assert(lp_receipt.token_type == TOKEN_ALEO);
+        assert(lp_receipt.liquidity_amount > 0u64);
+
+        let (payout, transfer_future): (credits.aleo/credits, Future) =
+            credits.aleo/transfer_public_to_private(self.caller, lp_receipt.liquidity_amount);
+
+        return (payout, finalize_remove_liquidity(
+            transfer_future,
+            lp_receipt.market_id,
+            lp_receipt.liquidity_amount
+        ));
+    }
+
+    async function finalize_remove_liquidity(
+        transfer_future: Future,
+        market_id: field,
+        amount: u64
+    ) {
+        transfer_future.await();
+
+        let status: u8 = market_status.get(market_id);
+        let is_resolved: bool = status == STATUS_FINALIZED;
+        let is_cancelled: bool = status == STATUS_CANCELLED;
+        assert(is_resolved || is_cancelled);
+
+        let ml: u64 = market_liquidity.get(market_id);
+        let capped: u64 = amount <= ml ? amount : ml;
+        market_liquidity.set(market_id, ml - capped);
+    }
+
+    // ========================================================================
+    // 9. CLOSE MARKET
+    // ========================================================================
+
+    async transition close_market(market_id: field) -> Future {
+        return finalize_close_market(market_id, self.signer);
+    }
+
+    async function finalize_close_market(
+        market_id: field,
+        caller: address
+    ) {
+        let admin: address = protocol_admin.get(1field);
+        assert_eq(caller, admin);
+
+        let status: u8 = market_status.get(market_id);
+        assert_eq(status, STATUS_ACTIVE);
+
+        market_status.set(market_id, STATUS_CLOSED);
+
+        let ca: u64 = active_market_count.get_or_use(1field, 0u64);
+        let new_ca: u64 = ca > 0u64 ? ca - 1u64 : 0u64;
+        active_market_count.set(1field, new_ca);
+    }
+
+    // ========================================================================
+    // 10. RESOLVE MARKET
+    // ========================================================================
+
+    async transition resolve_market(
+        market_id: field,
+        winning_outcome: u8
+    ) -> Future {
+        return finalize_resolve_market(market_id, winning_outcome, self.signer);
+    }
+
+    async function finalize_resolve_market(
+        market_id: field,
+        winning_outcome: u8,
+        caller: address
+    ) {
+        let admin: address = protocol_admin.get(1field);
+        assert_eq(caller, admin);
+
+        let num_outcomes: u8 = market_outcomes.get(market_id);
+        assert(winning_outcome < num_outcomes);
+
+        let status: u8 = market_status.get(market_id);
+        let is_active: bool = status == STATUS_ACTIVE;
+        let is_closed: bool = status == STATUS_CLOSED;
+        assert(is_active || is_closed);
+
+        market_resolution_outcome.set(market_id, winning_outcome);
+        market_status.set(market_id, STATUS_RESOLVED);
+
+        let ca: u64 = active_market_count.get_or_use(1field, 0u64);
+        let should_dec: bool = is_active && ca > 0u64;
+        let new_ca: u64 = should_dec ? ca - 1u64 : ca;
+        active_market_count.set(1field, new_ca);
+    }
+
+    // ========================================================================
+    // 11. RESOLVE LIGHTNING
+    // ========================================================================
+
+    async transition resolve_lightning(
+        market_id: field,
+        final_price: u64
+    ) -> Future {
+        return finalize_resolve_lightning(market_id, final_price, self.signer);
+    }
+
+    async function finalize_resolve_lightning(
+        market_id: field,
+        final_price: u64,
+        caller: address
+    ) {
+        let admin: address = protocol_admin.get(1field);
+        assert_eq(caller, admin);
+
+        let status: u8 = market_status.get(market_id);
+        assert_eq(status, STATUS_ACTIVE);
+
+        let mtype: u8 = market_type.get(market_id);
+        assert_eq(mtype, MARKET_LIGHTNING);
+
+        let target: u64 = lightning_target_price.get(market_id);
+
+        // outcome 0 = ABOVE target, outcome 1 = BELOW target
+        let winning: u8 = final_price >= target ? 0u8 : 1u8;
+
+        market_resolution_outcome.set(market_id, winning);
+        market_status.set(market_id, STATUS_RESOLVED);
+
+        let ca: u64 = active_market_count.get_or_use(1field, 0u64);
+        let new_ca: u64 = ca > 0u64 ? ca - 1u64 : 0u64;
+        active_market_count.set(1field, new_ca);
+    }
+
+    // ========================================================================
+    // 12. FINALIZE MARKET
+    // ========================================================================
+
+    async transition finalize_market(market_id: field) -> Future {
+        return finalize_finalize_market(market_id);
+    }
+
+    async function finalize_finalize_market(market_id: field) {
+        let status: u8 = market_status.get(market_id);
+        assert_eq(status, STATUS_RESOLVED);
+
+        market_status.set(market_id, STATUS_FINALIZED);
+    }
+
+    // ========================================================================
+    // 13. DISPUTE RESOLUTION
+    // ========================================================================
+    // PRIVACY: Disputer hidden.
+
+    async transition dispute_resolution(
+        bond_payment: credits.aleo/credits,
+        market_id: field,
+        proposed_outcome: u8,
+        nonce: field
+    ) -> (DisputeBond, credits.aleo/credits, Future) {
+        let bond: DisputeBond = DisputeBond {
+            owner: self.caller,
+            market_id: market_id,
+            bond_amount: MIN_DISPUTE_BOND,
+            proposed_outcome: proposed_outcome,
+        };
+
+        let (change, transfer_future): (credits.aleo/credits, Future) =
+            credits.aleo/transfer_private_to_public(bond_payment, self.address, MIN_DISPUTE_BOND);
+
+        return (bond, change, finalize_dispute(
+            transfer_future,
+            market_id,
+            proposed_outcome,
+            nonce
+        ));
+    }
+
+    async function finalize_dispute(
+        transfer_future: Future,
+        market_id: field,
+        proposed_outcome: u8,
+        nonce: field
+    ) {
+        transfer_future.await();
+
+        let nonce_used: bool = used_nonces.get_or_use(nonce, false);
+        assert(!nonce_used);
+        used_nonces.set(nonce, true);
+
+        let status: u8 = market_status.get(market_id);
+        assert_eq(status, STATUS_RESOLVED);
+
+        let current_outcome: u8 = market_resolution_outcome.get(market_id);
+        assert(proposed_outcome != current_outcome);
+
+        let num_outcomes: u8 = market_outcomes.get(market_id);
+        assert(proposed_outcome < num_outcomes);
+
+        market_status.set(market_id, STATUS_DISPUTED);
+    }
+
+    // ========================================================================
+    // 14. REDEEM SHARES (winning positions)
+    // ========================================================================
+    // PRIVACY: Winner hidden via transfer_public_to_private.
+
+    async transition redeem_shares(
+        position: SharePosition
+    ) -> (WinReceipt, credits.aleo/credits, Future) {
+        assert(position.token_type == TOKEN_ALEO);
+        assert(position.share_amount > 0u64);
+
+        let win: WinReceipt = WinReceipt {
+            owner: self.caller,
+            market_id: position.market_id,
+            payout_amount: position.share_amount,
+            token_type: TOKEN_ALEO,
+        };
+
+        let (payout, transfer_future): (credits.aleo/credits, Future) =
+            credits.aleo/transfer_public_to_private(self.caller, position.share_amount);
+
+        return (win, payout, finalize_redeem(
+            transfer_future,
+            position.market_id,
+            position.outcome_index,
+            position.share_amount
+        ));
+    }
+
+    async function finalize_redeem(
+        transfer_future: Future,
+        market_id: field,
+        outcome: u8,
+        amount: u64
+    ) {
+        transfer_future.await();
+
+        let status: u8 = market_status.get(market_id);
+        assert_eq(status, STATUS_FINALIZED);
+
+        let winning: u8 = market_resolution_outcome.get(market_id);
+        assert_eq(outcome, winning);
+    }
+
+    // ========================================================================
+    // 15. CLAIM REFUND (cancelled markets)
+    // ========================================================================
+
+    async transition claim_refund(
+        position: SharePosition
+    ) -> (RefundReceipt, credits.aleo/credits, Future) {
+        assert(position.token_type == TOKEN_ALEO);
+        assert(position.share_amount > 0u64);
+
+        let refund: RefundReceipt = RefundReceipt {
+            owner: self.caller,
+            market_id: position.market_id,
+            refund_amount: position.share_amount,
+        };
+
+        let (payout, transfer_future): (credits.aleo/credits, Future) =
+            credits.aleo/transfer_public_to_private(self.caller, position.share_amount);
+
+        return (refund, payout, finalize_claim_refund(
+            transfer_future,
+            position.market_id
+        ));
+    }
+
+    async function finalize_claim_refund(
+        transfer_future: Future,
+        market_id: field
+    ) {
+        transfer_future.await();
+
+        let status: u8 = market_status.get(market_id);
+        assert_eq(status, STATUS_CANCELLED);
+    }
+
+    // ========================================================================
+    // 16. CREATE POOL
+    // ========================================================================
+    // PRIVACY: Pool creator hidden.
+
+    async transition create_pool(
+        payment: credits.aleo/credits,
+        amount: u64,
+        market_id: field,
+        outcome: u8,
+        pool_nonce: field
+    ) -> (PoolMembership, credits.aleo/credits, Future) {
+        assert(amount >= MIN_TRADE);
+
+        let pool_id: field = BHP256::hash_to_field(PoolNonce { nonce: pool_nonce });
+
+        let membership: PoolMembership = PoolMembership {
+            owner: self.caller,
+            pool_id: pool_id,
+            deposit_amount: amount,
+            pool_share_pct: PRECISION,
+            token_type: TOKEN_ALEO,
+        };
+
+        let (change, transfer_future): (credits.aleo/credits, Future) =
+            credits.aleo/transfer_private_to_public(payment, self.address, amount);
+
+        return (membership, change, finalize_create_pool(
+            transfer_future,
+            pool_id,
+            market_id,
+            outcome,
+            amount
+        ));
+    }
+
+    async function finalize_create_pool(
+        transfer_future: Future,
+        pool_id: field,
+        market_id: field,
+        outcome: u8,
+        amount: u64
+    ) {
+        transfer_future.await();
+
+        let exists: bool = pool_market.contains(pool_id);
+        assert(!exists);
+
+        let status: u8 = market_status.get(market_id);
+        assert_eq(status, STATUS_ACTIVE);
+
+        let num_outcomes: u8 = market_outcomes.get(market_id);
+        assert(outcome < num_outcomes);
+
+        pool_market.set(pool_id, market_id);
+        pool_outcome.set(pool_id, outcome);
+        pool_total.set(pool_id, amount);
+        pool_member_count.set(pool_id, 1u64);
+        pool_status.set(pool_id, STATUS_ACTIVE);
+    }
+
+    // ========================================================================
+    // 17. JOIN POOL
+    // ========================================================================
+
+    async transition join_pool(
+        payment: credits.aleo/credits,
+        amount: u64,
+        pool_id: field,
+        nonce: field
+    ) -> (PoolMembership, credits.aleo/credits, Future) {
+        assert(amount >= MIN_TRADE);
+
+        let membership: PoolMembership = PoolMembership {
+            owner: self.caller,
+            pool_id: pool_id,
+            deposit_amount: amount,
+            pool_share_pct: 0u64,
+            token_type: TOKEN_ALEO,
+        };
+
+        let (change, transfer_future): (credits.aleo/credits, Future) =
+            credits.aleo/transfer_private_to_public(payment, self.address, amount);
+
+        return (membership, change, finalize_join_pool(
+            transfer_future,
+            pool_id,
+            amount,
+            nonce
+        ));
+    }
+
+    async function finalize_join_pool(
+        transfer_future: Future,
+        pool_id: field,
+        amount: u64,
+        nonce: field
+    ) {
+        transfer_future.await();
+
+        let nonce_used: bool = used_nonces.get_or_use(nonce, false);
+        assert(!nonce_used);
+        used_nonces.set(nonce, true);
+
+        let ps: u8 = pool_status.get(pool_id);
+        assert_eq(ps, STATUS_ACTIVE);
+
+        let current_total: u64 = pool_total.get(pool_id);
+        pool_total.set(pool_id, current_total + amount);
+
+        let mc: u64 = pool_member_count.get(pool_id);
+        pool_member_count.set(pool_id, mc + 1u64);
+    }
+
+    // ========================================================================
+    // 18. SETTLE POOL
+    // ========================================================================
+
+    async transition settle_pool(pool_id: field) -> Future {
+        return finalize_settle_pool(pool_id);
+    }
+
+    async function finalize_settle_pool(pool_id: field) {
+        let market_id: field = pool_market.get(pool_id);
+        let status: u8 = market_status.get(market_id);
+        assert_eq(status, STATUS_FINALIZED);
+
+        let winning: u8 = market_resolution_outcome.get(market_id);
+        let pool_out: u8 = pool_outcome.get(pool_id);
+
+        let new_status: u8 = winning == pool_out ? STATUS_FINALIZED : STATUS_CANCELLED;
+        pool_status.set(pool_id, new_status);
+    }
+
+    // ========================================================================
+    // 19. CLAIM POOL WINNINGS
+    // ========================================================================
+
+    async transition claim_pool_winnings(
+        membership: PoolMembership
+    ) -> (credits.aleo/credits, Future) {
+        assert(membership.deposit_amount > 0u64);
+
+        let (payout, transfer_future): (credits.aleo/credits, Future) =
+            credits.aleo/transfer_public_to_private(self.caller, membership.deposit_amount);
+
+        return (payout, finalize_claim_pool(
+            transfer_future,
+            membership.pool_id,
+            membership.deposit_amount
+        ));
+    }
+
+    async function finalize_claim_pool(
+        transfer_future: Future,
+        pool_id: field,
+        amount: u64
+    ) {
+        transfer_future.await();
+
+        let ps: u8 = pool_status.get(pool_id);
+        assert_eq(ps, STATUS_FINALIZED);
+
+        let current_total: u64 = pool_total.get(pool_id);
+        let capped: u64 = amount <= current_total ? amount : current_total;
+        pool_total.set(pool_id, current_total - capped);
+    }
+
+    // ========================================================================
+    // 20. UPDATE STREAK (pure transition, no finalize)
+    // ========================================================================
+
+    transition update_streak(
+        old_streak: StreakRecord,
+        win_receipt: WinReceipt
+    ) -> StreakRecord {
+        assert(old_streak.last_market_id != win_receipt.market_id);
+
+        let new_streak: StreakRecord = StreakRecord {
+            owner: self.caller,
+            consecutive_wins: old_streak.consecutive_wins + 1u64,
+            total_bets: old_streak.total_bets + 1u64,
+            total_wins: old_streak.total_wins + 1u64,
+            last_market_id: win_receipt.market_id,
+        };
+
+        return new_streak;
+    }
+}

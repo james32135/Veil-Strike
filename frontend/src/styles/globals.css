@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #1C2333 #06080F;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track {
+    background: #06080F;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: #1C2333;
+    border-radius: 3px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: #232B3D;
+  }
+
+  body {
+    background-color: #06080F;
+    color: #e2e8f0;
+    overflow-x: hidden;
+  }
+
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-dark-100/60 backdrop-blur-xl border border-dark-300/50 rounded-2xl;
+  }
+
+  .glass-card-hover {
+    @apply glass-card transition-all duration-300 hover:border-teal/30 hover:shadow-lg hover:shadow-teal/5;
+  }
+
+  .btn-primary {
+    @apply px-6 py-3 bg-teal text-dark font-heading font-semibold rounded-xl
+           transition-all duration-200 hover:bg-teal-400 active:scale-[0.98]
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 border border-dark-300 text-gray-300 font-heading font-medium rounded-xl
+           transition-all duration-200 hover:border-teal/40 hover:text-teal
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply px-4 py-2 text-gray-400 font-heading font-medium rounded-lg
+           transition-all duration-200 hover:text-teal hover:bg-dark-200/50;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 bg-dark-200 border border-dark-400 rounded-xl
+           text-white placeholder-gray-500 font-mono text-sm
+           focus:outline-none focus:border-teal/50 focus:ring-1 focus:ring-teal/20
+           transition-all duration-200;
+  }
+
+  .stat-value {
+    @apply font-mono text-2xl font-bold text-white tracking-tight;
+  }
+
+  .stat-label {
+    @apply text-xs text-gray-500 uppercase tracking-wider font-heading;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-teal {
+    @apply badge bg-teal/10 text-teal border border-teal/20;
+  }
+
+  .badge-green {
+    @apply badge bg-accent-green/10 text-accent-green border border-accent-green/20;
+  }
+
+  .badge-red {
+    @apply badge bg-accent-red/10 text-accent-red border border-accent-red/20;
+  }
+
+  .section-title {
+    @apply font-heading text-3xl md:text-4xl font-bold text-white;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-teal to-teal-300 bg-clip-text text-transparent;
+  }
+
+  .divider {
+    @apply border-t border-dark-300/50;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

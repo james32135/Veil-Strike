@@ -8,6 +8,10 @@
     scrollbar-color: #1C2333 #06080F;
   }
 
+  .font-heading {
+    font-optical-sizing: auto;
+  }
+
   *::-webkit-scrollbar {
     width: 6px;
     height: 6px;

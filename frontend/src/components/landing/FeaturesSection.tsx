@@ -10,7 +10,7 @@ const features = [
   {
     icon: <BoltIcon className="w-7 h-7" />,
     title: 'Lightning Markets',
-    description: '5 to 60-minute price prediction rounds with live oracle feeds. Fast, exciting, private.',
+    description: '5-minute price prediction rounds with live oracle feeds. Fast, exciting, and completely private.',
   },
   {
     icon: <LockIcon className="w-7 h-7" />,
@@ -19,8 +19,8 @@ const features = [
   },
   {
     icon: <ZKProofIcon className="w-7 h-7" />,
-    title: 'ZK Streaks',
-    description: 'Build winning streaks with on-chain proof of your track record. Compete on the leaderboard anonymously.',
+    title: 'Multi-Token Support',
+    description: 'Trade with both ALEO and USDCx stablecoin. Full privacy across multiple token types.',
   },
 ];
 

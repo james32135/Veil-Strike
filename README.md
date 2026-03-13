@@ -32,8 +32,8 @@ Veil Strike is a fully private prediction market protocol built on the Aleo bloc
 │     Oracle Service │ Market Resolver         │
 ├─────────────────────────────────────────────┤
 │               Aleo Blockchain                │
-│          veil_strike_v1.aleo                 │
-│    20 Transitions │ 7 Records │ ~40 Mappings │
+│          veil_strike_v2.aleo                 │
+│    24 Transitions │ 4 Records │ 9 Mappings   │
 └─────────────────────────────────────────────┘
 ```
 
@@ -61,7 +61,7 @@ cd backend && npm install && cd ..
 ### 2. Build the Smart Contract
 
 ```bash
-cd contract/veil_strike_v1
+cd contract/veil_strike_v2
 leo build
 ```
 
@@ -95,11 +95,11 @@ export PRIVATE_KEY="your_aleo_private_key"
 ```
 VEIL-STRIKE/
 ├── contract/
-│   └── veil_strike_v1/
-│       ├── src/main.leo          # Core smart contract
+│   ├── veil_strike_v1/            # Legacy v1 contract
+│   └── veil_strike_v2/
+│       ├── src/main.leo          # Core smart contract (v2)
 │       ├── program.json          # Leo program config
-│       ├── .env.example          # Deployment env vars
-│       └── inputs/               # Test inputs
+│       └── build/                # Compiled artifacts
 ├── frontend/
 │   ├── src/
 │   │   ├── components/           # React components
@@ -138,42 +138,56 @@ VEIL-STRIKE/
 
 ## Smart Contract
 
-The Leo smart contract (`veil_strike_v1.aleo`) implements:
+The Leo smart contract (`veil_strike_v2.aleo`) implements:
 
-### Transitions (20 total)
+### Transitions (24 total)
 
 | Transition | Description |
 |---|---|
-| `initialize` | Set admin address and protocol params |
-| `update_oracle_prices` | Update BTC/ETH/ALEO prices (admin) |
-| `create_event_market` | Create a new prediction market |
-| `create_lightning_market` | Create fast-resolving market |
-| `buy_shares_private` | Buy outcome shares privately |
-| `sell_shares` | Sell shares back to the pool |
-| `add_liquidity` | Provide liquidity to a market |
-| `remove_liquidity` | Withdraw LP position |
+| `create_market` | Create a new ALEO prediction market |
+| `create_market_usdcx` | Create a USDCx prediction market |
+| `buy_shares_private` | Buy outcome shares privately (ALEO) |
+| `buy_shares_usdcx` | Buy outcome shares (USDCx) |
+| `sell_shares` | Sell shares back to the pool (ALEO) |
+| `sell_shares_usdcx` | Sell shares back (USDCx) |
+| `add_liquidity` | Provide liquidity (ALEO) |
+| `add_liquidity_usdcx` | Provide liquidity (USDCx) |
 | `close_market` | Stop trading on a market |
 | `resolve_market` | Set the winning outcome |
-| `resolve_lightning` | Auto-resolve via oracle |
-| `finalize_market` | Complete market settlement |
+| `finalize_resolution` | Finalize after challenge window |
+| `cancel_market` | Cancel and enable refunds |
 | `dispute_resolution` | Challenge a resolution |
-| `redeem_shares` | Claim winnings |
-| `claim_refund` | Get refund for disputed/cancelled |
-| `create_pool` | Create prediction pool |
-| `join_pool` | Join an existing pool |
-| `settle_pool` | Settle pool after markets resolve |
-| `claim_pool_winnings` | Claim share of pool winnings |
-| `update_streak` | Update win streak record |
+| `claim_dispute_bond` | Reclaim dispute bond |
+| `redeem_shares` | Claim winnings (ALEO) |
+| `redeem_shares_usdcx` | Claim winnings (USDCx) |
+| `claim_refund` | Get refund for cancelled (ALEO) |
+| `claim_refund_usdcx` | Get refund for cancelled (USDCx) |
+| `withdraw_lp_resolved` | Withdraw LP after resolution (ALEO) |
+| `withdraw_lp_resolved_usdcx` | Withdraw LP after resolution (USDCx) |
+| `claim_lp_refund` | LP refund for cancelled (ALEO) |
+| `claim_lp_refund_usdcx` | LP refund for cancelled (USDCx) |
+| `withdraw_creator_fees` | Creator claims fees (ALEO) |
+| `withdraw_fees_usdcx` | Creator claims fees (USDCx) |
+| `claim_refund` | Get refund for cancelled |
 
-### Record Types (7)
+### Record Types (4)
 
-- `SharePosition` — Owned shares in a market outcome
-- `PoolMembership` — Pool member receipt
-- `LPReceipt` — Liquidity provider receipt
-- `WinReceipt` — Winning redemption proof
-- `RefundReceipt` — Refund claim proof
-- `StreakRecord` — Win streak tracker
-- `DisputeBond` — Dispute collateral receipt
+- `OutcomeShare` — Owned shares in a market outcome (with share_nonce, token_type)
+- `LPToken` — Liquidity provider receipt (with lp_nonce, token_type)
+- `DisputeBondReceipt` — Dispute collateral receipt
+- `RefundClaim` — Refund claim proof
+
+### Mappings (9)
+
+- `markets` — Market struct data
+- `amm_pools` — AMM pool reserves and volumes
+- `market_resolutions` — Resolution outcomes and timing
+- `market_fees` — Protocol and creator fee tracking
+- `share_redeemed` — Prevents double-redemption
+- `creator_fees_claimed` — Creator fee claim tracking
+- `program_credits` — Protocol treasury balance
+- `market_credits` — Per-market credit balance
+- `lp_positions` — LP share tracking
 
 ### Privacy Model
 

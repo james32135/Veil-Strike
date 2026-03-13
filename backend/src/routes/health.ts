@@ -7,7 +7,7 @@ router.get('/', (_req, res) => {
     status: 'ok',
     timestamp: Date.now(),
     version: '1.0.0',
-    program: 'veil_strike_v1.aleo',
+    program: 'veil_strike_v2.aleo',
   });
 });
 

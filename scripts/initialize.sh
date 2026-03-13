@@ -14,7 +14,7 @@ ENDPOINT="${ENDPOINT:-https://api.explorer.provable.com/v1}"
 echo "Initializing Veil Strike protocol..."
 
 snarkos developer execute \
-  veil_strike_v1.aleo \
+  veil_strike_v2.aleo \
   initialize \
   --private-key "$PRIVATE_KEY" \
   --query "$ENDPOINT" \

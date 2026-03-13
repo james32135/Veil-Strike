@@ -2,7 +2,7 @@
 // Veil Strike — Application constants
 // ============================================================================
 
-export const PROGRAM_ID = 'veil_strike_v1.aleo';
+export const PROGRAM_ID = 'veil_strike_v2.aleo';
 
 export const ALEO_TESTNET_API = 'https://api.explorer.provable.com/v1/testnet';
 
@@ -18,15 +18,14 @@ export const FEES = {
 } as const;
 
 export const MIN_LIQUIDITY = 1_000_000; // 1 ALEO in microcredits
-export const MIN_TRADE = 1_000;         // 0.001 ALEO
+export const MIN_TRADE = 10_000;        // 0.01 ALEO
 
 export const STATUS_MAP: Record<number, string> = {
   1: 'active',
   2: 'closed',
   3: 'resolved',
-  4: 'finalized',
-  5: 'cancelled',
-  6: 'disputed',
+  4: 'cancelled',
+  5: 'pending_resolution',
 };
 
 export const CATEGORY_MAP: Record<number, string> = {
@@ -73,9 +72,8 @@ export const CHART_COLORS = {
 } as const;
 
 export const TRANSITIONS = {
-  INITIALIZE: 'initialize',
   CREATE_MARKET: 'create_market',
-  BUY_SHARES: 'buy_shares',
+  BUY_SHARES_PRIVATE: 'buy_shares_private',
   SELL_SHARES: 'sell_shares',
   ADD_LIQUIDITY: 'add_liquidity',
   CLOSE_MARKET: 'close_market',
@@ -86,11 +84,16 @@ export const TRANSITIONS = {
   CLAIM_DISPUTE_BOND: 'claim_dispute_bond',
   REDEEM: 'redeem_shares',
   CLAIM_REFUND: 'claim_refund',
-  WITHDRAW_LP: 'withdraw_lp',
+  WITHDRAW_LP: 'withdraw_lp_resolved',
+  CLAIM_LP_REFUND: 'claim_lp_refund',
   WITHDRAW_CREATOR_FEES: 'withdraw_creator_fees',
-  WITHDRAW_PROTOCOL_FEES: 'withdraw_protocol_fees',
   CREATE_MARKET_USDCX: 'create_market_usdcx',
   BUY_SHARES_USDCX: 'buy_shares_usdcx',
-  REDEEM_USDCX: 'redeem_shares_usdcx',
+  SELL_SHARES_USDCX: 'sell_shares_usdcx',
   ADD_LIQUIDITY_USDCX: 'add_liquidity_usdcx',
+  REDEEM_USDCX: 'redeem_shares_usdcx',
+  CLAIM_REFUND_USDCX: 'claim_refund_usdcx',
+  WITHDRAW_LP_USDCX: 'withdraw_lp_resolved_usdcx',
+  CLAIM_LP_REFUND_USDCX: 'claim_lp_refund_usdcx',
+  WITHDRAW_FEES_USDCX: 'withdraw_fees_usdcx',
 } as const;

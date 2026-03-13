@@ -1,20 +1,51 @@
-import type { Market } from '@/types';
-import { formatAleo, formatTimeAgo } from '@/utils/format';
+import { useState, useEffect, useCallback } from 'react';
+import { formatTimeAgo, formatUSD, formatAleo } from '@/utils/format';
 import Card from '@/components/shared/Card';
 import Badge from '@/components/shared/Badge';
 import EmptyState from '@/components/shared/EmptyState';
-import { ClockIcon, CheckIcon } from '@/components/icons';
+import { ClockIcon } from '@/components/icons';
+import { useLightningBetStore } from '@/stores/lightningBetStore';
 
-interface LightningHistoryProps {
-  markets: Market[];
+interface LightningRound {
+  id: string;
+  asset: 'BTC' | 'ETH' | 'ALEO';
+  startTime: number;
+  endTime: number;
+  startPrice: number;
+  endPrice: number | null;
+  status: 'open' | 'locked' | 'resolved';
+  result: 'up' | 'down' | null;
 }
 
-export default function LightningHistory({ markets }: LightningHistoryProps) {
-  const resolved = markets
-    .filter((m) => m.isLightning && m.status === 'resolved')
-    .sort((a, b) => b.endTime - a.endTime);
+interface LightningHistoryProps {
+  markets: never[];
+}
 
-  if (resolved.length === 0) {
+export default function LightningHistory({ }: LightningHistoryProps) {
+  const [rounds, setRounds] = useState<LightningRound[]>([]);
+  const recentBets = useLightningBetStore((s) => s.getRecentBets(20));
+
+  const fetchRounds = useCallback(async () => {
+    try {
+      const res = await fetch('/api/lightning');
+      if (res.ok) {
+        const data = await res.json();
+        setRounds((data.rounds || []).filter((r: LightningRound) => r.status === 'resolved'));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    fetchRounds();
+    const id = setInterval(fetchRounds, 15_000);
+    return () => clearInterval(id);
+  }, [fetchRounds]);
+
+  // Separate user's bets from market results
+  const resolvedBets = recentBets.filter((b) => b.result);
+  const pendingBets = recentBets.filter((b) => !b.result);
+
+  if (rounds.length === 0 && recentBets.length === 0) {
     return (
       <Card className="p-6">
         <EmptyState
@@ -27,34 +58,108 @@ export default function LightningHistory({ markets }: LightningHistoryProps) {
   }
 
   return (
-    <Card className="p-4">
-      <h3 className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-3">
-        Recent Results
-      </h3>
-      <div className="space-y-0">
-        {resolved.slice(0, 10).map((market) => (
-          <div
-            key={market.id}
-            className="flex items-center justify-between py-3 border-b border-dark-400/10 last:border-0"
-          >
-            <div className="flex-1 min-w-0 mr-3">
-              <p className="text-sm text-gray-300 truncate">{market.question}</p>
-              <p className="text-[10px] text-gray-600 mt-0.5">{formatTimeAgo(market.endTime)}</p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {market.resolvedOutcome !== undefined && (
-                <Badge variant="success">
-                  <CheckIcon className="w-3 h-3 mr-1" />
-                  {market.outcomes[market.resolvedOutcome]}
+    <div className="space-y-4">
+      {/* User's Bet Results */}
+      {recentBets.length > 0 && (
+        <Card className="p-4">
+          <h3 className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-3">
+            Your Bets
+          </h3>
+          <div className="space-y-0">
+            {pendingBets.map((bet) => (
+              <div
+                key={`${bet.roundId}-${bet.timestamp}`}
+                className="flex items-center justify-between py-3 border-b border-dark-400/10 last:border-0"
+              >
+                <div className="flex-1 min-w-0 mr-3">
+                  <p className="text-sm text-gray-300">
+                    <span className="font-mono font-bold">{bet.asset}</span>
+                    {' — Bet '}
+                    <span className={bet.direction === 'up' ? 'text-accent-green' : 'text-accent-red'}>
+                      {bet.direction.toUpperCase()}
+                    </span>
+                    {' • '}{formatAleo(bet.amount)} ALEO
+                  </p>
+                  <p className="text-[10px] text-gray-600 mt-0.5">{formatTimeAgo(bet.timestamp)} • Waiting for round to end...</p>
+                </div>
+                <Badge variant="warning">PENDING</Badge>
+              </div>
+            ))}
+            {resolvedBets.map((bet) => (
+              <div
+                key={`${bet.roundId}-${bet.timestamp}`}
+                className="flex items-center justify-between py-3 border-b border-dark-400/10 last:border-0"
+              >
+                <div className="flex-1 min-w-0 mr-3">
+                  <p className="text-sm text-gray-300">
+                    <span className="font-mono font-bold">{bet.asset}</span>
+                    {' — Bet '}
+                    <span className={bet.direction === 'up' ? 'text-accent-green' : 'text-accent-red'}>
+                      {bet.direction.toUpperCase()}
+                    </span>
+                    {' → Result: '}
+                    <span className={bet.result === 'up' ? 'text-accent-green' : 'text-accent-red'}>
+                      {bet.result?.toUpperCase()}
+                    </span>
+                  </p>
+                  <div className="flex items-center gap-3 text-[10px] text-gray-600 mt-0.5">
+                    <span>{formatTimeAgo(bet.timestamp)}</span>
+                    <span>Bet: {formatAleo(bet.amount)} ALEO</span>
+                    {bet.won && <span className="text-accent-green">Won: {formatAleo(bet.payout || 0)} ALEO</span>}
+                    {!bet.won && <span className="text-accent-red">Lost: {formatAleo(bet.amount)} ALEO</span>}
+                  </div>
+                </div>
+                <Badge variant={bet.won ? 'success' : 'danger'}>
+                  {bet.won ? '✓ WON' : '✗ LOST'}
                 </Badge>
-              )}
-              <span className="text-xs font-mono text-gray-500">
-                {formatAleo(market.totalVolume)}
-              </span>
-            </div>
+              </div>
+            ))}
           </div>
-        ))}
+        </Card>
+      )}
+
+      {/* Market Results */}
+      {rounds.length > 0 && (
+        <Card className="p-4">
+          <h3 className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-3">
+            Recent Results
+          </h3>
+      <div className="space-y-0">
+        {rounds.map((round) => {
+          const priceChange = round.endPrice && round.startPrice
+            ? ((round.endPrice - round.startPrice) / round.startPrice) * 100
+            : null;
+          return (
+            <div
+              key={round.id}
+              className="flex items-center justify-between py-3 border-b border-dark-400/10 last:border-0"
+            >
+              <div className="flex-1 min-w-0 mr-3">
+                <p className="text-sm text-gray-300">
+                  <span className="font-mono font-bold">{round.asset}</span>
+                  {' — '}
+                  {round.asset === 'ALEO' ? `$${round.startPrice.toFixed(4)}` : formatUSD(round.startPrice)}
+                  {' → '}
+                  {round.endPrice ? (round.asset === 'ALEO' ? `$${round.endPrice.toFixed(4)}` : formatUSD(round.endPrice)) : '—'}
+                </p>
+                <p className="text-[10px] text-gray-600 mt-0.5">{formatTimeAgo(round.endTime)}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Badge variant={round.result === 'up' ? 'success' : 'danger'}>
+                  {round.result === 'up' ? '↑ UP' : '↓ DOWN'}
+                </Badge>
+                {priceChange !== null && (
+                  <span className={`text-xs font-mono ${priceChange >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                    {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(3)}%
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </Card>
+      )}
+    </div>
   );
 }

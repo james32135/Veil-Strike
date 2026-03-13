@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useTransaction } from '@/hooks/useTransaction';
-import { buildCreateMarketTx, generateNonce } from '@/utils/transactions';
+import { buildCreateMarketTx, buildCreateMarketUsdcxTx, generateNonce } from '@/utils/transactions';
 import { parseAleoInput } from '@/utils/format';
 import { CATEGORIES } from '@/constants';
+import { useWalletStore } from '@/stores/walletStore';
 import Button from '@/components/shared/Button';
 import Card from '@/components/shared/Card';
 
@@ -16,7 +17,9 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
   const [outcomes, setOutcomes] = useState(['Yes', 'No']);
   const [initialLiquidity, setInitialLiquidity] = useState('10');
   const [durationDays, setDurationDays] = useState('7');
+  const [tokenType, setTokenType] = useState<'ALEO' | 'USDCX'>('USDCX');
   const { status, execute } = useTransaction();
+  const walletAddress = useWalletStore((s) => s.address);
 
   const handleAddOutcome = () => {
     if (outcomes.length < 6) {
@@ -47,12 +50,18 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
     const categoryMap: Record<string, number> = { Crypto: 1, Sports: 3, Politics: 4, Science: 5, Entertainment: 6, Other: 7 };
     const catNum = categoryMap[category] || 7;
     const blockDeadline = `${Math.floor(endTime / 15000) + 15044000}u32`;
-    const tx = buildCreateMarketTx(
+    const resolutionBlock = `${Math.floor(endTime / 15000) + 15044000 + 120960}u32`;
+    const resolver = walletAddress || '';
+    const isUsdcx = tokenType === 'USDCX';
+    const buildFn = isUsdcx ? buildCreateMarketUsdcxTx : buildCreateMarketTx;
+    const tx = buildFn(
       questionHash,
       catNum,
       outcomes.length,
       blockDeadline,
-      `${liquidityMicro}u64`,
+      resolutionBlock,
+      resolver,
+      `${liquidityMicro}u128`,
       nonce
     );
     await execute(tx);
@@ -99,6 +108,28 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
               }`}
             >
               {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Token Type */}
+      <div>
+        <label className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5 block">
+          Token
+        </label>
+        <div className="flex gap-2">
+          {(['USDCX', 'ALEO'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTokenType(t)}
+              className={`px-4 py-2 text-xs rounded-lg border font-heading font-medium transition-all ${
+                tokenType === t
+                  ? 'border-teal/40 bg-teal/10 text-teal'
+                  : 'border-dark-400/50 text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              {t}
             </button>
           ))}
         </div>
@@ -162,7 +193,7 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
         </div>
         <div>
           <label className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5 block">
-            Initial Liquidity (ALEO)
+            Initial Liquidity ({tokenType})
           </label>
           <input
             type="number"

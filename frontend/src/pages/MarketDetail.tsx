@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMarketStore } from '@/stores/marketStore';
+import { useTradeStore } from '@/stores/tradeStore';
 import { MarketHeader, TradePanel, MarketStats, MarketChart, OrderBook, TradeHistory } from '@/components/market';
 import Loading from '@/components/shared/Loading';
 import EmptyState from '@/components/shared/EmptyState';
@@ -9,14 +10,23 @@ import { ChartIcon } from '@/components/icons';
 export default function MarketDetail() {
   const { id } = useParams<{ id: string }>();
   const { markets, loading, fetchMarkets } = useMarketStore();
+  const getTradesForMarket = useTradeStore((s) => s.getTradesForMarket);
 
   useEffect(() => {
     if (markets.length === 0) fetchMarkets();
+    // Auto-refresh every 30 seconds to pick up chain state changes
+    const interval = setInterval(fetchMarkets, 30000);
+    return () => clearInterval(interval);
   }, [markets.length, fetchMarkets]);
 
   const market = useMemo(
     () => markets.find((m) => m.id === id),
     [markets, id]
+  );
+
+  const trades = useMemo(
+    () => id ? getTradesForMarket(id) : [],
+    [id, getTradesForMarket]
   );
 
   if (loading) return <Loading />;
@@ -41,8 +51,8 @@ export default function MarketDetail() {
         {/* Main content */}
         <div className="lg:col-span-2 space-y-6">
           <MarketChart market={market} />
-          <OrderBook trades={[]} />
-          <TradeHistory trades={[]} />
+          <OrderBook trades={trades} />
+          <TradeHistory trades={trades} />
         </div>
 
         {/* Sidebar */}

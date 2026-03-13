@@ -1,113 +1,93 @@
 # Privacy Model
 
-## Design Principles
+## Overview
 
-Veil Strike achieves end-to-end privacy for prediction market traders on Aleo. The core principle: **no user address should ever appear in public on-chain state** (except the protocol admin for admin-only operations).
+Veil Strike provides **partial privacy** for prediction market traders on Aleo. The protocol uses Aleo's record system to keep position ownership private, while market mechanics remain transparent for fair pricing.
 
-## Privacy Mechanisms
+## What IS Private
 
-### 1. Private Records
+### 1. Position Ownership (Private Records)
 
-All user-facing data is stored as Aleo **private records**, visible only to the record owner:
+All user-facing assets are stored as Aleo **private records**, encrypted and visible only to the record owner:
 
-- `SharePosition` — outcome shares with market ID, outcome index, and amount
-- `PoolMembership` — pool contribution with share percentage
-- `LPReceipt` — liquidity provider deposit receipt
-- `WinReceipt` — proof of winning redemption
-- `RefundReceipt` — proof of refund claim
-- `StreakRecord` — personal win streak counter
-- `DisputeBond` — dispute collateral receipt
+- `SharePosition` — your shares (market, outcome, amount) — only YOU can see
+- `LPReceipt` — your LP deposit proof — only YOU can see
+- `WinReceipt` — your winning payout proof — only YOU can see
+- `RefundReceipt` — your refund claim — only YOU can see
+- `DisputeBondReceipt` — your dispute collateral — only YOU can see
 
-### 2. Deposit Privacy
+### 2. Payout Privacy
 
-Credits are deposited using `credits.aleo/transfer_private_to_public`:
+Winnings are paid via `credits.aleo/transfer_public_to_private`:
 
 ```
-transition buy_shares_private(
-    payment: credits.aleo/credits,
-    ...
-) -> (..., Future) {
-    // Deposits credits to the program's public balance
-    // The depositor's address is NOT revealed on-chain
-    let deposit: Future = credits.aleo/transfer_private_to_public(
-        payment, self.address, amount
-    );
-    ...
+transition redeem_shares(position: SharePosition) -> (WinReceipt, credits.aleo/credits, Future) {
+    // Payout goes to a PRIVATE credits record
+    // Nobody on-chain can see who received the payout
+    let (payout, f2) = credits.aleo/transfer_public_to_private(self.caller, payout_u64);
 }
 ```
 
-This function takes a **private** credits record as input and transfers to a **public** balance. The sender's address is hidden by the ZK proof.
+This means **nobody can see who won or how much they redeemed**.
 
-### 3. Payout Privacy
+### 3. Address Pseudonymity
 
-Winnings are paid out using `credits.aleo/transfer_public_to_private`:
+Your Aleo address is visible on the deposit transaction, but:
+- Aleo addresses are pseudonymous (not linked to real identity)
+- You can generate new addresses for different bets
+- Position records are encrypted — observers can't see what you bet on
 
-```
-transition redeem_shares(
-    position: SharePosition,
-    ...
-) -> (credits.aleo/credits, ..., Future) {
-    // Pays from program's public balance to user's private record
-    // The recipient's address is NOT revealed on-chain
-    let payout: Future = credits.aleo/transfer_public_to_private(
-        self.caller, payout_amount
-    );
-    ...
-}
-```
+## What IS Public (Transparent)
 
-### 4. Market ID Generation
+### 1. Deposit Amount
 
-Market IDs are derived from a nonce only — never from the creator's address:
+The `buy_shares` function uses `credits.aleo/transfer_public_as_signer`:
+- **Visible**: that address X sent Y amount to the contract
+- **Required**: Shield Wallet requires public signing for transaction authorization
+- **Mitigation**: The amount alone doesn't reveal your position
 
-```
-let market_id: field = BHP256::hash_to_field(nonce);
-```
+### 2. Finalize Parameters
 
-This prevents anyone from linking a market back to its creator.
+The on-chain finalize function receives these parameters publicly:
+- `market_id` — which market you're trading on
+- `amount` — how much you're paying
+- `outcome_index` — which outcome you chose
+- `expected_shares` — how many shares you expect
 
-### 5. Finalize Isolation
+**This means an on-chain observer CAN see what outcome you bet on.**
 
-The `finalize` functions update global state (reserves, volumes, fees) but never receive user addresses as inputs. The only exception is the admin address verification in admin-only transitions like `update_oracle_prices`.
+### 3. Market State
 
-### 6. What IS Public
+By design, these are public for fair pricing:
+- Pool reserves (needed for FPMM pricing)
+- Total volume per market
+- Fee accumulation
+- Market status and deadlines
 
-The following data IS visible on-chain (by design, for market functionality):
+## Privacy Comparison
 
-- Market reserves (needed for FPMM pricing)
-- Total volume and trade counts per market
-- Oracle prices (needed for lightning resolution)
-- Protocol fee accumulation
-- Market end times and status
-
-### 7. What is NOT Public
-
-The following data is NEVER visible on-chain:
-
-- Who bought/sold shares
-- How many shares any individual holds
-- Profit/loss of any individual
-- Who created a market
-- Who deposited or withdrew credits
-- Trading history of any address
-
-## Attack Vectors Considered
-
-### Timing Analysis
-An observer could try to correlate transaction timing with real-world events. Mitigation: Aleo's network-level transaction batching provides some protection.
-
-### Amount Analysis
-Large trades could be identifiable by their on-chain reserve changes. Mitigation: reserves update atomically in finalize, and multiple trades in the same block are indistinguishable.
-
-### Creator Deanonymization
-Market creation could reveal the creator. Mitigation: Market IDs use nonce-only hashing, and creator addresses never appear in finalize.
-
-## Comparison with Other Platforms
-
-| Feature | Veil Strike | Polymarket | Augur |
+| Privacy Aspect | Veil Strike | Polymarket | Augur |
 |---|---|---|---|
-| Deposit Privacy | ✅ Hidden | ❌ Public | ❌ Public |
-| Position Privacy | ✅ Private records | ❌ Public ERC-1155 | ❌ Public |
-| Payout Privacy | ✅ Hidden | ❌ Public | ❌ Public |
-| Creator Privacy | ✅ Hidden | ❌ Public | ❌ Public |
-| Market Transparency | ✅ Reserves public | ✅ Full | ✅ Full |
+| Position Records | ✅ Private (encrypted records) | ❌ Public ERC-1155 | ❌ Public |
+| Payout Privacy | ✅ Private (transfer_public_to_private) | ❌ Public | ❌ Public |
+| Bet Direction | ⚠️ Visible in finalize | ❌ Public | ❌ Public |
+| Deposit Amount | ⚠️ Public (transfer_public_as_signer) | ❌ Public | ❌ Public |
+| Portfolio View | ✅ Only owner can decrypt | ❌ Anyone can view | ❌ Anyone can view |
+| Market State | Public (for fair pricing) | Public | Public |
+
+## Future Privacy Improvements
+
+To achieve full privacy, the contract would need:
+
+1. **Private deposits**: Use `transfer_private_to_public` instead of `transfer_public_as_signer` (requires wallet support for private credits)
+2. **Hidden outcome selection**: Use a commit-reveal scheme or pass outcome via encrypted record input rather than as a finalize parameter
+3. **Homomorphic reserve updates**: Update reserves without revealing which outcome was traded
+
+## Summary
+
+Veil Strike is **more private than any EVM prediction market** (Polymarket, Augur, etc.) because:
+- Your share positions are encrypted records — only you can see your portfolio
+- Your payouts go to private records — nobody sees who won
+- Your address is pseudonymous
+
+However, it's not fully private: the deposit transaction and finalize parameters reveal your bet direction to on-chain observers. This is a trade-off for Shield Wallet compatibility and FPMM mechanics.

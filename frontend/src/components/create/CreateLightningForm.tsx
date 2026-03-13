@@ -3,6 +3,7 @@ import { useTransaction } from '@/hooks/useTransaction';
 import { buildCreateMarketTx, generateNonce } from '@/utils/transactions';
 import { parseAleoInput } from '@/utils/format';
 import { LIGHTNING_DURATIONS } from '@/constants';
+import { useWalletStore } from '@/stores/walletStore';
 import Button from '@/components/shared/Button';
 import Card from '@/components/shared/Card';
 import { BoltIcon } from '@/components/icons';
@@ -17,6 +18,7 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
   const [duration, setDuration] = useState<typeof LIGHTNING_DURATIONS[number]>(LIGHTNING_DURATIONS[0]);
   const [initialLiquidity, setInitialLiquidity] = useState('5');
   const { status, execute } = useTransaction();
+  const walletAddress = useWalletStore((s) => s.address);
 
   const assetLabels: Record<string, string> = {
     btc: 'Bitcoin (BTC)',
@@ -35,13 +37,17 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
     const questionHash = `${BigInt(Array.from(new TextEncoder().encode(question)).reduce((h, b) => h * 31n + BigInt(b), 0n)) % BigInt('0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001')}field`;
     const currentBlock = Math.floor(Date.now() / 15000) + 15044000;
     const deadline = `${currentBlock + duration.blocks}u32`;
+    const resolutionDeadline = `${currentBlock + duration.blocks + 2880}u32`;
+    const resolver = walletAddress || '';
 
     const tx = buildCreateMarketTx(
       questionHash,
       1,
       2,
       deadline,
-      `${liquidityMicro}u64`,
+      resolutionDeadline,
+      resolver,
+      `${liquidityMicro}u128`,
       nonce
     );
     await execute(tx);

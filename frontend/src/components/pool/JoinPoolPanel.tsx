@@ -25,8 +25,9 @@ export default function JoinPoolPanel({ pool, onClose }: JoinPoolPanelProps) {
     if (amountMicro < pool.minEntry || isOverflow) return;
     const nonce = generateNonce();
     const tx = buildAddLiquidityTx(
-      `${amountMicro}u64`,
       pool.id,
+      `${amountMicro}u128`,
+      `1u128`,
       nonce
     );
     await execute(tx);

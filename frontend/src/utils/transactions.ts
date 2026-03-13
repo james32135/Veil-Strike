@@ -19,13 +19,15 @@ function buildTransaction(
   };
 }
 
-// ========== ALEO Credit Transactions ==========
+// ========== ALEO Credit Transactions (Privacy-first) ==========
 
 export function buildCreateMarketTx(
   questionHash: string,
   category: number,
   numOutcomes: number,
   deadline: string,
+  resolutionDeadline: string,
+  resolver: string,
   initialLiquidity: string,
   nonce: string
 ): AleoTransaction {
@@ -34,23 +36,28 @@ export function buildCreateMarketTx(
     `${category}u8`,
     `${numOutcomes}u8`,
     deadline,
+    resolutionDeadline,
+    resolver,
     initialLiquidity,
     nonce,
   ], 2_000_000);
 }
 
-export function buildBuySharesTx(
-  amount: string,
+export function buildBuySharesPrivateTx(
   marketId: string,
   outcome: number,
+  amount: string,
   expectedShares: string,
   minShares: string,
   nonce: string
 ): AleoTransaction {
-  return buildTransaction(TRANSITIONS.BUY_SHARES, [
-    amount,
+  // Contract uses 1-based outcome indices (1-4)
+  const outcomeOnChain = outcome + 1;
+  // Shield Wallet automatically provides a credits record as the last input
+  return buildTransaction(TRANSITIONS.BUY_SHARES_PRIVATE, [
     marketId,
-    `${outcome}u8`,
+    `${outcomeOnChain}u8`,
+    amount,
     expectedShares,
     minShares,
     nonce,
@@ -61,6 +68,7 @@ export function buildSellSharesTx(
   tokensDesired: string,
   maxSharesUsed: string
 ): AleoTransaction {
+  // sell_shares takes an OutcomeShare record (Shield handles record input)
   return buildTransaction(TRANSITIONS.SELL_SHARES, [
     tokensDesired,
     maxSharesUsed,
@@ -68,27 +76,15 @@ export function buildSellSharesTx(
 }
 
 export function buildAddLiquidityTx(
-  amount: string,
   marketId: string,
+  amount: string,
+  expectedLpShares: string,
   nonce: string
 ): AleoTransaction {
   return buildTransaction(TRANSITIONS.ADD_LIQUIDITY, [
+    marketId,
     amount,
-    marketId,
-    nonce,
-  ], 1_000_000);
-}
-
-export function buildRedeemSharesTx(
-  marketId: string,
-  outcomeIndex: number,
-  shareAmount: string,
-  nonce: string
-): AleoTransaction {
-  return buildTransaction(TRANSITIONS.REDEEM, [
-    marketId,
-    `${outcomeIndex}u8`,
-    shareAmount,
+    expectedLpShares,
     nonce,
   ], 1_000_000);
 }
@@ -100,6 +96,8 @@ export function buildCreateMarketUsdcxTx(
   category: number,
   numOutcomes: number,
   deadline: string,
+  resolutionDeadline: string,
+  resolver: string,
   initialLiquidity: string,
   nonce: string
 ): AleoTransaction {
@@ -108,23 +106,26 @@ export function buildCreateMarketUsdcxTx(
     `${category}u8`,
     `${numOutcomes}u8`,
     deadline,
+    resolutionDeadline,
+    resolver,
     initialLiquidity,
     nonce,
   ], 2_000_000);
 }
 
 export function buildBuySharesUsdcxTx(
-  amount: string,
   marketId: string,
   outcome: number,
+  amount: string,
   expectedShares: string,
   minShares: string,
   nonce: string
 ): AleoTransaction {
+  const outcomeOnChain = outcome + 1;
   return buildTransaction(TRANSITIONS.BUY_SHARES_USDCX, [
-    amount,
     marketId,
-    `${outcome}u8`,
+    `${outcomeOnChain}u8`,
+    amount,
     expectedShares,
     minShares,
     nonce,
@@ -132,27 +133,15 @@ export function buildBuySharesUsdcxTx(
 }
 
 export function buildAddLiquidityUsdcxTx(
-  amount: string,
   marketId: string,
+  amount: string,
+  expectedLpShares: string,
   nonce: string
 ): AleoTransaction {
   return buildTransaction(TRANSITIONS.ADD_LIQUIDITY_USDCX, [
+    marketId,
     amount,
-    marketId,
-    nonce,
-  ], 1_000_000);
-}
-
-export function buildRedeemSharesUsdcxTx(
-  marketId: string,
-  outcomeIndex: number,
-  shareAmount: string,
-  nonce: string
-): AleoTransaction {
-  return buildTransaction(TRANSITIONS.REDEEM_USDCX, [
-    marketId,
-    `${outcomeIndex}u8`,
-    shareAmount,
+    expectedLpShares,
     nonce,
   ], 1_000_000);
 }

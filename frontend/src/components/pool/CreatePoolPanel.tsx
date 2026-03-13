@@ -23,8 +23,9 @@ export default function CreatePoolPanel({ onClose }: CreatePoolPanelProps) {
 
     const nonce = generateNonce();
     const tx = buildAddLiquidityTx(
-      `${targetMicro}u64`,
-      nonce,
+      `${targetMicro}field`,
+      `${targetMicro}u128`,
+      `1u128`,
       nonce
     );
     await execute(tx);

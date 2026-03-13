@@ -13,41 +13,59 @@ interface MarketMeta {
 
 // Registry of known market IDs with their off-chain metadata
 const MARKET_REGISTRY: Record<string, MarketMeta> = {
-  '8085242864126139563244038051773428138878217458560712704220582949499607657325field': {
+  '5109526524240940076247160102942822826721082815149912213058304735795651045701field': {
     questionHash: '100field',
     question: 'Will Bitcoin reach $200K by end of 2026?',
     outcomes: ['Yes', 'No'],
     isLightning: false,
   },
-  '106130223952973946378599625838994179283045656960052417664956943642466662346field': {
+  '5382849069500909803423600732314743873981159069494965748447750244209586181944field': {
     questionHash: '200field',
     question: 'Will Ethereum surpass 1M TPS by Q4 2026?',
     outcomes: ['Yes', 'No'],
     isLightning: false,
   },
-  '7248450081910056716007189528297723867665937242534770497171487355422634902275field': {
+  '2268380216184928579870705271661910256920814036079702301922414496793435713288field': {
     questionHash: '300field',
     question: 'Will AI generate a full feature film by 2026?',
     outcomes: ['Yes', 'No'],
     isLightning: false,
   },
-  '3029892668231863383232670606962858351558519083464151639902538103512592759022field': {
+  '2502868542645109533940195444378946321715097642554868648020895753338257655677field': {
     questionHash: '400field',
     question: 'FIFA World Cup 2026 Winner',
     outcomes: ['Brazil', 'Argentina', 'France', 'Germany'],
     isLightning: false,
   },
-  '2685252889919556961768696680117253001705690820089940914087678239926418154811field': {
+  '7267937705407685778107207391588904752506275091283767077756342512692877940654field': {
     questionHash: '500field',
     question: 'Will SpaceX land humans on Mars by 2026?',
     outcomes: ['Yes', 'No'],
     isLightning: false,
   },
-  '3494530966902197253377566498945256715234170663993572050548789760705547294802field': {
+  '889502479752795745927491709704226921708953797401363129503298065077772311194field': {
     questionHash: '600field',
     question: 'US Federal Reserve rate below 3% by mid-2026?',
     outcomes: ['Yes', 'No'],
     isLightning: false,
+  },
+  '1453931991308580475428975090349277804251679422043348343263566005521045252998field': {
+    questionHash: '700field',
+    question: 'BTC Price Up/Down (Lightning)',
+    outcomes: ['Up', 'Down'],
+    isLightning: true,
+  },
+  '8292926655901621437805687927045387826605222498023779464600572253470472422042field': {
+    questionHash: '800field',
+    question: 'ETH Price Up/Down (Lightning)',
+    outcomes: ['Up', 'Down'],
+    isLightning: true,
+  },
+  '875462563816638972930909946596281093653347951171132855649321634026236611657field': {
+    questionHash: '900field',
+    question: 'ALEO Price Up/Down (Lightning)',
+    outcomes: ['Up', 'Down'],
+    isLightning: true,
   },
 };
 
@@ -55,9 +73,8 @@ const STATUS_MAP: Record<number, MarketInfo['status']> = {
   1: 'active',
   2: 'closed',
   3: 'resolved',
-  4: 'finalized',
-  5: 'cancelled',
-  6: 'disputed',
+  4: 'cancelled',
+  5: 'pending_resolution',
 };
 
 const CATEGORY_MAP: Record<number, string> = {
@@ -98,7 +115,12 @@ async function fetchMapping(mappingName: string, key: string): Promise<string | 
     const res = await fetch(url);
     if (!res.ok) return null;
     const text = await res.text();
-    return text;
+    // API returns JSON-encoded strings — unwrap the outer quotes
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
   } catch {
     return null;
   }
@@ -126,6 +148,7 @@ interface AleoMarket {
   resolution_deadline: number;
   status: number;
   created_at: number;
+  token_type: number;
 }
 
 interface AleoPool {
@@ -167,6 +190,7 @@ function parseMarketStruct(raw: string): AleoMarket | null {
       resolution_deadline: parseInt(parseAleoValue(fields['resolution_deadline'] || '0'), 10),
       status: parseInt(parseAleoValue(fields['status'] || '1'), 10),
       created_at: parseInt(parseAleoValue(fields['created_at'] || '0'), 10),
+      token_type: parseInt(parseAleoValue(fields['token_type'] || '0'), 10),
     };
   } catch {
     return null;
@@ -197,10 +221,9 @@ export async function fetchMarketsFromChain(): Promise<MarketInfo[]> {
 
   for (const [marketId, meta] of Object.entries(MARKET_REGISTRY)) {
     try {
-      const [marketRaw, poolRaw, tokenTypeRaw] = await Promise.all([
+      const [marketRaw, poolRaw] = await Promise.all([
         fetchMapping('markets', marketId),
         fetchMapping('amm_pools', marketId),
-        fetchMapping('market_token_type', marketId),
       ]);
 
       if (!marketRaw || !poolRaw) {
@@ -212,9 +235,7 @@ export async function fetchMarketsFromChain(): Promise<MarketInfo[]> {
       const pool = parsePoolStruct(poolRaw);
       if (!market || !pool) continue;
 
-      const tokenType = tokenTypeRaw
-        ? parseInt(parseAleoValue(tokenTypeRaw), 10)
-        : 0;
+      const tokenType = market.token_type;
 
       const reserves: number[] = [];
       reserves.push(pool.reserve_1);

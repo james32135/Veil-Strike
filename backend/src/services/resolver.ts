@@ -1,25 +1,16 @@
-import { getCachedMarkets, setCachedMarkets } from './indexer';
-import type { MarketInfo } from '../types';
+import { fetchMarketsFromChain, setCachedMarkets } from './indexer';
 
 export async function resolveExpiredMarkets(): Promise<void> {
-  const markets = getCachedMarkets();
-  const now = Date.now();
-  let updated = false;
-
-  const resolved = markets.map((market) => {
-    if (market.status === 'active' && market.endTime <= now) {
-      updated = true;
-      console.log(`[Resolver] Market ${market.id} expired, marking as resolved`);
-      return {
-        ...market,
-        status: 'resolved' as const,
-        resolvedOutcome: market.reserves[0] > market.reserves[1] ? 0 : 1,
-      };
+  // Re-fetch from chain to get the latest on-chain status.
+  // Resolution happens on-chain via admin calling resolve_market/finalize_resolution.
+  try {
+    const markets = await fetchMarketsFromChain();
+    setCachedMarkets(markets);
+    const resolved = markets.filter((m) => m.status === 'resolved' || m.status === 'pending_resolution').length;
+    if (resolved > 0) {
+      console.log(`[Resolver] ${resolved} markets resolved/pending_resolution on chain`);
     }
-    return market;
-  });
-
-  if (updated) {
-    setCachedMarkets(resolved);
+  } catch (err) {
+    console.error('[Resolver] Failed to refresh markets:', err);
   }
 }

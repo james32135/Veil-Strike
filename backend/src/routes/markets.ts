@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getCachedMarkets, fetchMarketsFromChain, setCachedMarkets } from '../services/indexer';
+import { getCachedMarkets, fetchMarketsFromChain, setCachedMarkets, registerMarket } from '../services/indexer';
 
 const router = Router();
 
@@ -21,6 +21,23 @@ router.post('/refresh', async (_req, res) => {
   const markets = await fetchMarketsFromChain();
   setCachedMarkets(markets);
   res.json({ markets, refreshed: true });
+});
+
+router.post('/register', async (req, res) => {
+  const { marketId, question, outcomes, isLightning } = req.body;
+  if (!marketId || !question || !Array.isArray(outcomes) || outcomes.length < 2) {
+    res.status(400).json({ error: 'marketId, question, and outcomes (array) required' });
+    return;
+  }
+  registerMarket(marketId, {
+    questionHash: '',
+    question,
+    outcomes,
+    isLightning: isLightning || false,
+  });
+  const markets = await fetchMarketsFromChain();
+  setCachedMarkets(markets);
+  res.json({ success: true, marketCount: markets.length });
 });
 
 export default router;

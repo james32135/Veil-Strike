@@ -14,7 +14,7 @@ export interface MarketInfo {
   totalLiquidity: number;
   totalVolume: number;
   tradeCount: number;
-  status: 'active' | 'closed' | 'resolved' | 'finalized' | 'cancelled' | 'disputed';
+  status: 'active' | 'closed' | 'resolved' | 'cancelled' | 'pending_resolution';
   endTime: number;
   createdAt: number;
   isLightning: boolean;

@@ -1,20 +1,23 @@
 import { useEffect } from 'react';
-import { useMarketStore } from '@/stores/marketStore';
 import { useOracleStore } from '@/stores/oracleStore';
+import { useMarketStore } from '@/stores/marketStore';
 import { ActiveRounds, LightningHistory, OraclePriceFeed } from '@/components/lightning';
 import PageHeader from '@/components/layout/PageHeader';
-import Loading from '@/components/shared/Loading';
 
 export default function Lightning() {
-  const { markets, loading, fetchMarkets } = useMarketStore();
   const { fetchPrices } = useOracleStore();
+  const { fetchMarkets, markets } = useMarketStore();
 
   useEffect(() => {
-    fetchMarkets();
     fetchPrices();
-    const interval = setInterval(fetchPrices, 30_000);
-    return () => clearInterval(interval);
-  }, [fetchMarkets, fetchPrices]);
+    if (markets.length === 0) fetchMarkets();
+    const priceInterval = setInterval(fetchPrices, 30_000);
+    const marketInterval = setInterval(fetchMarkets, 30_000);
+    return () => {
+      clearInterval(priceInterval);
+      clearInterval(marketInterval);
+    };
+  }, [fetchPrices, fetchMarkets, markets.length]);
 
   return (
     <div>
@@ -24,19 +27,15 @@ export default function Lightning() {
         action={{ label: '⚡ Create Lightning', href: '/create' }}
       />
 
-      {loading ? (
-        <Loading />
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mt-6">
-          <div className="lg:col-span-3 space-y-6">
-            <ActiveRounds markets={markets} />
-            <LightningHistory markets={markets} />
-          </div>
-          <div>
-            <OraclePriceFeed />
-          </div>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mt-6">
+        <div className="lg:col-span-3 space-y-6">
+          <ActiveRounds markets={[]} />
+          <LightningHistory markets={[]} />
         </div>
-      )}
+        <div>
+          <OraclePriceFeed />
+        </div>
+      </div>
     </div>
   );
 }

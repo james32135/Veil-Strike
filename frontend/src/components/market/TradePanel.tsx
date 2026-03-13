@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import type { Market } from '@/types';
-import { calculatePrices, estimateBuyShares, calculateFees } from '@/utils/fpmm';
+import { calculatePrices, estimateBuySharesExact, calculateFees } from '@/utils/fpmm';
 import { formatAleo, parseAleoInput } from '@/utils/format';
-import { PRECISION, CHART_COLORS } from '@/constants';
+import { PRECISION } from '@/constants';
 import { useTransaction } from '@/hooks/useTransaction';
-import { buildBuySharesTx, generateNonce } from '@/utils/transactions';
+import { buildBuySharesPrivateTx, buildBuySharesUsdcxTx, generateNonce } from '@/utils/transactions';
+import { useMarketStore } from '@/stores/marketStore';
+import { useTradeStore } from '@/stores/tradeStore';
 import Button from '@/components/shared/Button';
 import Card from '@/components/shared/Card';
 
@@ -17,33 +19,58 @@ export default function TradePanel({ market }: TradePanelProps) {
   const [amount, setAmount] = useState('');
   const [mode, setMode] = useState<'buy' | 'sell'>('buy');
   const { status, execute } = useTransaction();
+  const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
+  const addTrade = useTradeStore((s) => s.addTrade);
+
+  const isUsdcx = market.tokenType === 'USDCX';
+  const tokenLabel = isUsdcx ? 'USDCx' : 'ALEO';
 
   const prices = calculatePrices(market.reserves);
   const amountMicro = parseAleoInput(amount);
-  const { amountToPool, totalFee } = calculateFees(amountMicro);
-  const estimatedShares = mode === 'buy'
-    ? estimateBuyShares(market.reserves, selectedOutcome, amountToPool)
-    : 0;
+  const { totalFee } = calculateFees(amountMicro);
+  const exactShares = mode === 'buy'
+    ? estimateBuySharesExact(market.reserves, selectedOutcome, amountMicro)
+    : 0n;
+  const estimatedShares = Number(exactShares);
 
   const priceImpact = amountMicro > 0 && market.totalLiquidity > 0
     ? (amountMicro / market.totalLiquidity) * 100
     : 0;
 
   const handleTrade = async () => {
-    if (amountMicro < 1000 || estimatedShares <= 0) return;
+    if (amountMicro < 1000 || exactShares <= 0n) return;
 
     const nonce = generateNonce();
-    const minShares = Math.floor(estimatedShares * 0.95); // 5% slippage
+    const minShares = exactShares * 95n / 100n;
+    const typeSuffix = isUsdcx ? 'u128' : 'u64';
 
-    const tx = buildBuySharesTx(
-      `${amountMicro}u64`,
+    const buildFn = isUsdcx ? buildBuySharesUsdcxTx : buildBuySharesPrivateTx;
+    const tx = buildFn(
       market.id,
       selectedOutcome,
-      `${estimatedShares}u64`,
-      `${minShares}u64`,
+      `${amountMicro}${typeSuffix}`,
+      `${exactShares}${typeSuffix}`,
+      `${minShares}${typeSuffix}`,
       nonce
     );
-    await execute(tx);
+    const txId = await execute(tx);
+    if (txId) {
+      addTrade({
+        marketId: market.id,
+        type: 'buy',
+        outcome: market.outcomes[selectedOutcome],
+        amount: amountMicro,
+        shares: estimatedShares,
+        price: prices[selectedOutcome] / PRECISION,
+        timestamp: Date.now(),
+      });
+      setAmount('');
+      // Wait for chain finalization then refresh reserves
+      const refreshChain = () => fetch('/api/markets/refresh', { method: 'POST' }).then(() => fetchMarkets()).catch(() => fetchMarkets());
+      refreshChain();
+      setTimeout(refreshChain, 15000);
+      setTimeout(refreshChain, 30000);
+    }
   };
 
   return (
@@ -97,7 +124,7 @@ export default function TradePanel({ market }: TradePanelProps) {
       {/* Amount input */}
       <div className="mb-5">
         <label className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-2 block">
-          Amount (ALEO)
+          Amount ({tokenLabel})
         </label>
         <div className="relative">
           <input
@@ -110,7 +137,7 @@ export default function TradePanel({ market }: TradePanelProps) {
             className="input-field pr-16"
           />
           <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-mono">
-            ALEO
+            {tokenLabel}
           </span>
         </div>
         <div className="flex gap-2 mt-2">
@@ -135,7 +162,7 @@ export default function TradePanel({ market }: TradePanelProps) {
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-gray-500">Fee (2%)</span>
-            <span className="font-mono text-gray-300">{formatAleo(totalFee)} ALEO</span>
+            <span className="font-mono text-gray-300">{formatAleo(totalFee)} {tokenLabel}</span>
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-gray-500">Price Impact</span>
@@ -145,7 +172,7 @@ export default function TradePanel({ market }: TradePanelProps) {
           </div>
           <div className="flex justify-between text-xs pt-2 border-t border-dark-400/30">
             <span className="text-gray-400 font-medium">Potential Payout</span>
-            <span className="font-mono text-teal font-medium">{formatAleo(estimatedShares)} ALEO</span>
+            <span className="font-mono text-teal font-medium">{formatAleo(estimatedShares)} {tokenLabel}</span>
           </div>
         </div>
       )}
@@ -155,17 +182,18 @@ export default function TradePanel({ market }: TradePanelProps) {
         className="w-full"
         size="lg"
         loading={status === 'proving' || status === 'broadcasting'}
-        disabled={amountMicro < 1000 || estimatedShares <= 0}
+        disabled={amountMicro < 1000 || estimatedShares <= 0 || market.status !== 'active'}
         onClick={handleTrade}
       >
-        {status === 'proving' ? 'Generating ZK Proof...' :
+        {market.status !== 'active' ? 'Market Not Active' :
+         status === 'proving' ? 'Generating ZK Proof...' :
          status === 'broadcasting' ? 'Broadcasting...' :
          mode === 'buy' ? `Buy ${market.outcomes[selectedOutcome]}` :
          `Sell ${market.outcomes[selectedOutcome]}`}
       </Button>
 
       <p className="text-[10px] text-gray-600 text-center mt-3">
-        Transaction uses Shield Wallet delegated proving. ~14s proof time.
+        Pays with {tokenLabel} via Shield Wallet. ~14s proof time.
       </p>
     </Card>
   );

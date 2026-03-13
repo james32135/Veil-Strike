@@ -2,13 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import cron from 'node-cron';
 import { config } from './config';
-import { fetchOraclePrices } from './services/oracle';
+import { fetchOraclePrices, recordPriceSnapshot } from './services/oracle';
 import { fetchMarketsFromChain, setCachedMarkets } from './services/indexer';
 import { resolveExpiredMarkets } from './services/resolver';
 import marketsRouter from './routes/markets';
 import oracleRouter from './routes/oracle';
 import statsRouter from './routes/stats';
 import healthRouter from './routes/health';
+import lightningRouter from './routes/lightning';
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use('/api/health', healthRouter);
 app.use('/api/markets', marketsRouter);
 app.use('/api/oracle', oracleRouter);
 app.use('/api/stats', statsRouter);
+app.use('/api/lightning', lightningRouter);
 
 // Initialize data
 async function initialize() {
@@ -29,16 +31,29 @@ async function initialize() {
     fetchOraclePrices(),
   ]);
   setCachedMarkets(markets);
+  recordPriceSnapshot();
   console.log(`[Init] Loaded ${markets.length} markets`);
 }
 
 // Cron jobs
 cron.schedule(`*/${config.oracleIntervalMinutes} * * * *`, async () => {
   await fetchOraclePrices();
+  recordPriceSnapshot();
 });
 
 cron.schedule(`*/${config.resolverIntervalMinutes} * * * *`, async () => {
   await resolveExpiredMarkets();
+});
+
+// Refresh market data from chain every 2 minutes
+cron.schedule('*/2 * * * *', async () => {
+  try {
+    const markets = await fetchMarketsFromChain();
+    setCachedMarkets(markets);
+    console.log(`[Cron] Refreshed ${markets.length} markets from chain`);
+  } catch (err) {
+    console.error('[Cron] Market refresh failed:', err);
+  }
 });
 
 // Start server

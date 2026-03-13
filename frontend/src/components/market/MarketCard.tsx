@@ -16,7 +16,7 @@ export default function MarketCard({ market, index = 0 }: MarketCardProps) {
   const prices = calculatePrices(market.reserves);
   const outcomesWithPrices = market.outcomes.map((name, i) => ({
     name,
-    probability: (prices[i] / PRECISION) * 100,
+    probability: i < prices.length ? (prices[i] / PRECISION) * 100 : 0,
     color: i === 0 ? CHART_COLORS.green : i === 1 ? CHART_COLORS.red : CHART_COLORS.teal,
   }));
 
@@ -32,6 +32,9 @@ export default function MarketCard({ market, index = 0 }: MarketCardProps) {
             {market.isLightning ? 'Lightning' : market.category}
           </Badge>
           <Badge variant="green" size="sm">{market.status}</Badge>
+          {market.tokenType === 'USDCX' && (
+            <Badge variant="teal" size="sm">USDCx</Badge>
+          )}
           {market.outcomes.length > 2 && (
             <Badge variant="gray" size="sm">{market.outcomes.length} outcomes</Badge>
           )}

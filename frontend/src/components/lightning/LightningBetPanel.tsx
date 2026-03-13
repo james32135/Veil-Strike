@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import type { Market } from '@/types';
 import { useTransaction } from '@/hooks/useTransaction';
-import { buildBuySharesTx, generateNonce } from '@/utils/transactions';
-import { calculatePrices, estimateBuyShares, calculateFees } from '@/utils/fpmm';
+import { buildBuySharesPrivateTx, generateNonce } from '@/utils/transactions';
+import { calculatePrices, estimateBuySharesExact, calculateFees } from '@/utils/fpmm';
 import { formatAleo, parseAleoInput } from '@/utils/format';
 import { PRECISION } from '@/constants';
+import { useMarketStore } from '@/stores/marketStore';
 import Button from '@/components/shared/Button';
 import Card from '@/components/shared/Card';
 import LightningTimer from './LightningTimer';
@@ -17,25 +18,28 @@ export default function LightningBetPanel({ market }: LightningBetPanelProps) {
   const [selectedOutcome, setSelectedOutcome] = useState(0);
   const [amount, setAmount] = useState('');
   const { status, execute } = useTransaction();
+  const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
 
   const prices = calculatePrices(market.reserves);
   const amountMicro = parseAleoInput(amount);
-  const { amountToPool, totalFee } = calculateFees(amountMicro);
-  const estimatedShares = estimateBuyShares(market.reserves, selectedOutcome, amountToPool);
+  const { totalFee } = calculateFees(amountMicro);
+  const exactShares = estimateBuySharesExact(market.reserves, selectedOutcome, amountMicro);
+  const estimatedShares = Number(exactShares);
 
   const handleBet = async () => {
-    if (amountMicro < 1000 || estimatedShares <= 0) return;
+    if (amountMicro < 1000 || exactShares <= 0n) return;
     const nonce = generateNonce();
-    const minShares = Math.floor(estimatedShares * 0.95);
-    const tx = buildBuySharesTx(
-      `${amountMicro}u64`,
+    const minShares = exactShares * 95n / 100n;
+    const tx = buildBuySharesPrivateTx(
       market.id,
       selectedOutcome,
-      `${estimatedShares}u64`,
-      `${minShares}u64`,
+      `${amountMicro}u128`,
+      `${exactShares}u128`,
+      `${minShares}u128`,
       nonce
     );
     await execute(tx);
+    fetchMarkets();
   };
 
   return (

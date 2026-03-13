@@ -8,7 +8,7 @@ export default function HeroSection() {
       {/* Background */}
       <div className="absolute inset-0">
         <img
-          src="/images/bg.jpg"
+          src="/bg.jpg"
           alt=""
           className="w-full h-full object-cover opacity-30"
         />
@@ -19,8 +19,8 @@ export default function HeroSection() {
       <div className="absolute inset-0 opacity-10">
         <div className="w-full h-full"
           style={{
-            backgroundImage: `linear-gradient(rgba(0,212,184,0.15) 1px, transparent 1px), 
-                             linear-gradient(90deg, rgba(0,212,184,0.15) 1px, transparent 1px)`,
+            backgroundImage: `linear-gradient(rgba(226,179,62,0.15) 1px, transparent 1px), 
+                             linear-gradient(90deg, rgba(226,179,62,0.15) 1px, transparent 1px)`,
             backgroundSize: '60px 60px',
           }}
         />

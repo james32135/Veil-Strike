@@ -14,17 +14,17 @@ export default {
           500: '#2A3348',
         },
         teal: {
-          DEFAULT: '#00D4B8',
-          50: '#E0FFF9',
-          100: '#B3FFF0',
-          200: '#66FFE1',
-          300: '#33FFD7',
-          400: '#00FFCC',
-          500: '#00D4B8',
-          600: '#00AA93',
-          700: '#008070',
-          800: '#00554A',
-          900: '#002B25',
+          DEFAULT: '#E2B33E',
+          50: '#FFF8E7',
+          100: '#FCEDC4',
+          200: '#F5D97A',
+          300: '#EDCA5A',
+          400: '#E8C044',
+          500: '#E2B33E',
+          600: '#C99A2E',
+          700: '#A07A22',
+          800: '#775A18',
+          900: '#4E3B0F',
         },
         accent: {
           green: '#22C55E',
@@ -32,9 +32,9 @@ export default {
         },
       },
       fontFamily: {
-        heading: ['"Instrument Sans"', 'sans-serif'],
+        heading: ['"Bodoni Moda"', 'serif'],
         body: ['Inter', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'monospace'],
+        mono: ['"Source Code Pro"', 'monospace'],
       },
       backgroundImage: {
         'hero-pattern': "url('/images/bg.jpg')",
@@ -47,8 +47,8 @@ export default {
       },
       keyframes: {
         glow: {
-          '0%': { boxShadow: '0 0 5px rgba(0, 212, 184, 0.2)' },
-          '100%': { boxShadow: '0 0 20px rgba(0, 212, 184, 0.4)' },
+          '0%': { boxShadow: '0 0 5px rgba(226, 179, 62, 0.2)' },
+          '100%': { boxShadow: '0 0 20px rgba(226, 179, 62, 0.4)' },
         },
         slideUp: {
           '0%': { transform: 'translateY(20px)', opacity: '0' },

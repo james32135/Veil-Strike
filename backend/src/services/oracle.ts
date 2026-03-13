@@ -8,26 +8,126 @@ let cachedPrices: OraclePrices = {
   timestamp: 0,
 };
 
-export async function fetchOraclePrices(): Promise<OraclePrices> {
+// Track which source last succeeded for logging
+let lastSource = 'none';
+
+// ─── Price Source Adapters ───────────────────────────────────────────────────
+
+async function fetchWithTimeout(url: string, timeoutMs = 8000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const url = `${config.coingeckoUrl}/simple/price?ids=bitcoin,ethereum,aleo&vs_currencies=usd`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
-    const data = await res.json() as Record<string, { usd?: number }>;
-
-    cachedPrices = {
-      btc: data.bitcoin?.usd || cachedPrices.btc,
-      eth: data.ethereum?.usd || cachedPrices.eth,
-      aleo: data.aleo?.usd || cachedPrices.aleo,
-      timestamp: Date.now(),
-    };
-
-    console.log(`[Oracle] Prices updated: BTC=$${cachedPrices.btc}, ETH=$${cachedPrices.eth}, ALEO=$${cachedPrices.aleo}`);
-    return cachedPrices;
-  } catch (err) {
-    console.error('[Oracle] Failed to fetch prices:', err);
-    return cachedPrices;
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+/** CoinGecko (free, 10-30 req/min) */
+async function fetchFromCoinGecko(): Promise<OraclePrices | null> {
+  const url = `${config.coingeckoUrl}/simple/price?ids=bitcoin,ethereum,aleo&vs_currencies=usd`;
+  const res = await fetchWithTimeout(url);
+  if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
+  const data = await res.json() as Record<string, { usd?: number }>;
+  if (!data.bitcoin?.usd) throw new Error('CoinGecko: missing BTC price');
+  return {
+    btc: data.bitcoin.usd,
+    eth: data.ethereum?.usd || 0,
+    aleo: data.aleo?.usd || 0,
+    timestamp: Date.now(),
+  };
+}
+
+/** Binance (free, no key, high rate limit) */
+async function fetchFromBinance(): Promise<OraclePrices | null> {
+  const symbols = ['BTCUSDT', 'ETHUSDT', 'ALEOUSDT'];
+  const url = `https://api.binance.com/api/v3/ticker/price?symbols=${JSON.stringify(symbols)}`;
+  const res = await fetchWithTimeout(url);
+  if (!res.ok) throw new Error(`Binance HTTP ${res.status}`);
+  const data = await res.json() as Array<{ symbol: string; price: string }>;
+  const priceMap: Record<string, number> = {};
+  for (const item of data) {
+    priceMap[item.symbol] = parseFloat(item.price);
+  }
+  if (!priceMap['BTCUSDT']) throw new Error('Binance: missing BTC price');
+  return {
+    btc: priceMap['BTCUSDT'] || 0,
+    eth: priceMap['ETHUSDT'] || 0,
+    aleo: priceMap['ALEOUSDT'] || 0,
+    timestamp: Date.now(),
+  };
+}
+
+/** CoinCap v2 (free, 200 req/min, no key) */
+async function fetchFromCoinCap(): Promise<OraclePrices | null> {
+  const url = 'https://api.coincap.io/v2/assets?ids=bitcoin,ethereum,aleo';
+  const res = await fetchWithTimeout(url);
+  if (!res.ok) throw new Error(`CoinCap HTTP ${res.status}`);
+  const body = await res.json() as { data: Array<{ id: string; priceUsd: string }> };
+  const priceMap: Record<string, number> = {};
+  for (const asset of body.data) {
+    priceMap[asset.id] = parseFloat(asset.priceUsd);
+  }
+  if (!priceMap['bitcoin']) throw new Error('CoinCap: missing BTC price');
+  return {
+    btc: priceMap['bitcoin'] || 0,
+    eth: priceMap['ethereum'] || 0,
+    aleo: priceMap['aleo'] || 0,
+    timestamp: Date.now(),
+  };
+}
+
+/** CryptoCompare (free, 100k calls/month, no key needed for basic) */
+async function fetchFromCryptoCompare(): Promise<OraclePrices | null> {
+  const url = 'https://min-api.cryptocompare.com/data/pricemulti?fsyms=BTC,ETH,ALEO&tsyms=USD';
+  const res = await fetchWithTimeout(url);
+  if (!res.ok) throw new Error(`CryptoCompare HTTP ${res.status}`);
+  const data = await res.json() as Record<string, { USD?: number }>;
+  if (!data.BTC?.USD) throw new Error('CryptoCompare: missing BTC price');
+  return {
+    btc: data.BTC?.USD || 0,
+    eth: data.ETH?.USD || 0,
+    aleo: data.ALEO?.USD || 0,
+    timestamp: Date.now(),
+  };
+}
+
+// Ordered by reliability & rate limits (Binance first — most generous)
+const PRICE_SOURCES: { name: string; fn: () => Promise<OraclePrices | null> }[] = [
+  { name: 'Binance', fn: fetchFromBinance },
+  { name: 'CoinCap', fn: fetchFromCoinCap },
+  { name: 'CryptoCompare', fn: fetchFromCryptoCompare },
+  { name: 'CoinGecko', fn: fetchFromCoinGecko },
+];
+
+// ─── Main fetch with fallback chain ─────────────────────────────────────────
+
+export async function fetchOraclePrices(): Promise<OraclePrices> {
+  for (const source of PRICE_SOURCES) {
+    try {
+      const prices = await source.fn();
+      if (prices && prices.btc > 0) {
+        // If a source doesn't list ALEO, keep the last known value
+        if (prices.aleo === 0 && cachedPrices.aleo > 0) {
+          prices.aleo = cachedPrices.aleo;
+        }
+        cachedPrices = prices;
+        if (lastSource !== source.name) {
+          console.log(`[Oracle] Source switched to ${source.name}`);
+          lastSource = source.name;
+        }
+        console.log(`[Oracle] Prices via ${source.name}: BTC=$${prices.btc}, ETH=$${prices.eth}, ALEO=$${prices.aleo}`);
+        return cachedPrices;
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[Oracle] ${source.name} failed: ${msg}`);
+    }
+  }
+
+  // All sources failed — return stale cache
+  console.error('[Oracle] All price sources failed, using stale cache');
+  return cachedPrices;
 }
 
 export function getCachedPrices(): OraclePrices {

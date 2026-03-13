@@ -1,4 +1,3 @@
-import { config } from '../config';
 import type { OraclePrices } from '../types';
 
 let cachedPrices: OraclePrices = {
@@ -13,19 +12,26 @@ let lastSource = 'none';
 
 // ─── Price Source Adapters ───────────────────────────────────────────────────
 
-async function fetchWithTimeout(url: string, timeoutMs = 8000): Promise<Response> {
+async function fetchWithTimeout(url: string, timeoutMs = 10000, headers?: Record<string, string>): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { signal: controller.signal });
+    return await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'VeilStrike/1.0',
+        'Accept': 'application/json',
+        ...headers,
+      },
+    });
   } finally {
     clearTimeout(timer);
   }
 }
 
-/** CoinGecko (free, 10-30 req/min) */
+/** CoinGecko (free, 10-30 req/min) — most reliable for ALEO */
 async function fetchFromCoinGecko(): Promise<OraclePrices | null> {
-  const url = `${config.coingeckoUrl}/simple/price?ids=bitcoin,ethereum,aleo&vs_currencies=usd`;
+  const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,aleo&vs_currencies=usd';
   const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
   const data = await res.json() as Record<string, { usd?: number }>;
@@ -38,66 +44,174 @@ async function fetchFromCoinGecko(): Promise<OraclePrices | null> {
   };
 }
 
-/** Binance (free, no key, high rate limit) */
+/** Binance via US endpoint (fallback from blocked .com) */
 async function fetchFromBinance(): Promise<OraclePrices | null> {
-  const symbols = ['BTCUSDT', 'ETHUSDT', 'ALEOUSDT'];
-  const url = `https://api.binance.com/api/v3/ticker/price?symbols=${JSON.stringify(symbols)}`;
-  const res = await fetchWithTimeout(url);
-  if (!res.ok) throw new Error(`Binance HTTP ${res.status}`);
-  const data = await res.json() as Array<{ symbol: string; price: string }>;
-  const priceMap: Record<string, number> = {};
-  for (const item of data) {
-    priceMap[item.symbol] = parseFloat(item.price);
+  // Try binance.us first (not geo-blocked), then .com
+  const endpoints = [
+    'https://api.binance.us/api/v3/ticker/price',
+    'https://api.binance.com/api/v3/ticker/price',
+  ];
+  for (const base of endpoints) {
+    try {
+      const btcRes = await fetchWithTimeout(`${base}?symbol=BTCUSDT`);
+      if (!btcRes.ok) continue;
+      const btcData = await btcRes.json() as { price: string };
+
+      const ethRes = await fetchWithTimeout(`${base}?symbol=ETHUSDT`);
+      const ethData = ethRes.ok ? (await ethRes.json() as { price: string }) : { price: '0' };
+
+      // ALEO may not exist on Binance
+      let aleoPrice = 0;
+      try {
+        const aleoRes = await fetchWithTimeout(`${base}?symbol=ALEOUSDT`, 5000);
+        if (aleoRes.ok) {
+          const aleoData = await aleoRes.json() as { price: string };
+          aleoPrice = parseFloat(aleoData.price);
+        }
+      } catch { /* ALEO not listed */ }
+
+      const btc = parseFloat(btcData.price);
+      if (!btc || btc <= 0) continue;
+      return {
+        btc,
+        eth: parseFloat(ethData.price) || 0,
+        aleo: aleoPrice,
+        timestamp: Date.now(),
+      };
+    } catch { continue; }
   }
-  if (!priceMap['BTCUSDT']) throw new Error('Binance: missing BTC price');
-  return {
-    btc: priceMap['BTCUSDT'] || 0,
-    eth: priceMap['ETHUSDT'] || 0,
-    aleo: priceMap['ALEOUSDT'] || 0,
-    timestamp: Date.now(),
-  };
+  throw new Error('Binance: all endpoints failed');
 }
 
-/** CoinCap v2 (free, 200 req/min, no key) */
+/** CoinCap v3 (free, REST) */
 async function fetchFromCoinCap(): Promise<OraclePrices | null> {
-  const url = 'https://api.coincap.io/v2/assets?ids=bitcoin,ethereum,aleo';
-  const res = await fetchWithTimeout(url);
-  if (!res.ok) throw new Error(`CoinCap HTTP ${res.status}`);
-  const body = await res.json() as { data: Array<{ id: string; priceUsd: string }> };
-  const priceMap: Record<string, number> = {};
-  for (const asset of body.data) {
-    priceMap[asset.id] = parseFloat(asset.priceUsd);
+  // v2 deprecated, try v3 then v2
+  const urls = [
+    'https://api.coincap.io/v2/assets?ids=bitcoin,ethereum',
+    'https://rest.coincap.io/v3/assets?ids=bitcoin,ethereum',
+  ];
+  for (const url of urls) {
+    try {
+      const res = await fetchWithTimeout(url);
+      if (!res.ok) continue;
+      const body = await res.json() as { data: Array<{ id: string; priceUsd: string }> };
+      const priceMap: Record<string, number> = {};
+      for (const asset of body.data) {
+        priceMap[asset.id] = parseFloat(asset.priceUsd);
+      }
+      if (!priceMap['bitcoin']) continue;
+      return {
+        btc: priceMap['bitcoin'] || 0,
+        eth: priceMap['ethereum'] || 0,
+        aleo: 0, // CoinCap doesn't list ALEO
+        timestamp: Date.now(),
+      };
+    } catch { continue; }
   }
-  if (!priceMap['bitcoin']) throw new Error('CoinCap: missing BTC price');
-  return {
-    btc: priceMap['bitcoin'] || 0,
-    eth: priceMap['ethereum'] || 0,
-    aleo: priceMap['aleo'] || 0,
-    timestamp: Date.now(),
-  };
+  throw new Error('CoinCap: all endpoints failed');
 }
 
-/** CryptoCompare (free, 100k calls/month, no key needed for basic) */
+/** CryptoCompare — only fetch BTC & ETH (ALEO not supported) */
 async function fetchFromCryptoCompare(): Promise<OraclePrices | null> {
-  const url = 'https://min-api.cryptocompare.com/data/pricemulti?fsyms=BTC,ETH,ALEO&tsyms=USD';
+  const url = 'https://min-api.cryptocompare.com/data/pricemulti?fsyms=BTC,ETH&tsyms=USD';
   const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`CryptoCompare HTTP ${res.status}`);
   const data = await res.json() as Record<string, { USD?: number }>;
   if (!data.BTC?.USD) throw new Error('CryptoCompare: missing BTC price');
   return {
-    btc: data.BTC?.USD || 0,
+    btc: data.BTC.USD,
     eth: data.ETH?.USD || 0,
-    aleo: data.ALEO?.USD || 0,
+    aleo: 0, // Not supported
     timestamp: Date.now(),
   };
 }
 
-// Ordered by reliability & rate limits (Binance first — most generous)
+/** KuCoin (free, no key, good availability) */
+async function fetchFromKuCoin(): Promise<OraclePrices | null> {
+  const btcRes = await fetchWithTimeout('https://api.kucoin.com/api/v1/market/orderbook/level1?symbol=BTC-USDT');
+  if (!btcRes.ok) throw new Error(`KuCoin HTTP ${btcRes.status}`);
+  const btcBody = await btcRes.json() as { data: { price: string } };
+  const btc = parseFloat(btcBody.data?.price);
+  if (!btc || btc <= 0) throw new Error('KuCoin: missing BTC price');
+
+  const ethRes = await fetchWithTimeout('https://api.kucoin.com/api/v1/market/orderbook/level1?symbol=ETH-USDT');
+  const ethBody = ethRes.ok ? (await ethRes.json() as { data: { price: string } }) : { data: { price: '0' } };
+
+  let aleoPrice = 0;
+  try {
+    const aleoRes = await fetchWithTimeout('https://api.kucoin.com/api/v1/market/orderbook/level1?symbol=ALEO-USDT', 5000);
+    if (aleoRes.ok) {
+      const aleoBody = await aleoRes.json() as { data: { price: string } };
+      aleoPrice = parseFloat(aleoBody.data?.price) || 0;
+    }
+  } catch { /* ALEO not listed */ }
+
+  return {
+    btc,
+    eth: parseFloat(ethBody.data?.price) || 0,
+    aleo: aleoPrice,
+    timestamp: Date.now(),
+  };
+}
+
+/** OKX (free, no key, global) */
+async function fetchFromOKX(): Promise<OraclePrices | null> {
+  const url = 'https://www.okx.com/api/v5/market/tickers?instType=SPOT';
+  const res = await fetchWithTimeout(url, 10000);
+  if (!res.ok) throw new Error(`OKX HTTP ${res.status}`);
+  const body = await res.json() as { data: Array<{ instId: string; last: string }> };
+  const priceMap: Record<string, number> = {};
+  for (const t of body.data) {
+    if (t.instId === 'BTC-USDT') priceMap['btc'] = parseFloat(t.last);
+    if (t.instId === 'ETH-USDT') priceMap['eth'] = parseFloat(t.last);
+    if (t.instId === 'ALEO-USDT') priceMap['aleo'] = parseFloat(t.last);
+  }
+  if (!priceMap['btc']) throw new Error('OKX: missing BTC price');
+  return {
+    btc: priceMap['btc'],
+    eth: priceMap['eth'] || 0,
+    aleo: priceMap['aleo'] || 0,
+    timestamp: Date.now(),
+  };
+}
+
+/** Gate.io (free, no key, lists ALEO) */
+async function fetchFromGateIO(): Promise<OraclePrices | null> {
+  const btcRes = await fetchWithTimeout('https://api.gateio.ws/api/v4/spot/tickers?currency_pair=BTC_USDT');
+  if (!btcRes.ok) throw new Error(`Gate.io HTTP ${btcRes.status}`);
+  const btcData = await btcRes.json() as Array<{ last: string }>;
+  const btc = parseFloat(btcData[0]?.last);
+  if (!btc || btc <= 0) throw new Error('Gate.io: missing BTC price');
+
+  const ethRes = await fetchWithTimeout('https://api.gateio.ws/api/v4/spot/tickers?currency_pair=ETH_USDT');
+  const ethData = ethRes.ok ? (await ethRes.json() as Array<{ last: string }>) : [{ last: '0' }];
+
+  let aleoPrice = 0;
+  try {
+    const aleoRes = await fetchWithTimeout('https://api.gateio.ws/api/v4/spot/tickers?currency_pair=ALEO_USDT', 5000);
+    if (aleoRes.ok) {
+      const aleoData = await aleoRes.json() as Array<{ last: string }>;
+      aleoPrice = parseFloat(aleoData[0]?.last) || 0;
+    }
+  } catch { /* ALEO not listed */ }
+
+  return {
+    btc,
+    eth: parseFloat(ethData[0]?.last) || 0,
+    aleo: aleoPrice,
+    timestamp: Date.now(),
+  };
+}
+
+// Ordered: exchanges with ALEO first, then major exchanges, then aggregators
 const PRICE_SOURCES: { name: string; fn: () => Promise<OraclePrices | null> }[] = [
+  { name: 'CoinGecko', fn: fetchFromCoinGecko },
+  { name: 'OKX', fn: fetchFromOKX },
+  { name: 'KuCoin', fn: fetchFromKuCoin },
+  { name: 'Gate.io', fn: fetchFromGateIO },
   { name: 'Binance', fn: fetchFromBinance },
   { name: 'CoinCap', fn: fetchFromCoinCap },
   { name: 'CryptoCompare', fn: fetchFromCryptoCompare },
-  { name: 'CoinGecko', fn: fetchFromCoinGecko },
 ];
 
 // ─── Main fetch with fallback chain ─────────────────────────────────────────

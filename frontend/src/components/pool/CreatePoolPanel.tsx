@@ -14,19 +14,23 @@ export default function CreatePoolPanel({ onClose }: CreatePoolPanelProps) {
   const [description, setDescription] = useState('');
   const [targetSize, setTargetSize] = useState('');
   const [minEntry, setMinEntry] = useState('1');
-  const { status, execute } = useTransaction();
+  const { status, execute, fetchCreditsRecord } = useTransaction();
 
   const handleCreate = async () => {
     const targetMicro = parseAleoInput(targetSize);
     const minMicro = parseAleoInput(minEntry);
     if (!name || targetMicro < 1_000_000 || minMicro < 100_000) return;
 
+    const record = await fetchCreditsRecord(targetMicro);
+    if (!record) return;
+
     const nonce = generateNonce();
     const tx = buildAddLiquidityTx(
       `${targetMicro}field`,
       `${targetMicro}u128`,
       `1u128`,
-      nonce
+      nonce,
+      record
     );
     await execute(tx);
     onClose();

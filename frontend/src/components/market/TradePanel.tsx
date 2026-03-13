@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Market } from '@/types';
 import { calculatePrices, estimateBuySharesExact, calculateFees } from '@/utils/fpmm';
 import { formatAleo, parseAleoInput } from '@/utils/format';
-import { PRECISION } from '@/constants';
+import { PRECISION, API_BASE } from '@/constants';
 import { useTransaction } from '@/hooks/useTransaction';
 import { buildBuySharesPrivateTx, buildBuySharesUsdcxTx, generateNonce } from '@/utils/transactions';
 import { useMarketStore } from '@/stores/marketStore';
@@ -18,7 +18,7 @@ export default function TradePanel({ market }: TradePanelProps) {
   const [selectedOutcome, setSelectedOutcome] = useState(0);
   const [amount, setAmount] = useState('');
   const [mode, setMode] = useState<'buy' | 'sell'>('buy');
-  const { status, execute } = useTransaction();
+  const { status, execute, fetchCreditsRecord } = useTransaction();
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
   const addTrade = useTradeStore((s) => s.addTrade);
 
@@ -44,15 +44,22 @@ export default function TradePanel({ market }: TradePanelProps) {
     const minShares = exactShares * 95n / 100n;
     const typeSuffix = isUsdcx ? 'u128' : 'u64';
 
-    const buildFn = isUsdcx ? buildBuySharesUsdcxTx : buildBuySharesPrivateTx;
-    const tx = buildFn(
-      market.id,
-      selectedOutcome,
-      `${amountMicro}${typeSuffix}`,
-      `${exactShares}${typeSuffix}`,
-      `${minShares}${typeSuffix}`,
-      nonce
-    );
+    let tx;
+    if (isUsdcx) {
+      tx = buildBuySharesUsdcxTx(
+        market.id, selectedOutcome,
+        `${amountMicro}${typeSuffix}`, `${exactShares}${typeSuffix}`, `${minShares}${typeSuffix}`,
+        nonce
+      );
+    } else {
+      const record = await fetchCreditsRecord(amountMicro);
+      if (!record) return;
+      tx = buildBuySharesPrivateTx(
+        market.id, selectedOutcome,
+        `${amountMicro}${typeSuffix}`, `${exactShares}${typeSuffix}`, `${minShares}${typeSuffix}`,
+        nonce, record
+      );
+    }
     const txId = await execute(tx);
     if (txId) {
       addTrade({
@@ -66,7 +73,7 @@ export default function TradePanel({ market }: TradePanelProps) {
       });
       setAmount('');
       // Wait for chain finalization then refresh reserves
-      const refreshChain = () => fetch('/api/markets/refresh', { method: 'POST' }).then(() => fetchMarkets()).catch(() => fetchMarkets());
+      const refreshChain = () => fetch(`${API_BASE}/markets/refresh`, { method: 'POST' }).then(() => fetchMarkets()).catch(() => fetchMarkets());
       refreshChain();
       setTimeout(refreshChain, 15000);
       setTimeout(refreshChain, 30000);

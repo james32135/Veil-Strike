@@ -14,7 +14,7 @@ interface JoinPoolPanelProps {
 
 export default function JoinPoolPanel({ pool, onClose }: JoinPoolPanelProps) {
   const [amount, setAmount] = useState('');
-  const { status, execute } = useTransaction();
+  const { status, execute, fetchCreditsRecord } = useTransaction();
 
   const amountMicro = parseAleoInput(amount);
   const remaining = pool.targetSize - pool.currentSize;
@@ -23,12 +23,15 @@ export default function JoinPoolPanel({ pool, onClose }: JoinPoolPanelProps) {
 
   const handleJoin = async () => {
     if (amountMicro < pool.minEntry || isOverflow) return;
+    const record = await fetchCreditsRecord(amountMicro);
+    if (!record) return;
     const nonce = generateNonce();
     const tx = buildAddLiquidityTx(
       pool.id,
       `${amountMicro}u128`,
       `1u128`,
-      nonce
+      nonce,
+      record
     );
     await execute(tx);
     onClose();

@@ -99,25 +99,27 @@ export function getLightningRounds(): LightningRound[] {
   const rounds: LightningRound[] = [];
 
   for (const asset of ASSETS) {
-    // Previous round (resolved or resolving)
-    const prevStart = currentRoundStart - ROUND_DURATION;
-    const prevEnd = currentRoundStart;
-    const prevStartPrice = getPriceAtTime(asset, prevStart);
-    const prevEndPrice = getPriceAtTime(asset, prevEnd);
-    if (prevStartPrice) {
-      const resolved = prevEndPrice !== null;
-      rounds.push({
-        id: `${asset}-${prevStart}`,
-        asset,
-        startTime: prevStart,
-        lockTime: prevEnd - LOCK_BEFORE,
-        endTime: prevEnd,
-        startPrice: prevStartPrice,
-        lockPrice: getPriceAtTime(asset, prevEnd - LOCK_BEFORE),
-        endPrice: prevEndPrice,
-        status: resolved ? 'resolved' : 'locked',
-        result: resolved ? (prevEndPrice > prevStartPrice ? 'up' : 'down') : null,
-      });
+    // Two previous rounds (resolved) — ensures bets resolve even if polling was slow
+    for (let offset = 2; offset >= 1; offset--) {
+      const prevStart = currentRoundStart - ROUND_DURATION * offset;
+      const prevEnd = prevStart + ROUND_DURATION;
+      const prevStartPrice = getPriceAtTime(asset, prevStart);
+      const prevEndPrice = getPriceAtTime(asset, prevEnd);
+      if (prevStartPrice) {
+        const resolved = prevEndPrice !== null;
+        rounds.push({
+          id: `${asset}-${prevStart}`,
+          asset,
+          startTime: prevStart,
+          lockTime: prevEnd - LOCK_BEFORE,
+          endTime: prevEnd,
+          startPrice: prevStartPrice,
+          lockPrice: getPriceAtTime(asset, prevEnd - LOCK_BEFORE),
+          endPrice: prevEndPrice,
+          status: resolved ? 'resolved' : 'locked',
+          result: resolved ? (prevEndPrice > prevStartPrice ? 'up' : 'down') : null,
+        });
+      }
     }
 
     // Current round

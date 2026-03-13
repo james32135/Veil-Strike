@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { OraclePrices } from '@/types';
+import { API_BASE } from '@/constants';
 
 interface OracleState {
   prices: OraclePrices;
@@ -21,7 +22,7 @@ export const useOracleStore = create<OracleState>((set) => ({
   fetchPrices: async () => {
     set({ loading: true });
     try {
-      const res = await fetch('/api/oracle');
+      const res = await fetch(`${API_BASE}/oracle`);
       if (res.ok) {
         const data = await res.json();
         set({ prices: data.prices, lastUpdated: Date.now(), loading: false });

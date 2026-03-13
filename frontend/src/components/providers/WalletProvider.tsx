@@ -40,7 +40,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
       network={NETWORK}
       autoConnect
       decryptPermission={DecryptPermission.UponRequest}
-      programs={[PROGRAM_ID]}
+      programs={[PROGRAM_ID, 'credits.aleo']}
     >
       <WalletModalProvider>
         <WalletSync>

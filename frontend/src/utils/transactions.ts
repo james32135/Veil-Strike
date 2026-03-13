@@ -49,11 +49,11 @@ export function buildBuySharesPrivateTx(
   amount: string,
   expectedShares: string,
   minShares: string,
-  nonce: string
+  nonce: string,
+  creditsRecord: string
 ): AleoTransaction {
   // Contract uses 1-based outcome indices (1-4)
   const outcomeOnChain = outcome + 1;
-  // Shield Wallet automatically provides a credits record as the last input
   return buildTransaction(TRANSITIONS.BUY_SHARES_PRIVATE, [
     marketId,
     `${outcomeOnChain}u8`,
@@ -61,15 +61,30 @@ export function buildBuySharesPrivateTx(
     expectedShares,
     minShares,
     nonce,
+    creditsRecord,
   ], 1_000_000);
 }
 
 export function buildSellSharesTx(
+  sharesRecord: string,
   tokensDesired: string,
   maxSharesUsed: string
 ): AleoTransaction {
-  // sell_shares takes an OutcomeShare record (Shield handles record input)
+  // sell_shares(shares: OutcomeShare, tokens_desired: u128, max_shares_used: u128)
   return buildTransaction(TRANSITIONS.SELL_SHARES, [
+    sharesRecord,
+    tokensDesired,
+    maxSharesUsed,
+  ], 1_000_000);
+}
+
+export function buildSellSharesUsdcxTx(
+  sharesRecord: string,
+  tokensDesired: string,
+  maxSharesUsed: string
+): AleoTransaction {
+  return buildTransaction(TRANSITIONS.SELL_SHARES_USDCX, [
+    sharesRecord,
     tokensDesired,
     maxSharesUsed,
   ], 1_000_000);
@@ -79,13 +94,15 @@ export function buildAddLiquidityTx(
   marketId: string,
   amount: string,
   expectedLpShares: string,
-  nonce: string
+  nonce: string,
+  creditsRecord: string
 ): AleoTransaction {
   return buildTransaction(TRANSITIONS.ADD_LIQUIDITY, [
     marketId,
     amount,
     expectedLpShares,
     nonce,
+    creditsRecord,
   ], 1_000_000);
 }
 

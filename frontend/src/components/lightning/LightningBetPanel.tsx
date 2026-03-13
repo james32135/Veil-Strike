@@ -17,7 +17,7 @@ interface LightningBetPanelProps {
 export default function LightningBetPanel({ market }: LightningBetPanelProps) {
   const [selectedOutcome, setSelectedOutcome] = useState(0);
   const [amount, setAmount] = useState('');
-  const { status, execute } = useTransaction();
+  const { status, execute, fetchCreditsRecord } = useTransaction();
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
 
   const prices = calculatePrices(market.reserves);
@@ -28,6 +28,8 @@ export default function LightningBetPanel({ market }: LightningBetPanelProps) {
 
   const handleBet = async () => {
     if (amountMicro < 1000 || exactShares <= 0n) return;
+    const record = await fetchCreditsRecord(amountMicro);
+    if (!record) return;
     const nonce = generateNonce();
     const minShares = exactShares * 95n / 100n;
     const tx = buildBuySharesPrivateTx(
@@ -36,7 +38,8 @@ export default function LightningBetPanel({ market }: LightningBetPanelProps) {
       `${amountMicro}u128`,
       `${exactShares}u128`,
       `${minShares}u128`,
-      nonce
+      nonce,
+      record
     );
     await execute(tx);
     fetchMarkets();

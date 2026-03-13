@@ -67,6 +67,24 @@ const MARKET_REGISTRY: Record<string, MarketMeta> = {
     outcomes: ['Up', 'Down'],
     isLightning: true,
   },
+  '6066728251858600342700806646539409753846149537378370966005549823841603389494field': {
+    questionHash: '100field',
+    question: 'BTC Price Up/Down (Lightning USDCx)',
+    outcomes: ['Up', 'Down'],
+    isLightning: true,
+  },
+  '7022657257321819297207938773900392153922045789642273474510137796309875038910field': {
+    questionHash: '200field',
+    question: 'ETH Price Up/Down (Lightning USDCx)',
+    outcomes: ['Up', 'Down'],
+    isLightning: true,
+  },
+  '413067812168342966855392966668324178189004844866130452902307116022507222212field': {
+    questionHash: '300field',
+    question: 'ALEO Price Up/Down (Lightning USDCx)',
+    outcomes: ['Up', 'Down'],
+    isLightning: true,
+  },
 };
 
 const STATUS_MAP: Record<number, MarketInfo['status']> = {

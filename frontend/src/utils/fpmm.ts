@@ -73,6 +73,7 @@ export function estimateBuyShares(
 
 /**
  * Estimate shares needed for a sell order (tokens-desired approach).
+ * Must match contract math: p = tokens_desired - lp_fee, where lp_fee = tokens_desired * 100 / 10000
  */
 export function estimateSellShares(
   reserves: number[],
@@ -83,19 +84,76 @@ export function estimateSellShares(
   if (outcomeIndex < 0 || outcomeIndex >= n) return 0;
   if (tokensDesired <= 0) return 0;
 
+  // Contract: pool_tokens_out = tokens_desired - lp_fee
+  const lpFee = Math.floor(tokensDesired * 100 / 10000);
+  const p = tokensDesired - lpFee;
+
   let step = reserves[outcomeIndex];
 
   for (let k = 0; k < n; k++) {
     if (k === outcomeIndex) continue;
     const rk = reserves[k];
-    const den = rk - tokensDesired;
+    const den = rk - p;
     if (den <= 0) return Infinity;
-    step = (step * rk) / den;
+    step = Math.floor((step * rk) / den);
   }
 
   const riNew = step;
-  const sharesNeeded = riNew - reserves[outcomeIndex] + tokensDesired;
+  const sharesNeeded = riNew - reserves[outcomeIndex] + p;
   return Math.ceil(sharesNeeded);
+}
+
+/**
+ * Estimate the maximum tokens you can receive for selling `sharesToSell` shares.
+ * Uses binary search since FPMM sell is not easily invertible.
+ * Returns { tokensOut, sharesUsed } where tokensOut is the safe tokens_desired
+ * and sharesUsed is how many shares the AMM will consume.
+ */
+export function estimateSellTokensOut(
+  reserves: number[],
+  outcomeIndex: number,
+  sharesToSell: number
+): { tokensOut: number; sharesUsed: number } {
+  const n = reserves.length;
+  if (outcomeIndex < 0 || outcomeIndex >= n || sharesToSell <= 0) {
+    return { tokensOut: 0, sharesUsed: 0 };
+  }
+
+  // Contract fees: protocol 0.5% + creator 0.5% + LP 1.0% = 2% total
+  // pool_tokens_out = tokens_desired - lp_fee = tokens_desired * (1 - 100/10000)
+  // The constraint is: pool_tokens_out < min(non-target reserves)
+
+  // Max pool_tokens_out must be < smallest non-target reserve
+  let minNonTargetReserve = Infinity;
+  for (let k = 0; k < n; k++) {
+    if (k === outcomeIndex) continue;
+    minNonTargetReserve = Math.min(minNonTargetReserve, reserves[k]);
+  }
+  // pool_tokens_out = tokens_desired - (tokens_desired * 100 / 10000) = tokens_desired * 0.99
+  // So tokens_desired < minReserve / 0.99. Use 90% as safety margin.
+  const maxTokensDesired = Math.floor((minNonTargetReserve / 0.99) * 0.90);
+
+  // Binary search for the largest tokens_desired where sharesNeeded <= sharesToSell
+  let lo = 0;
+  let hi = maxTokensDesired;
+  let bestTokens = 0;
+  let bestShares = 0;
+
+  for (let iter = 0; iter < 60; iter++) {
+    if (lo > hi) break;
+    const mid = Math.floor((lo + hi) / 2);
+    if (mid <= 0) break;
+    const needed = estimateSellShares(reserves, outcomeIndex, mid);
+    if (needed <= sharesToSell && isFinite(needed)) {
+      bestTokens = mid;
+      bestShares = needed;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+
+  return { tokensOut: bestTokens, sharesUsed: bestShares };
 }
 
 /**

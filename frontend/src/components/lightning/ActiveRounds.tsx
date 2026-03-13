@@ -4,28 +4,49 @@ import Badge from '@/components/shared/Badge';
 import Button from '@/components/shared/Button';
 import { BoltIcon, ArrowUpIcon, ArrowDownIcon } from '@/components/icons';
 import { useTransaction } from '@/hooks/useTransaction';
-import { buildBuySharesPrivateTx, generateNonce } from '@/utils/transactions';
+import { buildBuySharesPrivateTx, buildBuySharesUsdcxTx, generateNonce } from '@/utils/transactions';
 import { estimateBuySharesExact } from '@/utils/fpmm';
 import { formatUSD, formatAleo } from '@/utils/format';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTradeStore } from '@/stores/tradeStore';
 import { useLightningBetStore } from '@/stores/lightningBetStore';
+import { API_BASE } from '@/constants';
 
-// Map lightning assets to real on-chain market IDs
-const ASSET_MARKET_MAP: Record<string, { id: string; reserves: number[] }> = {
+// Map lightning assets to real on-chain market IDs (ALEO + USDCx)
+const ASSET_MARKET_MAP: Record<string, { aleo: { id: string; reserves: number[] }; usdcx: { id: string; reserves: number[] } }> = {
   BTC: {
-    id: '1453931991308580475428975090349277804251679422043348343263566005521045252998field',
-    reserves: [1_000_000, 1_000_000],
+    aleo: {
+      id: '1453931991308580475428975090349277804251679422043348343263566005521045252998field',
+      reserves: [1_000_000, 1_000_000],
+    },
+    usdcx: {
+      id: '6066728251858600342700806646539409753846149537378370966005549823841603389494field',
+      reserves: [2_000_000, 2_000_000],
+    },
   },
   ETH: {
-    id: '8292926655901621437805687927045387826605222498023779464600572253470472422042field',
-    reserves: [1_000_000, 1_000_000],
+    aleo: {
+      id: '8292926655901621437805687927045387826605222498023779464600572253470472422042field',
+      reserves: [1_000_000, 1_000_000],
+    },
+    usdcx: {
+      id: '7022657257321819297207938773900392153922045789642273474510137796309875038910field',
+      reserves: [2_000_000, 2_000_000],
+    },
   },
   ALEO: {
-    id: '875462563816638972930909946596281093653347951171132855649321634026236611657field',
-    reserves: [1_000_000, 1_000_000],
+    aleo: {
+      id: '875462563816638972930909946596281093653347951171132855649321634026236611657field',
+      reserves: [1_000_000, 1_000_000],
+    },
+    usdcx: {
+      id: '413067812168342966855392966668324178189004844866130452902307116022507222212field',
+      reserves: [2_000_000, 2_000_000],
+    },
   },
 };
+
+type TokenType = 'aleo' | 'usdcx';
 
 interface LightningRound {
   id: string;
@@ -55,27 +76,24 @@ function RoundCard({ round }: { round: LightningRound }) {
   const secondsLeft = useCountdownSeconds(round.endTime);
   const minutes = Math.floor(secondsLeft / 60);
   const secs = secondsLeft % 60;
-  const { status: txStatus, execute } = useTransaction();
+  const { status: txStatus, execute, fetchCreditsRecord } = useTransaction();
   const [betAmount, setBetAmount] = useState('1');
+  const [tokenType, setTokenType] = useState<TokenType>('aleo');
 
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
   const allMarkets = useMarketStore((s) => s.markets);
   const addTrade = useTradeStore((s) => s.addTrade);
   const addBet = useLightningBetStore((s) => s.addBet);
-  const resolveBets = useLightningBetStore((s) => s.resolveBets);
-  const roundBets = useLightningBetStore((s) => s.getBetsForRound(round.id));
+  const allBets = useLightningBetStore((s) => s.bets);
+  const roundBets = allBets.filter((b) => b.roundId === round.id);
 
-  // Auto-resolve user bets when round resolves
-  useEffect(() => {
-    if (round.status === 'resolved' && round.result && round.endPrice) {
-      resolveBets(round.id, round.result, round.endPrice);
-    }
-  }, [round.status, round.result, round.endPrice, round.id, resolveBets]);
-
-  // Get live reserves from store for this asset's market
-  const chainMarket = ASSET_MARKET_MAP[round.asset];
+  // Get live reserves from store for this asset's market (based on selected token)
+  const assetMarkets = ASSET_MARKET_MAP[round.asset];
+  const chainMarket = assetMarkets?.[tokenType];
   const liveMarket = allMarkets.find((m) => m.id === chainMarket?.id);
   const liveReserves = liveMarket?.reserves ?? chainMarket?.reserves ?? [2_000_000, 2_000_000];
+
+  const tokenLabel = tokenType === 'aleo' ? 'ALEO' : 'USDCx';
 
   const userBet = roundBets[0]; // Most recent bet for this round
 
@@ -87,17 +105,27 @@ function RoundCard({ round }: { round: LightningRound }) {
     if (exactShares <= 0n) return;
     const minShares = exactShares * 95n / 100n;
     const nonce = generateNonce();
-    const tx = buildBuySharesPrivateTx(
-      chainMarket.id,
-      outcome,
-      `${amountMicro}u128`,
-      `${exactShares}u128`,
-      `${minShares}u128`,
-      nonce
-    );
+
+    let tx;
+    if (tokenType === 'usdcx') {
+      tx = buildBuySharesUsdcxTx(
+        chainMarket.id, outcome,
+        `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce
+      );
+    } else {
+      // Fetch a credits record from the wallet for the 7th input
+      const record = await fetchCreditsRecord(amountMicro);
+      if (!record) {
+        return; // notification handled inside fetchCreditsRecord or user has no records
+      }
+      tx = buildBuySharesPrivateTx(
+        chainMarket.id, outcome,
+        `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce,
+        record
+      );
+    }
     const txId = await execute(tx);
     if (txId) {
-      // Track lightning bet
       addBet({
         roundId: round.id,
         asset: round.asset,
@@ -117,7 +145,7 @@ function RoundCard({ round }: { round: LightningRound }) {
         price: 0.5,
         timestamp: Date.now(),
       });
-      const refreshChain = () => fetch('/api/markets/refresh', { method: 'POST' }).then(() => fetchMarkets()).catch(() => fetchMarkets());
+      const refreshChain = () => fetch(`${API_BASE}/markets/refresh`, { method: 'POST' }).then(() => fetchMarkets()).catch(() => fetchMarkets());
       refreshChain();
       setTimeout(refreshChain, 15000);
       setTimeout(refreshChain, 30000);
@@ -181,7 +209,32 @@ function RoundCard({ round }: { round: LightningRound }) {
       {round.status === 'open' && !userBet && (
         <>
           <div className="mb-3">
-            <label className="text-xs text-gray-500 mb-1 block">Amount (ALEO)</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs text-gray-500">Token</label>
+              <div className="flex rounded-lg border border-dark-400/50 overflow-hidden">
+                <button
+                  onClick={() => setTokenType('aleo')}
+                  className={`px-3 py-1 text-xs font-medium transition-all ${
+                    tokenType === 'aleo'
+                      ? 'bg-teal/20 text-teal'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  ALEO
+                </button>
+                <button
+                  onClick={() => setTokenType('usdcx')}
+                  className={`px-3 py-1 text-xs font-medium transition-all ${
+                    tokenType === 'usdcx'
+                      ? 'bg-blue-500/20 text-blue-400'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  USDCx
+                </button>
+              </div>
+            </div>
+            <label className="text-xs text-gray-500 mb-1 block">Amount ({tokenLabel})</label>
             <div className="flex gap-2">
               {['1', '5', '10', '25'].map((val) => (
                 <button
@@ -238,11 +291,11 @@ function RoundCard({ round }: { round: LightningRound }) {
           </div>
           <div className="flex items-center justify-between text-xs">
             <span className="text-gray-500">Amount</span>
-            <span className="font-mono text-white">{formatAleo(userBet.amount)} ALEO</span>
+            <span className="font-mono text-white">{formatAleo(userBet.amount)} {tokenLabel}</span>
           </div>
           <div className="flex items-center justify-between text-xs mt-0.5">
             <span className="text-gray-500">Potential Win</span>
-            <span className="font-mono text-teal">{formatAleo(userBet.shares)} ALEO</span>
+            <span className="font-mono text-teal">{formatAleo(userBet.shares)} {tokenLabel}</span>
           </div>
         </div>
       )}
@@ -271,17 +324,17 @@ function RoundCard({ round }: { round: LightningRound }) {
               {userBet.won ? '🎉 YOU WON!' : '😞 YOU LOST'}
             </span>
             <span className="text-xs font-mono text-gray-400">
-              Bet {userBet.direction.toUpperCase()} • {formatAleo(userBet.amount)} ALEO
+              Bet {userBet.direction.toUpperCase()} • {formatAleo(userBet.amount)} {tokenLabel}
             </span>
           </div>
           {userBet.won && (
             <p className="text-xs text-accent-green/80 mt-1">
-              Payout: {formatAleo(userBet.payout || 0)} ALEO (shares redeemable on-chain)
+              Payout: {formatAleo(userBet.payout || 0)} {tokenLabel} (shares redeemable on-chain)
             </p>
           )}
           {!userBet.won && (
             <p className="text-xs text-accent-red/60 mt-1">
-              Your {formatAleo(userBet.amount)} ALEO went to the liquidity pool
+              Your {formatAleo(userBet.amount)} {tokenLabel} went to the liquidity pool
             </p>
           )}
         </div>
@@ -300,7 +353,7 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
 
   const fetchRounds = useCallback(async () => {
     try {
-      const res = await fetch('/api/lightning');
+      const res = await fetch(`${API_BASE}/lightning`);
       if (res.ok) {
         const data = await res.json();
         setRounds(data.rounds || []);

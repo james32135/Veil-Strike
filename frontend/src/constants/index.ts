@@ -6,7 +6,9 @@ export const PROGRAM_ID = 'veil_strike_v2.aleo';
 
 export const ALEO_TESTNET_API = 'https://api.explorer.provable.com/v1/testnet';
 
-export const API_BASE = '/api';
+export const API_BASE = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api';
 
 export const PRECISION = 1_000_000;
 

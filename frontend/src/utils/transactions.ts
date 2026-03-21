@@ -106,7 +106,7 @@ export function buildAddLiquidityTx(
   ], 1_000_000);
 }
 
-// ========== USDCx Transactions ==========
+// ========== USDCx Transactions (Privacy-first via private Token + MerkleProof) ==========
 
 export function buildCreateMarketUsdcxTx(
   questionHash: string,
@@ -116,7 +116,9 @@ export function buildCreateMarketUsdcxTx(
   resolutionDeadline: string,
   resolver: string,
   initialLiquidity: string,
-  nonce: string
+  nonce: string,
+  tokenRecord: string,
+  proofs: string
 ): AleoTransaction {
   return buildTransaction(TRANSITIONS.CREATE_MARKET_USDCX, [
     questionHash,
@@ -127,6 +129,8 @@ export function buildCreateMarketUsdcxTx(
     resolver,
     initialLiquidity,
     nonce,
+    tokenRecord,
+    proofs,
   ], 2_000_000);
 }
 
@@ -136,7 +140,9 @@ export function buildBuySharesUsdcxTx(
   amount: string,
   expectedShares: string,
   minShares: string,
-  nonce: string
+  nonce: string,
+  tokenRecord: string,
+  proofs: string
 ): AleoTransaction {
   const outcomeOnChain = outcome + 1;
   return buildTransaction(TRANSITIONS.BUY_SHARES_USDCX, [
@@ -146,6 +152,8 @@ export function buildBuySharesUsdcxTx(
     expectedShares,
     minShares,
     nonce,
+    tokenRecord,
+    proofs,
   ], 1_000_000);
 }
 
@@ -153,13 +161,17 @@ export function buildAddLiquidityUsdcxTx(
   marketId: string,
   amount: string,
   expectedLpShares: string,
-  nonce: string
+  nonce: string,
+  tokenRecord: string,
+  proofs: string
 ): AleoTransaction {
   return buildTransaction(TRANSITIONS.ADD_LIQUIDITY_USDCX, [
     marketId,
     amount,
     expectedLpShares,
     nonce,
+    tokenRecord,
+    proofs,
   ], 1_000_000);
 }
 

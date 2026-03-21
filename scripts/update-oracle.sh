@@ -30,7 +30,7 @@ echo "ALEO: \$$ALEO ($ALEO_MICRO micro)"
 
 echo "Updating oracle prices on-chain..."
 snarkos developer execute \
-  veil_strike_v3.aleo \
+  veil_strike_v4.aleo \
   update_oracle_prices \
   "${BTC_MICRO}u64" \
   "${ETH_MICRO}u64" \

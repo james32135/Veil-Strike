@@ -79,6 +79,56 @@ export function useTransaction() {
     [connected, requestRecords, addNotification]
   );
 
+  /**
+   * Fetch a test_usdcx_stablecoin.aleo Token record with at least `minAmount` balance.
+   * Returns the record plaintext string to pass as a transaction input.
+   */
+  const fetchUsdcxRecord = useCallback(
+    async (minAmount: number): Promise<string | null> => {
+      if (!connected) {
+        addNotification('error', 'Wallet Not Connected', 'Please connect your Shield Wallet first.');
+        return null;
+      }
+      try {
+        const records = await requestRecords('test_usdcx_stablecoin.aleo', true);
+        if (!records || records.length === 0) {
+          addNotification('error', 'No USDCx Records', 'No private USDCx token records found. You need private USDCx to trade.');
+          return null;
+        }
+
+        for (const rec of records) {
+          const r = rec as Record<string, unknown>;
+          if (r.spent) continue;
+
+          let plaintext: string | undefined;
+          if (typeof rec === 'string') {
+            plaintext = rec;
+          } else {
+            plaintext = (r.recordPlaintext ?? r.plaintext) as string | undefined;
+          }
+
+          let amount = 0;
+          if (plaintext) {
+            const match = plaintext.match(/amount:\s*([\d_]+)u128/);
+            if (match) amount = parseInt(match[1].replace(/_/g, ''), 10);
+          }
+
+          if (amount >= minAmount && plaintext) {
+            return plaintext;
+          }
+        }
+
+        addNotification('error', 'Insufficient USDCx', `No USDCx record with at least ${(minAmount / 1_000_000).toFixed(2)} USDCx found. Convert public USDCx to private first.`);
+        return null;
+      } catch (err) {
+        console.error('[fetchUsdcxRecord] Error:', err);
+        addNotification('error', 'USDCx Fetch Failed', err instanceof Error ? err.message : 'Could not fetch USDCx records.');
+        return null;
+      }
+    },
+    [connected, requestRecords, addNotification]
+  );
+
   const execute = useCallback(
     async (transaction: AleoTransaction) => {
       if (!connected) {
@@ -174,5 +224,5 @@ export function useTransaction() {
     [connected, requestRecords]
   );
 
-  return { status, txId, error, execute, reset, fetchCreditsRecord, fetchShareRecords };
+  return { status, txId, error, execute, reset, fetchCreditsRecord, fetchUsdcxRecord, fetchShareRecords };
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTransaction } from '@/hooks/useTransaction';
 import { buildCreateMarketTx, buildCreateMarketUsdcxTx, generateNonce } from '@/utils/transactions';
+import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { parseAleoInput } from '@/utils/format';
 import { CATEGORIES } from '@/constants';
 import { useWalletStore } from '@/stores/walletStore';
@@ -18,7 +19,7 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
   const [initialLiquidity, setInitialLiquidity] = useState('10');
   const [durationDays, setDurationDays] = useState('7');
   const [tokenType, setTokenType] = useState<'ALEO' | 'USDCX'>('USDCX');
-  const { status, execute } = useTransaction();
+  const { status, execute, fetchUsdcxRecord } = useTransaction();
   const walletAddress = useWalletStore((s) => s.address);
 
   const handleAddOutcome = () => {
@@ -53,17 +54,35 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
     const resolutionBlock = `${Math.floor(endTime / 15000) + 15044000 + 120960}u32`;
     const resolver = walletAddress || '';
     const isUsdcx = tokenType === 'USDCX';
-    const buildFn = isUsdcx ? buildCreateMarketUsdcxTx : buildCreateMarketTx;
-    const tx = buildFn(
-      questionHash,
-      catNum,
-      outcomes.length,
-      blockDeadline,
-      resolutionBlock,
-      resolver,
-      `${liquidityMicro}u128`,
-      nonce
-    );
+    let tx;
+    if (isUsdcx) {
+      const tokenRecord = await fetchUsdcxRecord(liquidityMicro);
+      if (!tokenRecord) return;
+      const proofs = await getUsdcxProofs();
+      tx = buildCreateMarketUsdcxTx(
+        questionHash,
+        catNum,
+        outcomes.length,
+        blockDeadline,
+        resolutionBlock,
+        resolver,
+        `${liquidityMicro}u128`,
+        nonce,
+        tokenRecord,
+        proofs
+      );
+    } else {
+      tx = buildCreateMarketTx(
+        questionHash,
+        catNum,
+        outcomes.length,
+        blockDeadline,
+        resolutionBlock,
+        resolver,
+        `${liquidityMicro}u128`,
+        nonce
+      );
+    }
     await execute(tx);
     onSuccess?.();
   };

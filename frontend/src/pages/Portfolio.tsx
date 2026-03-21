@@ -167,7 +167,7 @@ export default function Portfolio() {
                             Qty: <span className="font-mono text-gray-400">{formatAleo(record.quantity)}</span>
                           </span>
                           <span className="text-xs text-gray-500">
-                            Sell value: <span className="font-mono text-teal">~{formatAleo(tokensOut)} {tokenLabel}</span>
+                            {market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1 ? 'Claim' : 'Sell'} value: <span className="font-mono text-teal">~{formatAleo(tokensOut)} {tokenLabel}</span>
                           </span>
                         </div>
                       </div>
@@ -178,7 +178,7 @@ export default function Portfolio() {
                         loading={txStatus === 'proving'}
                         className="!text-xs"
                       >
-                        Sell
+                        {market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1 ? 'Claim' : 'Sell'}
                       </Button>
                     </div>
                   </Card>

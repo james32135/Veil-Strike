@@ -20,7 +20,7 @@ GET /api/health
   "status": "ok",
   "timestamp": 1705000000000,
   "version": "1.0.0",
-  "program": "veil_strike_v3.aleo"
+  "program": "veil_strike_v4.aleo"
 }
 ```
 

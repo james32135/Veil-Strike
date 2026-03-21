@@ -138,7 +138,7 @@ export default function LightningHistory({ }: LightningHistoryProps) {
                       <span className="font-mono">{formatAleo(record.quantity)} {tokenLabel}</span>
                     </p>
                     <p className="text-[10px] text-gray-600 mt-0.5">
-                      Sell value: ~{formatAleo(tokensOut)} {tokenLabel} (after fees)
+                      {market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1 ? 'Claim' : 'Sell'} value: ~{formatAleo(tokensOut)} {tokenLabel} (after fees)
                     </p>
                   </div>
                   <Button
@@ -148,7 +148,7 @@ export default function LightningHistory({ }: LightningHistoryProps) {
                     loading={txStatus === 'proving'}
                     className="!text-xs"
                   >
-                    Sell
+                    {market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1 ? 'Claim' : 'Sell'}
                   </Button>
                 </div>
               );

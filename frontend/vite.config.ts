@@ -18,8 +18,15 @@ export default defineConfig({
       },
     },
   },
+  optimizeDeps: {
+    exclude: ['@provablehq/wasm'],
+    esbuildOptions: {
+      target: 'esnext',
+    },
+  },
   build: {
     outDir: 'dist',
     sourcemap: false,
+    target: 'esnext',
   },
 });

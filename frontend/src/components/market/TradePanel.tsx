@@ -5,6 +5,7 @@ import { formatAleo, parseAleoInput } from '@/utils/format';
 import { PRECISION, API_BASE } from '@/constants';
 import { useTransaction } from '@/hooks/useTransaction';
 import { buildBuySharesPrivateTx, buildBuySharesUsdcxTx, buildSellSharesTx, buildSellSharesUsdcxTx, generateNonce } from '@/utils/transactions';
+import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTradeStore } from '@/stores/tradeStore';
 import Button from '@/components/shared/Button';
@@ -19,7 +20,7 @@ export default function TradePanel({ market }: TradePanelProps) {
   const [amount, setAmount] = useState('');
   const [mode, setMode] = useState<'buy' | 'sell'>('buy');
   const [selectedShareRecord, setSelectedShareRecord] = useState<string | null>(null);
-  const { status, execute, fetchCreditsRecord, fetchShareRecords } = useTransaction();
+  const { status, execute, fetchCreditsRecord, fetchUsdcxRecord, fetchShareRecords } = useTransaction();
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
   const addTrade = useTradeStore((s) => s.addTrade);
 
@@ -54,10 +55,13 @@ export default function TradePanel({ market }: TradePanelProps) {
 
       let tx;
       if (isUsdcx) {
+        const tokenRecord = await fetchUsdcxRecord(amountMicro);
+        if (!tokenRecord) return;
+        const proofs = await getUsdcxProofs();
         tx = buildBuySharesUsdcxTx(
           market.id, selectedOutcome,
           `${amountMicro}${typeSuffix}`, `${exactShares}${typeSuffix}`, `${minShares}${typeSuffix}`,
-          nonce
+          nonce, tokenRecord, proofs
         );
       } else {
         const record = await fetchCreditsRecord(amountMicro);

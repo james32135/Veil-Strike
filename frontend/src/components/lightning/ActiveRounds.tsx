@@ -5,6 +5,7 @@ import Button from '@/components/shared/Button';
 import { BoltIcon, ArrowUpIcon, ArrowDownIcon } from '@/components/icons';
 import { useTransaction } from '@/hooks/useTransaction';
 import { buildBuySharesPrivateTx, buildBuySharesUsdcxTx, generateNonce } from '@/utils/transactions';
+import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { estimateBuySharesExact } from '@/utils/fpmm';
 import { formatUSD, formatAleo } from '@/utils/format';
 import { useMarketStore } from '@/stores/marketStore';
@@ -76,7 +77,7 @@ function RoundCard({ round }: { round: LightningRound }) {
   const secondsLeft = useCountdownSeconds(round.endTime);
   const minutes = Math.floor(secondsLeft / 60);
   const secs = secondsLeft % 60;
-  const { status: txStatus, execute, fetchCreditsRecord } = useTransaction();
+  const { status: txStatus, execute, fetchCreditsRecord, fetchUsdcxRecord } = useTransaction();
   const [betAmount, setBetAmount] = useState('1');
   const [tokenType, setTokenType] = useState<TokenType>('aleo');
 
@@ -109,9 +110,13 @@ function RoundCard({ round }: { round: LightningRound }) {
 
     let tx;
     if (tokenType === 'usdcx') {
+      const tokenRecord = await fetchUsdcxRecord(amountMicro);
+      if (!tokenRecord) return;
+      const proofs = await getUsdcxProofs();
       tx = buildBuySharesUsdcxTx(
         chainMarket.id, outcome,
-        `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce
+        `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce,
+        tokenRecord, proofs
       );
     } else {
       // Fetch a credits record from the wallet for the 7th input

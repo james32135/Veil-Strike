@@ -49,7 +49,7 @@
 
 ### Smart Contract
 ```bash
-cd contract/veil_strike_v3
+cd contract/veil_strike_v4
 leo build
 leo run <transition_name> <inputs...>
 ```

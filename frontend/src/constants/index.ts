@@ -2,7 +2,7 @@
 // Veil Strike — Application constants
 // ============================================================================
 
-export const PROGRAM_ID = 'veil_strike_v3.aleo';
+export const PROGRAM_ID = 'veil_strike_v4.aleo';
 
 export const ALEO_TESTNET_API = 'https://api.explorer.provable.com/v1/testnet';
 

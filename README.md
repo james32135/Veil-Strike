@@ -11,7 +11,7 @@
 
 **Trade outcomes. Stay private. Win on-chain.**
 
-[Live App](https://veil-strike.netlify.app) · [Explorer](https://testnet.aleoscan.io/program?id=veil_strike_v3.aleo) · [API](https://veil-strike-api.onrender.com/api/health)
+[Live App](https://veil-strike.netlify.app) · [Explorer](https://testnet.aleoscan.io/program?id=veil_strike_v4.aleo) · [API](https://veil-strike-api.onrender.com/api/health)
 
 </div>
 
@@ -46,7 +46,7 @@ Every trade generates a zero-knowledge proof. Your identity, position size, and 
 ┌────────────────┐     ┌────────────────┐     ┌──────────────────────┐
 │    Frontend    │────►│    Backend     │────►│   Aleo Blockchain    │
 │  React + Vite  │     │  Express + TS  │     │                      │
-│  Tailwind CSS  │     │  Oracle Feeds  │     │  veil_strike_v3.aleo │
+│  Tailwind CSS  │     │  Oracle Feeds  │     │  veil_strike_v4.aleo │
 │  Shield Wallet │     │  Cron Indexer  │     │  24 transitions      │
 │  Zustand       │     │  Resolver      │     │  2,000+ lines Leo    │
 └────────────────┘     └────────────────┘     │  9 mappings          │
@@ -58,7 +58,7 @@ Every trade generates a zero-knowledge proof. Your identity, position size, and 
 
 ## Smart Contract
 
-**Program:** `veil_strike_v3.aleo` — Deployed on Aleo Testnet
+**Program:** `veil_strike_v4.aleo` — Deployed on Aleo Testnet
 
 ### 24 Transitions
 
@@ -211,7 +211,7 @@ leo build
 **Frontend** (`frontend/.env`)
 ```
 VITE_API_URL=http://localhost:3001
-VITE_PROGRAM_ID=veil_strike_v3.aleo
+VITE_PROGRAM_ID=veil_strike_v4.aleo
 VITE_NETWORK=testnet
 ```
 
@@ -243,7 +243,7 @@ CORS_ORIGIN=http://localhost:5173
 |---------|----------|-----|
 | Frontend | Netlify | `https://veil-strike.netlify.app` |
 | Backend | Render | `https://veil-strike-api.onrender.com` |
-| Contract | Aleo Testnet | `veil_strike_v3.aleo` |
+| Contract | Aleo Testnet | `veil_strike_v4.aleo` |
 
 ---
 

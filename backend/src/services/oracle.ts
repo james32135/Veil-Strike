@@ -345,8 +345,8 @@ export function recordPriceSnapshot(): void {
   const p = getCachedPrices();
   if (p.btc > 0) {
     priceHistory.push({ timestamp: Date.now(), btc: p.btc, eth: p.eth, aleo: p.aleo });
-    // Keep last 30 minutes of data
-    const cutoff = Date.now() - 30 * 60 * 1000;
+    // Keep last 2 hours of data (so older lightning rounds can still resolve bets)
+    const cutoff = Date.now() - 120 * 60 * 1000;
     while (priceHistory.length > 0 && priceHistory[0].timestamp < cutoff) {
       priceHistory.shift();
     }
@@ -380,8 +380,8 @@ export function getLightningRounds(): LightningRound[] {
   const rounds: LightningRound[] = [];
 
   for (const asset of ASSETS) {
-    // Two previous rounds (resolved) — ensures bets resolve even if polling was slow
-    for (let offset = 2; offset >= 1; offset--) {
+    // Previous rounds (resolved) — keep 12 rounds (1 hour) so client bets can resolve
+    for (let offset = 12; offset >= 1; offset--) {
       const prevStart = currentRoundStart - ROUND_DURATION * offset;
       const prevEnd = prevStart + ROUND_DURATION;
       const prevStartPrice = getPriceAtTime(asset, prevStart);

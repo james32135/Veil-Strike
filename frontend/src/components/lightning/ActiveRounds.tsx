@@ -4,7 +4,8 @@ import Badge from '@/components/shared/Badge';
 import Button from '@/components/shared/Button';
 import { BoltIcon, ArrowUpIcon, ArrowDownIcon } from '@/components/icons';
 import { useTransaction } from '@/hooks/useTransaction';
-import { buildBuySharesPrivateTx, buildBuySharesUsdcxTx, generateNonce } from '@/utils/transactions';
+import type { ShareRecord } from '@/hooks/useTransaction';
+import { buildBuySharesPrivateTx, buildBuySharesUsdcxTx, buildSellSharesTx, buildSellSharesUsdcxTx, generateNonce } from '@/utils/transactions';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { estimateBuySharesExact, estimateSellTokensOut, calculateFees } from '@/utils/fpmm';
 import { formatUSD, formatAleo } from '@/utils/format';
@@ -46,13 +47,14 @@ function useCountdownSeconds(targetTime: number) {
   return seconds;
 }
 
-function RoundCard({ round }: { round: LightningRound }) {
+function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; shareRecords: ShareRecord[]; onClaimed: () => void }) {
   const secondsLeft = useCountdownSeconds(round.endTime);
   const minutes = Math.floor(secondsLeft / 60);
   const secs = secondsLeft % 60;
   const { status: txStatus, execute, fetchCreditsRecord, fetchUsdcxRecord } = useTransaction();
   const [betAmount, setBetAmount] = useState('1');
   const [tokenType, setTokenType] = useState<TokenType>('aleo');
+  const [claiming, setClaiming] = useState(false);
 
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
   const allMarkets = useMarketStore((s) => s.markets);
@@ -74,6 +76,33 @@ function RoundCard({ round }: { round: LightningRound }) {
   const tokenLabel = tokenType === 'aleo' ? 'ALEO' : 'USDCx';
 
   const userBet = roundBets[0]; // Most recent bet for this round
+
+  // Find claimable shares for this round's market + winning outcome
+  const winningOutcomeOnChain = round.result === 'up' ? 1 : 2; // 1-based
+  const bothMarketIds = [aleoMarketId, usdcxMarket?.id].filter(Boolean) as string[];
+  const claimableShares = shareRecords.filter(
+    (r) => bothMarketIds.includes(r.marketId) && r.outcome === winningOutcomeOnChain
+  );
+
+  const handleClaim = async (record: ShareRecord) => {
+    setClaiming(true);
+    try {
+      const market = allMarkets.find((m) => m.id === record.marketId);
+      const reserves = market?.reserves ?? [1_000_000, 1_000_000];
+      const outcomeIdx = record.outcome - 1;
+      const { tokensOut } = estimateSellTokensOut(reserves, outcomeIdx, record.quantity);
+      if (tokensOut <= 0) return;
+      const buildFn = record.tokenType === 1 ? buildSellSharesUsdcxTx : buildSellSharesTx;
+      const tx = buildFn(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`);
+      const txId = await execute(tx);
+      if (txId) {
+        setTimeout(onClaimed, 5000);
+        setTimeout(onClaimed, 15000);
+      }
+    } finally {
+      setClaiming(false);
+    }
+  };
 
   const handleBet = async (direction: 'up' | 'down') => {
     const amountMicro = Math.floor(parseFloat(betAmount) * 1_000_000);
@@ -315,13 +344,36 @@ function RoundCard({ round }: { round: LightningRound }) {
               Bet {userBet.direction.toUpperCase()} • {formatAleo(userBet.amount)} {tokenLabel}
             </span>
           </div>
-          {userBet.won && (
+          {userBet.won && claimableShares.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {claimableShares.map((record, idx) => {
+                const tLabel = record.tokenType === 1 ? 'USDCx' : 'ALEO';
+                const market = allMarkets.find((m) => m.id === record.marketId);
+                const reserves = market?.reserves ?? [1_000_000, 1_000_000];
+                const { tokensOut } = estimateSellTokensOut(reserves, record.outcome - 1, record.quantity);
+                const net = calculateFees(tokensOut).amountAfterFee;
+                return (
+                  <div key={idx} className="flex items-center justify-between">
+                    <span className="text-xs text-accent-green/80">
+                      {formatAleo(record.quantity)} shares → ~{formatAleo(net)} {tLabel}
+                    </span>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handleClaim(record)}
+                      loading={claiming || txStatus === 'proving'}
+                      className="!text-xs !py-1 !px-3 !bg-accent-green !text-black !border-accent-green hover:!bg-accent-green/80"
+                    >
+                      💰 Claim
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {userBet.won && claimableShares.length === 0 && (
             <p className="text-xs text-accent-green/80 mt-1">
-              Payout: {(() => {
-                const outcome = userBet.direction === 'up' ? 0 : 1;
-                const { tokensOut } = estimateSellTokensOut(liveReserves, outcome, userBet.payout || 0);
-                return formatAleo(calculateFees(tokensOut).amountAfterFee);
-              })()} {tokenLabel} (sell on-chain to claim)
+              ✓ Shares already claimed or go to Portfolio to sell
             </p>
           )}
           {!userBet.won && (
@@ -342,6 +394,13 @@ interface ActiveRoundsProps {
 export default function ActiveRounds({ }: ActiveRoundsProps) {
   const [rounds, setRounds] = useState<LightningRound[]>([]);
   const [loading, setLoading] = useState(true);
+  const { fetchShareRecords } = useTransaction();
+  const [shareRecords, setShareRecords] = useState<ShareRecord[]>([]);
+
+  const loadShareRecords = useCallback(async () => {
+    const records = await fetchShareRecords();
+    setShareRecords(records);
+  }, [fetchShareRecords]);
 
   const fetchRounds = useCallback(async () => {
     try {
@@ -356,17 +415,20 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
 
   useEffect(() => {
     fetchRounds();
-    const id = setInterval(fetchRounds, 10_000);
-    return () => clearInterval(id);
-  }, [fetchRounds]);
+    loadShareRecords();
+    const roundId = setInterval(fetchRounds, 10_000);
+    const shareId = setInterval(loadShareRecords, 30_000);
+    return () => { clearInterval(roundId); clearInterval(shareId); };
+  }, [fetchRounds, loadShareRecords]);
 
   const activeRounds = rounds.filter((r) => r.status === 'open' || r.status === 'locked');
+  const recentResolved = rounds.filter((r) => r.status === 'resolved').slice(0, 3);
 
   if (loading) {
     return <div className="text-center text-gray-500 py-8">Loading rounds...</div>;
   }
 
-  if (activeRounds.length === 0) {
+  if (activeRounds.length === 0 && recentResolved.length === 0) {
     return (
       <div className="text-center py-8">
         <BoltIcon className="w-10 h-10 text-gray-600 mx-auto mb-3" />
@@ -377,10 +439,27 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {activeRounds.map((round) => (
-        <RoundCard key={round.id} round={round} />
-      ))}
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {activeRounds.map((round) => (
+          <RoundCard key={round.id} round={round} shareRecords={shareRecords} onClaimed={loadShareRecords} />
+        ))}
+      </div>
+      {/* Show recently resolved rounds that user bet on (for claim) */}
+      {recentResolved.some((r) => useLightningBetStore.getState().bets.some((b) => b.roundId === r.id && b.won)) && (
+        <div>
+          <h3 className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-2">
+            Claim Your Winnings
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {recentResolved
+              .filter((r) => useLightningBetStore.getState().bets.some((b) => b.roundId === r.id && b.won))
+              .map((round) => (
+                <RoundCard key={round.id} round={round} shareRecords={shareRecords} onClaimed={loadShareRecords} />
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

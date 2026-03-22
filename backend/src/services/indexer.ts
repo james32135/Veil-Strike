@@ -301,6 +301,19 @@ export async function fetchMarketsFromChain(): Promise<MarketInfo[]> {
       if (market.num_outcomes >= 3) reserves.push(pool.reserve_3);
       if (market.num_outcomes >= 4) reserves.push(pool.reserve_4);
 
+      // Fetch resolved outcome if market is resolved or pending resolution
+      let resolvedOutcome: number | undefined;
+      if (market.status === 3 || market.status === 5) {
+        try {
+          const resRaw = await fetchMapping('market_resolutions', marketId);
+          if (resRaw) {
+            const resFields = parseAleoStruct(resRaw);
+            const wo = parseInt(parseAleoValue(resFields['winning_outcome'] || '0'), 10);
+            if (wo > 0) resolvedOutcome = wo - 1; // Convert 1-based to 0-based for frontend
+          }
+        } catch {}
+      }
+
       markets.push({
         id: marketId,
         question: meta.question,
@@ -315,6 +328,7 @@ export async function fetchMarketsFromChain(): Promise<MarketInfo[]> {
         createdAt: blockHeightToCreatedTimestamp(market.created_at, currentBlock),
         isLightning: meta.isLightning,
         tokenType: TOKEN_TYPE_MAP[tokenType] || 'ALEO',
+        resolvedOutcome,
       });
     } catch (err) {
       console.error(`[Indexer] Error fetching market ${marketId.slice(0, 20)}...`, err);

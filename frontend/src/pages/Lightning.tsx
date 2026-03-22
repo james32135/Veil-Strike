@@ -62,6 +62,16 @@ export default function Lightning() {
         }
       }
     }
+
+    // Fallback: resolve stale bets older than 10 min whose round data is no longer available
+    const now = Date.now();
+    const resolvedRoundIds = new Set(allRounds.filter((r) => r.status === 'resolved').map((r) => r.id));
+    for (const bet of pendingBets) {
+      if (now - bet.timestamp > 10 * 60 * 1000 && !resolvedRoundIds.has(bet.roundId)) {
+        // Round data expired — mark as lost (we can't determine result)
+        resolveBets(bet.roundId, bet.direction === 'up' ? 'down' : 'up', bet.startPrice);
+      }
+    }
   }, [allRounds, bets, resolveBets]);
 
   return (

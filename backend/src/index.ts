@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import cron from 'node-cron';
@@ -6,6 +7,7 @@ import { fetchOraclePrices, recordPriceSnapshot } from './services/oracle';
 import { fetchMarketsFromChain, setCachedMarkets } from './services/indexer';
 import { resolveExpiredMarkets } from './services/resolver';
 import { scanForNewMarkets } from './services/scanner';
+import { autoResolveMarkets } from './services/auto-resolver';
 import marketsRouter from './routes/markets';
 import oracleRouter from './routes/oracle';
 import statsRouter from './routes/stats';
@@ -78,6 +80,15 @@ cron.schedule('*/3 * * * *', async () => {
     }
   } catch (err) {
     console.error('[Cron] Market scan failed:', err);
+  }
+});
+
+// Auto-resolve markets (close → resolve → finalize) every 2 minutes
+cron.schedule('*/2 * * * *', async () => {
+  try {
+    await autoResolveMarkets();
+  } catch (err) {
+    console.error('[Cron] Auto-resolve failed:', err);
   }
 });
 

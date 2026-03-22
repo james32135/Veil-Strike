@@ -13,38 +13,11 @@ import { useTradeStore } from '@/stores/tradeStore';
 import { useLightningBetStore } from '@/stores/lightningBetStore';
 import { API_BASE } from '@/constants';
 
-// Map lightning assets to real on-chain market IDs (ALEO + USDCx)
-const ASSET_MARKET_MAP: Record<string, { aleo: { id: string; reserves: number[] }; usdcx: { id: string; reserves: number[] } }> = {
-  BTC: {
-    aleo: {
-      id: '455294369202814481808572296872385613210766523398587823774432937118229435492field',
-      reserves: [1_000_000, 1_000_000],
-    },
-    usdcx: {
-      id: '4272505381541829772121013816865257197231947507909388371821957605106869138124field',
-      reserves: [1_000_000, 1_000_000],
-    },
-  },
-  ETH: {
-    aleo: {
-      id: '2985899309493287288033109462171337384878765389403150014680153091857858070707field',
-      reserves: [1_000_000, 1_000_000],
-    },
-    usdcx: {
-      id: '4852943562597258903747171372224887618868232466193807856465246683075526845657field',
-      reserves: [1_000_000, 1_000_000],
-    },
-  },
-  ALEO: {
-    aleo: {
-      id: '7209234236981629163723310973365078776830204734745925629370880472855317936451field',
-      reserves: [1_000_000, 1_000_000],
-    },
-    usdcx: {
-      id: '7065470738032358578092482552162988342737541647713361902926285601518107221702field',
-      reserves: [1_000_000, 1_000_000],
-    },
-  },
+// ALEO lightning market IDs (deterministic: same creator + hash + nonce as v3)
+const ALEO_LIGHTNING_IDS: Record<string, string> = {
+  BTC: '455294369202814481808572296872385613210766523398587823774432937118229435492field',
+  ETH: '2985899309493287288033109462171337384878765389403150014680153091857858070707field',
+  ALEO: '7209234236981629163723310973365078776830204734745925629370880472855317936451field',
 };
 
 type TokenType = 'aleo' | 'usdcx';
@@ -88,12 +61,15 @@ function RoundCard({ round }: { round: LightningRound }) {
   const allBets = useLightningBetStore((s) => s.bets);
   const roundBets = allBets.filter((b) => b.roundId === round.id);
 
-  // Get live reserves from store for this asset's market (based on selected token)
-  const assetMarkets = ASSET_MARKET_MAP[round.asset];
-  const chainMarket = assetMarkets?.[tokenType];
-  const hasUsdcxMarket = !!assetMarkets?.usdcx?.id;
-  const liveMarket = allMarkets.find((m) => m.id === chainMarket?.id);
-  const liveReserves = liveMarket?.reserves ?? chainMarket?.reserves ?? [2_000_000, 2_000_000];
+  // Get market IDs: ALEO is hardcoded, USDCx is dynamically looked up from the store
+  const aleoMarketId = ALEO_LIGHTNING_IDS[round.asset];
+  const usdcxMarket = allMarkets.find((m) =>
+    m.isLightning && m.tokenType === 'USDCX' && m.question.toUpperCase().includes(round.asset)
+  );
+  const chainMarketId = tokenType === 'aleo' ? aleoMarketId : usdcxMarket?.id;
+  const hasUsdcxMarket = !!usdcxMarket;
+  const liveMarket = allMarkets.find((m) => m.id === chainMarketId);
+  const liveReserves = liveMarket?.reserves ?? [1_000_000, 1_000_000];
 
   const tokenLabel = tokenType === 'aleo' ? 'ALEO' : 'USDCx';
 
@@ -101,7 +77,7 @@ function RoundCard({ round }: { round: LightningRound }) {
 
   const handleBet = async (direction: 'up' | 'down') => {
     const amountMicro = Math.floor(parseFloat(betAmount) * 1_000_000);
-    if (amountMicro < 1000 || !chainMarket) return;
+    if (amountMicro < 1000 || !chainMarketId) return;
     const outcome = direction === 'up' ? 0 : 1;
     const exactShares = estimateBuySharesExact(liveReserves, outcome, amountMicro);
     if (exactShares <= 0n) return;
@@ -114,7 +90,7 @@ function RoundCard({ round }: { round: LightningRound }) {
       if (!tokenRecord) return;
       const proofs = await getUsdcxProofs();
       tx = buildBuySharesUsdcxTx(
-        chainMarket.id, outcome,
+        chainMarketId, outcome,
         `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce,
         tokenRecord, proofs
       );
@@ -125,7 +101,7 @@ function RoundCard({ round }: { round: LightningRound }) {
         return; // notification handled inside fetchCreditsRecord or user has no records
       }
       tx = buildBuySharesPrivateTx(
-        chainMarket.id, outcome,
+        chainMarketId, outcome,
         `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce,
         record
       );
@@ -143,7 +119,7 @@ function RoundCard({ round }: { round: LightningRound }) {
       });
 
       addTrade({
-        marketId: chainMarket.id,
+        marketId: chainMarketId,
         type: 'buy',
         outcome: direction === 'up' ? 'Up' : 'Down',
         amount: amountMicro,

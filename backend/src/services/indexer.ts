@@ -70,25 +70,7 @@ const MARKET_REGISTRY: Record<string, MarketMeta> = {
     outcomes: ['Up', 'Down'],
     isLightning: true,
   },
-  // ── Lightning USDCx Markets (to be created via UI) ──
-  '4272505381541829772121013816865257197231947507909388371821957605106869138124field': {
-    questionHash: '100field',
-    question: 'BTC USDCx Lightning Round',
-    outcomes: ['Up', 'Down'],
-    isLightning: true,
-  },
-  '4852943562597258903747171372224887618868232466193807856465246683075526845657field': {
-    questionHash: '200field',
-    question: 'ETH USDCx Lightning Round',
-    outcomes: ['Up', 'Down'],
-    isLightning: true,
-  },
-  '7065470738032358578092482552162988342737541647713361902926285601518107221702field': {
-    questionHash: '300field',
-    question: 'ALEO USDCx Lightning Round',
-    outcomes: ['Up', 'Down'],
-    isLightning: true,
-  },
+  // USDCx Lightning Markets are dynamically registered via POST /api/markets/register
 };
 
 const STATUS_MAP: Record<number, MarketInfo['status']> = {

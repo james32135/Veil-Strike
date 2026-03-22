@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { getCachedMarkets, fetchMarketsFromChain, setCachedMarkets, registerMarket } from '../services/indexer';
+import { getCachedMarkets, fetchMarketsFromChain, setCachedMarkets, registerMarket, persistRegistry } from '../services/indexer';
+import { savePendingMeta } from '../services/scanner';
 
 const router = Router();
 
@@ -35,9 +36,28 @@ router.post('/register', async (req, res) => {
     outcomes,
     isLightning: isLightning || false,
   });
+  persistRegistry();
   const markets = await fetchMarketsFromChain();
   setCachedMarkets(markets);
   res.json({ success: true, marketCount: markets.length });
+});
+
+// Save pending market metadata before tx confirms.
+// Frontend sends question text + hash so the scanner can populate the
+// market's metadata when it discovers the market_id on-chain.
+router.post('/pending', (req, res) => {
+  const { questionHash, question, outcomes, isLightning } = req.body;
+  if (!questionHash || !question) {
+    res.status(400).json({ error: 'questionHash and question required' });
+    return;
+  }
+  savePendingMeta(questionHash, {
+    question,
+    outcomes: Array.isArray(outcomes) ? outcomes : ['Yes', 'No'],
+    isLightning: isLightning || false,
+    createdAt: Date.now(),
+  });
+  res.json({ success: true });
 });
 
 export default router;

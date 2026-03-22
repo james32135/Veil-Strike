@@ -1,19 +1,49 @@
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { join } from 'path';
 import { config } from '../config';
 import type { MarketInfo } from '../types';
 
 let marketsCache: MarketInfo[] = [];
 
 // Off-chain metadata for markets (question text, outcomes, etc. not stored on-chain)
-interface MarketMeta {
+export interface MarketMeta {
   questionHash: string;
   question: string;
   outcomes: string[];
   isLightning: boolean;
 }
 
+// ── JSON persistence for dynamically discovered/registered markets ──
+const DYNAMIC_REGISTRY_PATH = join(__dirname, '../../data/dynamic-markets.json');
+
+function loadDynamicRegistry(): Record<string, MarketMeta> {
+  try {
+    if (existsSync(DYNAMIC_REGISTRY_PATH)) {
+      const raw = readFileSync(DYNAMIC_REGISTRY_PATH, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.error('[Indexer] Failed to load dynamic registry:', err);
+  }
+  return {};
+}
+
+function saveDynamicRegistry(registry: Record<string, MarketMeta>): void {
+  try {
+    const dir = join(__dirname, '../../data');
+    if (!existsSync(dir)) {
+      const { mkdirSync } = require('fs');
+      mkdirSync(dir, { recursive: true });
+    }
+    writeFileSync(DYNAMIC_REGISTRY_PATH, JSON.stringify(registry, null, 2));
+  } catch (err) {
+    console.error('[Indexer] Failed to save dynamic registry:', err);
+  }
+}
+
 // Registry of known market IDs with their off-chain metadata
 // Pre-populated with v4 on-chain markets; new markets registered via POST /api/markets/register
-const MARKET_REGISTRY: Record<string, MarketMeta> = {
+const SEED_REGISTRY: Record<string, MarketMeta> = {
   // ── Standard ALEO Markets ──
   '8085242864126139563244038051773428138878217458560712704220582949499607657325field': {
     questionHash: '100field',
@@ -70,7 +100,31 @@ const MARKET_REGISTRY: Record<string, MarketMeta> = {
     outcomes: ['Up', 'Down'],
     isLightning: true,
   },
-  // USDCx Lightning Markets are dynamically registered via POST /api/markets/register
+  // ── Lightning USDCx Markets (created on v4 via UI) ──
+  '4300794049254901160142499964619951640830219961962830885493384928306126331251field': {
+    questionHash: '42672333744803149444918212767928566308field',
+    question: 'BTC USDCx Lightning Round',
+    outcomes: ['Yes', 'No'],
+    isLightning: true,
+  },
+  '5963624993934416686799679646861375355559506834583714276443359937973978533995field': {
+    questionHash: '44536799681190708199848297787848730476field',
+    question: 'ETH USDCx Lightning Round',
+    outcomes: ['Yes', 'No'],
+    isLightning: true,
+  },
+  '7905634967035530468590474574781448343643121332864586870371745772214804611493field': {
+    questionHash: '1298715519613714320479140987136388968200field',
+    question: 'ALEO USDCx Lightning Round',
+    outcomes: ['Yes', 'No'],
+    isLightning: true,
+  },
+};
+
+// Merge seed + dynamic (file-persisted) registries
+const MARKET_REGISTRY: Record<string, MarketMeta> = {
+  ...SEED_REGISTRY,
+  ...loadDynamicRegistry(),
 };
 
 const STATUS_MAP: Record<number, MarketInfo['status']> = {
@@ -279,6 +333,32 @@ export function setCachedMarkets(markets: MarketInfo[]): void {
   marketsCache = markets;
 }
 
-export function registerMarket(marketId: string, meta: MarketMeta): void {
+export function registerMarket(marketId: string, meta: MarketMeta): boolean {
+  if (MARKET_REGISTRY[marketId]) return false; // Already known
   MARKET_REGISTRY[marketId] = meta;
+  return true;
+}
+
+/**
+ * Persist all dynamically registered markets (those not in the seed registry) to disk.
+ * Called after scanner discovers new markets or after manual registration.
+ */
+export function persistRegistry(): void {
+  const dynamic: Record<string, MarketMeta> = {};
+  for (const [id, meta] of Object.entries(MARKET_REGISTRY)) {
+    if (!SEED_REGISTRY[id]) {
+      dynamic[id] = meta;
+    }
+  }
+  saveDynamicRegistry(dynamic);
+  console.log(`[Indexer] Persisted ${Object.keys(dynamic).length} dynamic market(s) to disk`);
+}
+
+/**
+ * Update metadata for an already-registered market (e.g., replace placeholder question).
+ */
+export function updateMarketMeta(marketId: string, partial: Partial<MarketMeta>): void {
+  const existing = MARKET_REGISTRY[marketId];
+  if (!existing) return;
+  Object.assign(existing, partial);
 }

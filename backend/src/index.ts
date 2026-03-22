@@ -5,6 +5,7 @@ import { config } from './config';
 import { fetchOraclePrices, recordPriceSnapshot } from './services/oracle';
 import { fetchMarketsFromChain, setCachedMarkets } from './services/indexer';
 import { resolveExpiredMarkets } from './services/resolver';
+import { scanForNewMarkets } from './services/scanner';
 import marketsRouter from './routes/markets';
 import oracleRouter from './routes/oracle';
 import statsRouter from './routes/stats';
@@ -33,6 +34,16 @@ async function initialize() {
   setCachedMarkets(markets);
   recordPriceSnapshot();
   console.log(`[Init] Loaded ${markets.length} markets`);
+
+  // Run initial block scan in background (non-blocking)
+  scanForNewMarkets(500).then(found => {
+    if (found > 0) {
+      fetchMarketsFromChain().then(m => {
+        setCachedMarkets(m);
+        console.log(`[Init] Post-scan: ${m.length} markets`);
+      });
+    }
+  }).catch(() => {});
 }
 
 // Cron jobs
@@ -53,6 +64,20 @@ cron.schedule('*/2 * * * *', async () => {
     console.log(`[Cron] Refreshed ${markets.length} markets from chain`);
   } catch (err) {
     console.error('[Cron] Market refresh failed:', err);
+  }
+});
+
+// Scan blockchain for new create_market transactions every 3 minutes
+cron.schedule('*/3 * * * *', async () => {
+  try {
+    const found = await scanForNewMarkets(300);
+    if (found > 0) {
+      // Re-fetch after discovering new markets so they appear in the cache
+      const markets = await fetchMarketsFromChain();
+      setCachedMarkets(markets);
+    }
+  } catch (err) {
+    console.error('[Cron] Market scan failed:', err);
   }
 });
 

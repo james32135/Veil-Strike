@@ -1,0 +1,18 @@
+{
+    "program": "veil_strike_v5.aleo",
+    "version": "0.1.0",
+    "description": "Veil Strike v5 — Fully private prediction market protocol on Aleo with lightning round settlement",
+    "license": "MIT",
+    "dependencies": [
+        {
+            "name": "credits.aleo",
+            "location": "network",
+            "network": "testnet"
+        },
+        {
+            "name": "test_usdcx_stablecoin.aleo",
+            "location": "network",
+            "network": "testnet"
+        }
+    ]
+}

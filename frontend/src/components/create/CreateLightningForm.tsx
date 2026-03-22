@@ -38,7 +38,7 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
         if (!res.ok) continue;
         const txData = await res.json();
         const transition = txData?.execution?.transitions?.find(
-          (t: { program: string; function: string }) => t.program === PROGRAM_ID && t.function === 'create_market'
+          (t: { program: string; function: string }) => t.program === PROGRAM_ID && t.function === 'init_market'
         );
         if (!transition?.outputs?.[0]?.value) continue;
         const marketId = transition.outputs[0].value as string;

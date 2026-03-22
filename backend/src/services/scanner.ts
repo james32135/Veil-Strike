@@ -1,11 +1,11 @@
 // On-chain block scanner — discovers new markets automatically
-// Scans recent blocks for create_market / create_market_usdcx transitions
+// Scans recent blocks for init_market / init_market_stablecoin transitions
 // and auto-registers any new markets found with the indexer.
 
 import { config } from '../config';
 import { registerMarket, persistRegistry } from './indexer';
 
-const CREATE_MARKET_FUNCTIONS = new Set(['create_market', 'create_market_usdcx']);
+const CREATE_MARKET_FUNCTIONS = new Set(['init_market', 'init_market_stablecoin']);
 
 // Track the last scanned block to avoid re-scanning
 let lastScannedBlock = 0;
@@ -25,7 +25,7 @@ let lastScannedBlock = 0;
  *   [6] resolution_deadline (u32)
  *   [7] resolver (address)
  *   [8] initial_liquidity (u128)
- *   [9] token_type (u8) — only for create_market_usdcx
+ *   [9] token_type (u8) — only for init_market_stablecoin
  */
 function extractFinalizeArguments(value: string): string[] {
   const args: string[] = [];
@@ -107,7 +107,7 @@ async function scanBlock(blockHeight: number): Promise<Array<{
         if (transition.program !== config.programId) continue;
         if (!CREATE_MARKET_FUNCTIONS.has(transition.function)) continue;
 
-        const isUsdcx = transition.function === 'create_market_usdcx';
+        const isUsdcx = transition.function === 'init_market_stablecoin';
 
         // Extract market_id from the future output's finalize arguments
         for (const output of (transition.outputs || [])) {

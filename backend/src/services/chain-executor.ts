@@ -1,5 +1,5 @@
 // On-chain transaction executor using @provablehq/sdk
-// Handles close_market, resolve_market, finalize_resolution for auto-resolution
+// Handles seal_market, judge_market, confirm_verdict, settle_round for auto-resolution
 
 import { config } from '../config';
 
@@ -65,31 +65,31 @@ async function initResolverAddress() {
 initResolverAddress();
 
 /**
- * Execute close_market on-chain — permissionless, anyone can call after deadline
+ * Execute seal_market on-chain — permissionless, anyone can call after deadline
  */
 export async function executeCloseMarket(marketId: string): Promise<string | null> {
   try {
     const pm = await getProgramManager();
-    console.log(`[ChainExecutor] Closing market ${marketId.slice(0, 20)}...`);
+    console.log(`[ChainExecutor] Sealing market ${marketId.slice(0, 20)}...`);
 
     const txId = await pm.execute({
       programName: config.programId,
-      functionName: 'close_market',
+      functionName: 'seal_market',
       inputs: [marketId],
       priorityFee: PRIORITY_FEE,
       privateFee: false,
     });
 
-    console.log(`[ChainExecutor] close_market tx: ${txId}`);
+    console.log(`[ChainExecutor] seal_market tx: ${txId}`);
     return txId;
   } catch (err: any) {
-    console.error(`[ChainExecutor] close_market failed:`, err?.message || err);
+    console.error(`[ChainExecutor] seal_market failed:`, err?.message || err);
     return null;
   }
 }
 
 /**
- * Execute resolve_market on-chain — only the stored resolver can call this
+ * Execute judge_market on-chain — only the stored resolver can call this
  * winning_outcome: 1u8 = outcome 1 (UP), 2u8 = outcome 2 (DOWN)
  */
 export async function executeResolveMarket(
@@ -98,44 +98,114 @@ export async function executeResolveMarket(
 ): Promise<string | null> {
   try {
     const pm = await getProgramManager();
-    console.log(`[ChainExecutor] Resolving market ${marketId.slice(0, 20)}... outcome=${winningOutcome}`);
+    console.log(`[ChainExecutor] Judging market ${marketId.slice(0, 20)}... outcome=${winningOutcome}`);
 
     const txId = await pm.execute({
       programName: config.programId,
-      functionName: 'resolve_market',
+      functionName: 'judge_market',
       inputs: [marketId, `${winningOutcome}u8`],
       priorityFee: PRIORITY_FEE,
       privateFee: false,
     });
 
-    console.log(`[ChainExecutor] resolve_market tx: ${txId}`);
+    console.log(`[ChainExecutor] judge_market tx: ${txId}`);
     return txId;
   } catch (err: any) {
-    console.error(`[ChainExecutor] resolve_market failed:`, err?.message || err);
+    console.error(`[ChainExecutor] judge_market failed:`, err?.message || err);
     return null;
   }
 }
 
 /**
- * Execute finalize_resolution on-chain — permissionless, after challenge window
+ * Execute confirm_verdict on-chain — permissionless, after challenge window
  */
 export async function executeFinalizeResolution(marketId: string): Promise<string | null> {
   try {
     const pm = await getProgramManager();
-    console.log(`[ChainExecutor] Finalizing resolution for ${marketId.slice(0, 20)}...`);
+    console.log(`[ChainExecutor] Confirming verdict for ${marketId.slice(0, 20)}...`);
 
     const txId = await pm.execute({
       programName: config.programId,
-      functionName: 'finalize_resolution',
+      functionName: 'confirm_verdict',
       inputs: [marketId],
       priorityFee: PRIORITY_FEE,
       privateFee: false,
     });
 
-    console.log(`[ChainExecutor] finalize_resolution tx: ${txId}`);
+    console.log(`[ChainExecutor] confirm_verdict tx: ${txId}`);
     return txId;
   } catch (err: any) {
-    console.error(`[ChainExecutor] finalize_resolution failed:`, err?.message || err);
+    console.error(`[ChainExecutor] confirm_verdict failed:`, err?.message || err);
+    return null;
+  }
+}
+
+/**
+ * Execute settle_round on-chain — instant resolution for lightning rounds
+ * Only the resolver can call. Skips the challenge window entirely.
+ */
+export async function executeSettleRound(
+  marketId: string,
+  winningOutcome: number
+): Promise<string | null> {
+  try {
+    const pm = await getProgramManager();
+    console.log(`[ChainExecutor] Settling round ${marketId.slice(0, 20)}... outcome=${winningOutcome}`);
+
+    const txId = await pm.execute({
+      programName: config.programId,
+      functionName: 'settle_round',
+      inputs: [marketId, `${winningOutcome}u8`],
+      priorityFee: PRIORITY_FEE,
+      privateFee: false,
+    });
+
+    console.log(`[ChainExecutor] settle_round tx: ${txId}`);
+    return txId;
+  } catch (err: any) {
+    console.error(`[ChainExecutor] settle_round failed:`, err?.message || err);
+    return null;
+  }
+}
+
+/**
+ * Execute init_market on-chain — creates a new market (used by lightning-manager)
+ */
+export async function executeInitMarket(
+  questionHash: string,
+  category: number,
+  numOutcomes: number,
+  deadline: number,
+  resolutionDeadline: number,
+  resolver: string,
+  initialLiquidity: number,
+  nonce: string
+): Promise<string | null> {
+  try {
+    const pm = await getProgramManager();
+    console.log(`[ChainExecutor] Creating lightning market hash=${questionHash.slice(0, 20)}...`);
+
+    const txId = await pm.execute({
+      programName: config.programId,
+      functionName: 'init_market',
+      inputs: [
+        questionHash,
+        `${category}u8`,
+        `${numOutcomes}u8`,
+        `${deadline}u32`,
+        `${resolutionDeadline}u32`,
+        resolver,
+        `${initialLiquidity}u128`,
+        nonce,
+      ],
+      priorityFee: PRIORITY_FEE,
+      privateFee: false,
+    });
+
+    console.log(`[ChainExecutor] init_market tx: ${txId}`);
+    return txId;
+  } catch (err: any) {
+    console.error(`[ChainExecutor] init_market failed:`, err?.message || err);
     return null;
   }
 }

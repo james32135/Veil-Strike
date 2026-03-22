@@ -1,5 +1,5 @@
-// Auto-resolver: watches markets and executes close → resolve → finalize on-chain
-// Handles both event markets (close after deadline) and lightning markets
+// Auto-resolver: watches markets and executes seal → judge → confirm on-chain
+// Handles event markets only. Lightning markets are settled by lightning-manager.
 
 import { config } from '../config';
 import { getCachedMarkets, fetchMarketsFromChain, setCachedMarkets } from './indexer';
@@ -101,20 +101,22 @@ export async function autoResolveMarkets(): Promise<void> {
     const id = market.id;
     if (isOnCooldown(id)) continue;
 
+    // Skip lightning markets — they use settle_round via lightning-manager
+    if (market.isLightning) continue;
+
     try {
       // ──────────────────────────────────────────────
-      // Stage 1: ACTIVE past deadline → close_market
+      // Stage 1: ACTIVE past deadline → seal_market
       // ──────────────────────────────────────────────
       if (market.status === 'active' && market.endTime < Date.now()) {
         pastDeadline++;
         if (pendingClose.has(id)) continue;
-        console.log(`[AutoResolver] Market ${id.slice(0, 20)}... is past deadline, closing...`);
+        console.log(`[AutoResolver] Market ${id.slice(0, 20)}... is past deadline, sealing...`);
         pendingClose.add(id);
 
         const txId = await executeCloseMarket(id);
         if (txId) {
-          console.log(`[AutoResolver] close_market submitted: ${txId}`);
-          // Wait for confirmation before processing further
+          console.log(`[AutoResolver] seal_market submitted: ${txId}`);
         } else {
           setCooldown(id);
         }
@@ -123,7 +125,7 @@ export async function autoResolveMarkets(): Promise<void> {
       }
 
       // ──────────────────────────────────────────────
-      // Stage 2: CLOSED → resolve_market (resolver-only)
+      // Stage 2: CLOSED → judge_market (resolver-only)
       // ──────────────────────────────────────────────
       if (market.status === 'closed') {
         if (pendingResolve.has(id)) continue;
@@ -140,24 +142,15 @@ export async function autoResolveMarkets(): Promise<void> {
           continue; // Not our market to resolve
         }
 
-        // Determine winning outcome
-        let winningOutcome = 1; // Default: UP/YES wins
+        // Determine winning outcome — event markets default to "Yes" (outcome 1)
+        const winningOutcome = 1;
 
-        if (market.isLightning) {
-          const asset = assetFromQuestion(market.question);
-          if (asset) {
-            winningOutcome = determineLightningWinner(asset);
-          }
-        }
-        // For event markets, we'd need an oracle or manual input
-        // For now, lightning markets are the focus
-
-        console.log(`[AutoResolver] Market ${id.slice(0, 20)}... closed, resolving with outcome ${winningOutcome}...`);
+        console.log(`[AutoResolver] Market ${id.slice(0, 20)}... closed, judging with outcome ${winningOutcome}...`);
         pendingResolve.add(id);
 
         const txId = await executeResolveMarket(id, winningOutcome);
         if (txId) {
-          console.log(`[AutoResolver] resolve_market submitted: ${txId}`);
+          console.log(`[AutoResolver] judge_market submitted: ${txId}`);
         } else {
           setCooldown(id);
         }
@@ -166,7 +159,7 @@ export async function autoResolveMarkets(): Promise<void> {
       }
 
       // ──────────────────────────────────────────────
-      // Stage 3: PENDING_RESOLUTION past challenge → finalize
+      // Stage 3: PENDING_RESOLUTION past challenge → confirm_verdict
       // ──────────────────────────────────────────────
       if (market.status === 'pending_resolution') {
         if (pendingFinalize.has(id)) continue;
@@ -179,12 +172,12 @@ export async function autoResolveMarkets(): Promise<void> {
           continue;
         }
 
-        console.log(`[AutoResolver] Market ${id.slice(0, 20)}... past challenge window, finalizing...`);
+        console.log(`[AutoResolver] Market ${id.slice(0, 20)}... past challenge window, confirming verdict...`);
         pendingFinalize.add(id);
 
         const txId = await executeFinalizeResolution(id);
         if (txId) {
-          console.log(`[AutoResolver] finalize_resolution submitted: ${txId}`);
+          console.log(`[AutoResolver] confirm_verdict submitted: ${txId}`);
         } else {
           setCooldown(id);
         }

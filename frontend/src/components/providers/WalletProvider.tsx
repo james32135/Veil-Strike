@@ -8,7 +8,7 @@ import '@provablehq/aleo-wallet-adaptor-react-ui/dist/styles.css';
 import { useWalletStore } from '@/stores/walletStore';
 import { useEffect } from 'react';
 
-const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'veil_strike_v4.aleo';
+const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'veil_strike_v5.aleo';
 const NETWORK = import.meta.env.VITE_NETWORK === 'mainnet' ? Network.MAINNET : Network.TESTNET;
 
 interface WalletProviderProps {

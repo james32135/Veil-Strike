@@ -8,6 +8,7 @@ import { fetchMarketsFromChain, setCachedMarkets } from './services/indexer';
 import { resolveExpiredMarkets } from './services/resolver';
 import { scanForNewMarkets } from './services/scanner';
 import { autoResolveMarkets } from './services/auto-resolver';
+import { settleLightningRounds, recordRoundPriceSnapshot } from './services/lightning-manager';
 import marketsRouter from './routes/markets';
 import oracleRouter from './routes/oracle';
 import statsRouter from './routes/stats';
@@ -52,6 +53,7 @@ async function initialize() {
 cron.schedule(`*/${config.oracleIntervalMinutes} * * * *`, async () => {
   await fetchOraclePrices();
   recordPriceSnapshot();
+  recordRoundPriceSnapshot();
 });
 
 cron.schedule(`*/${config.resolverIntervalMinutes} * * * *`, async () => {
@@ -83,12 +85,21 @@ cron.schedule('*/3 * * * *', async () => {
   }
 });
 
-// Auto-resolve markets (close → resolve → finalize) every 2 minutes
+// Auto-resolve event markets (seal → judge → confirm_verdict) every 2 minutes
 cron.schedule('*/2 * * * *', async () => {
   try {
     await autoResolveMarkets();
   } catch (err) {
     console.error('[Cron] Auto-resolve failed:', err);
+  }
+});
+
+// Settle expired lightning rounds every 1 minute
+cron.schedule('*/1 * * * *', async () => {
+  try {
+    await settleLightningRounds();
+  } catch (err) {
+    console.error('[Cron] Lightning settle failed:', err);
   }
 });
 

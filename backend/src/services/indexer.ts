@@ -81,44 +81,9 @@ const SEED_REGISTRY: Record<string, MarketMeta> = {
     outcomes: ['Yes', 'No'],
     isLightning: false,
   },
-  // ── Lightning ALEO Markets ──
-  '455294369202814481808572296872385613210766523398587823774432937118229435492field': {
-    questionHash: '700field',
-    question: 'BTC Lightning Round',
-    outcomes: ['Up', 'Down'],
-    isLightning: true,
-  },
-  '2985899309493287288033109462171337384878765389403150014680153091857858070707field': {
-    questionHash: '800field',
-    question: 'ETH Lightning Round',
-    outcomes: ['Up', 'Down'],
-    isLightning: true,
-  },
-  '7209234236981629163723310973365078776830204734745925629370880472855317936451field': {
-    questionHash: '900field',
-    question: 'ALEO Lightning Round',
-    outcomes: ['Up', 'Down'],
-    isLightning: true,
-  },
-  // ── Lightning USDCx Markets (created on v4 via UI) ──
-  '4300794049254901160142499964619951640830219961962830885493384928306126331251field': {
-    questionHash: '42672333744803149444918212767928566308field',
-    question: 'BTC USDCx Lightning Round',
-    outcomes: ['Yes', 'No'],
-    isLightning: true,
-  },
-  '5963624993934416686799679646861375355559506834583714276443359937973978533995field': {
-    questionHash: '44536799681190708199848297787848730476field',
-    question: 'ETH USDCx Lightning Round',
-    outcomes: ['Yes', 'No'],
-    isLightning: true,
-  },
-  '7905634967035530468590474574781448343643121332864586870371745772214804611493field': {
-    questionHash: '1298715519613714320479140987136388968200field',
-    question: 'ALEO USDCx Lightning Round',
-    outcomes: ['Yes', 'No'],
-    isLightning: true,
-  },
+  // ── Lightning markets are now created dynamically by lightning-manager ──
+  // Old v4 hardcoded lightning market IDs removed — per-round markets are
+  // auto-registered by the lightning manager and scanner.
 };
 
 // Merge seed + dynamic (file-persisted) registries

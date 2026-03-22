@@ -2,7 +2,7 @@
 // Veil Strike — Application constants
 // ============================================================================
 
-export const PROGRAM_ID = 'veil_strike_v4.aleo';
+export const PROGRAM_ID = 'veil_strike_v5.aleo';
 
 export const ALEO_TESTNET_API = 'https://api.explorer.provable.com/v1/testnet';
 
@@ -74,28 +74,29 @@ export const CHART_COLORS = {
 } as const;
 
 export const TRANSITIONS = {
-  CREATE_MARKET: 'create_market',
-  BUY_SHARES_PRIVATE: 'buy_shares_private',
-  SELL_SHARES: 'sell_shares',
-  ADD_LIQUIDITY: 'add_liquidity',
-  CLOSE_MARKET: 'close_market',
-  RESOLVE_MARKET: 'resolve_market',
-  FINALIZE_RESOLUTION: 'finalize_resolution',
-  CANCEL_MARKET: 'cancel_market',
-  DISPUTE: 'dispute_resolution',
-  CLAIM_DISPUTE_BOND: 'claim_dispute_bond',
-  REDEEM: 'redeem_shares',
-  CLAIM_REFUND: 'claim_refund',
-  WITHDRAW_LP: 'withdraw_lp_resolved',
-  CLAIM_LP_REFUND: 'claim_lp_refund',
-  WITHDRAW_CREATOR_FEES: 'withdraw_creator_fees',
-  CREATE_MARKET_USDCX: 'create_market_usdcx',
-  BUY_SHARES_USDCX: 'buy_shares_usdcx',
-  SELL_SHARES_USDCX: 'sell_shares_usdcx',
-  ADD_LIQUIDITY_USDCX: 'add_liquidity_usdcx',
-  REDEEM_USDCX: 'redeem_shares_usdcx',
-  CLAIM_REFUND_USDCX: 'claim_refund_usdcx',
-  WITHDRAW_LP_USDCX: 'withdraw_lp_resolved_usdcx',
-  CLAIM_LP_REFUND_USDCX: 'claim_lp_refund_usdcx',
-  WITHDRAW_FEES_USDCX: 'withdraw_fees_usdcx',
+  CREATE_MARKET: 'init_market',
+  BUY_SHARES_PRIVATE: 'purchase_position',
+  SELL_SHARES: 'liquidate_position',
+  ADD_LIQUIDITY: 'provide_liquidity',
+  CLOSE_MARKET: 'seal_market',
+  RESOLVE_MARKET: 'judge_market',
+  FINALIZE_RESOLUTION: 'confirm_verdict',
+  CANCEL_MARKET: 'abort_market',
+  DISPUTE: 'challenge_verdict',
+  CLAIM_DISPUTE_BOND: 'reclaim_bond',
+  REDEEM: 'collect_winnings',
+  CLAIM_REFUND: 'collect_refund',
+  WITHDRAW_LP: 'exit_pool',
+  CLAIM_LP_REFUND: 'exit_pool_refund',
+  WITHDRAW_CREATOR_FEES: 'claim_creator_rewards',
+  CREATE_MARKET_USDCX: 'init_market_stablecoin',
+  BUY_SHARES_USDCX: 'purchase_position_stablecoin',
+  SELL_SHARES_USDCX: 'liquidate_position_stablecoin',
+  ADD_LIQUIDITY_USDCX: 'provide_liquidity_stablecoin',
+  REDEEM_USDCX: 'collect_winnings_stablecoin',
+  CLAIM_REFUND_USDCX: 'collect_refund_stablecoin',
+  WITHDRAW_LP_USDCX: 'exit_pool_stablecoin',
+  CLAIM_LP_REFUND_USDCX: 'exit_pool_refund_stablecoin',
+  WITHDRAW_FEES_USDCX: 'claim_rewards_stablecoin',
+  SETTLE_ROUND: 'settle_round',
 } as const;

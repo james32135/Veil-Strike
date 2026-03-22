@@ -156,7 +156,7 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
         const transition = txData?.execution?.transitions?.find(
           (t: { program: string; function: string }) =>
             t.program === PROGRAM_ID &&
-            (t.function === 'create_market' || t.function === 'create_market_usdcx')
+            (t.function === 'init_market' || t.function === 'init_market_stablecoin')
         );
         if (!transition) continue;
 

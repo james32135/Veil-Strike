@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Market, MarketSortBy } from '@/types';
-import { fetchRealMarkets } from '@/utils/mockData';
+import { fetchRealMarkets } from '@/utils/marketApi';
 
 interface MarketState {
   markets: Market[];

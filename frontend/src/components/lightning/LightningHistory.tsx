@@ -9,8 +9,8 @@ import { useLightningBetStore } from '@/stores/lightningBetStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTransaction } from '@/hooks/useTransaction';
 import type { ShareRecord } from '@/hooks/useTransaction';
-import { buildSellSharesTx, buildSellSharesUsdcxTx } from '@/utils/transactions';
-import { estimateSellTokensOut } from '@/utils/fpmm';
+import { buildSellSharesTx, buildSellSharesUsdcxTx, buildRedeemSharesTx, buildRedeemSharesUsdcxTx } from '@/utils/transactions';
+import { estimateSellTokensOut, calculateFees } from '@/utils/fpmm';
 import { API_BASE } from '@/constants';
 
 interface LightningRound {
@@ -60,25 +60,23 @@ export default function LightningHistory({ }: LightningHistoryProps) {
   }, [fetchRounds, loadShareRecords]);
 
   const handleSellShares = async (record: ShareRecord) => {
-    // Find the matching on-chain market to get reserves
     const market = allMarkets.find((m) => m.id === record.marketId);
-    const reserves = market?.reserves ?? [1_000_000, 1_000_000];
+    const isResolved = market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1;
 
-    // outcome is 1-based in the contract, 0-based for FPMM arrays
-    const outcomeIdx = record.outcome - 1;
-
-    // Use FPMM binary search to find safe tokens_desired
-    const { tokensOut } = estimateSellTokensOut(reserves, outcomeIdx, record.quantity);
-    if (tokensOut <= 0) {
-      return; // Pool can't absorb this sell
+    let tx;
+    if (isResolved) {
+      tx = record.tokenType === 1
+        ? buildRedeemSharesUsdcxTx(record.plaintext)
+        : buildRedeemSharesTx(record.plaintext);
+    } else {
+      const reserves = market?.reserves ?? [1_000_000, 1_000_000];
+      const outcomeIdx = record.outcome - 1;
+      const { tokensOut } = estimateSellTokensOut(reserves, outcomeIdx, record.quantity);
+      if (tokensOut <= 0) return;
+      const buildFn = record.tokenType === 1 ? buildSellSharesUsdcxTx : buildSellSharesTx;
+      tx = buildFn(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`);
     }
 
-    const buildFn = record.tokenType === 1 ? buildSellSharesUsdcxTx : buildSellSharesTx;
-    const tx = buildFn(
-      record.plaintext,
-      `${tokensOut}u128`,
-      `${record.quantity}u128`,
-    );
     const txId = await execute(tx);
     if (txId) {
       setTimeout(loadShareRecords, 5000);
@@ -124,6 +122,8 @@ export default function LightningHistory({ }: LightningHistoryProps) {
               const market = allMarkets.find((m) => m.id === record.marketId);
               const reserves = market?.reserves ?? [1_000_000, 1_000_000];
               const { tokensOut } = estimateSellTokensOut(reserves, record.outcome - 1, record.quantity);
+              const isResolved = market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1;
+              const displayValue = isResolved ? record.quantity : calculateFees(tokensOut).amountAfterFee;
               return (
                 <div
                   key={idx}
@@ -138,7 +138,7 @@ export default function LightningHistory({ }: LightningHistoryProps) {
                       <span className="font-mono">{formatAleo(record.quantity)} {tokenLabel}</span>
                     </p>
                     <p className="text-[10px] text-gray-600 mt-0.5">
-                      {market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1 ? 'Claim' : 'Sell'} value: ~{formatAleo(tokensOut)} {tokenLabel} (after fees)
+                      {isResolved ? 'Claim' : 'Sell'} value: ~{formatAleo(displayValue)} {tokenLabel} (after fees)
                     </p>
                   </div>
                   <Button
@@ -148,7 +148,7 @@ export default function LightningHistory({ }: LightningHistoryProps) {
                     loading={txStatus === 'proving'}
                     className="!text-xs"
                   >
-                    {market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1 ? 'Claim' : 'Sell'}
+                    {isResolved ? 'Claim' : 'Sell'}
                   </Button>
                 </div>
               );
@@ -203,7 +203,7 @@ export default function LightningHistory({ }: LightningHistoryProps) {
                   <div className="flex items-center gap-3 text-[10px] text-gray-600 mt-0.5">
                     <span>{formatTimeAgo(bet.timestamp)}</span>
                     <span>Bet: {formatAleo(bet.amount)} ALEO</span>
-                    {bet.won && <span className="text-accent-green">Won: {formatAleo(bet.payout || 0)} ALEO</span>}
+                    {bet.won && <span className="text-accent-green">Won: {formatAleo(bet.payout || 0)} shares (sell on Portfolio)</span>}
                     {!bet.won && <span className="text-accent-red">Lost: {formatAleo(bet.amount)} ALEO</span>}
                   </div>
                 </div>

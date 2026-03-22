@@ -5,8 +5,8 @@ import { useLightningBetStore } from '@/stores/lightningBetStore';
 import { useTransaction } from '@/hooks/useTransaction';
 import type { ShareRecord } from '@/hooks/useTransaction';
 import { formatAleo, formatTimeAgo } from '@/utils/format';
-import { estimateSellTokensOut } from '@/utils/fpmm';
-import { buildSellSharesTx, buildSellSharesUsdcxTx } from '@/utils/transactions';
+import { estimateSellTokensOut, calculateFees } from '@/utils/fpmm';
+import { buildSellSharesTx, buildSellSharesUsdcxTx, buildRedeemSharesTx, buildRedeemSharesUsdcxTx } from '@/utils/transactions';
 import PageHeader from '@/components/layout/PageHeader';
 import Card from '@/components/shared/Card';
 import Badge from '@/components/shared/Badge';
@@ -39,12 +39,24 @@ export default function Portfolio() {
 
   const handleSell = async (record: ShareRecord) => {
     const market = markets.find((m) => m.id === record.marketId);
-    const reserves = market?.reserves ?? [1_000_000, 1_000_000];
-    const outcomeIdx = record.outcome - 1;
-    const { tokensOut } = estimateSellTokensOut(reserves, outcomeIdx, record.quantity);
-    if (tokensOut <= 0) return;
-    const buildFn = record.tokenType === 1 ? buildSellSharesUsdcxTx : buildSellSharesTx;
-    const tx = buildFn(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`);
+    const isResolved = market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1;
+
+    let tx;
+    if (isResolved) {
+      // Resolved winning shares: redeem at 1:1, zero fees
+      tx = record.tokenType === 1
+        ? buildRedeemSharesUsdcxTx(record.plaintext)
+        : buildRedeemSharesTx(record.plaintext);
+    } else {
+      // Active market: sell through AMM (subject to pricing + fees)
+      const reserves = market?.reserves ?? [1_000_000, 1_000_000];
+      const outcomeIdx = record.outcome - 1;
+      const { tokensOut } = estimateSellTokensOut(reserves, outcomeIdx, record.quantity);
+      if (tokensOut <= 0) return;
+      const buildFn = record.tokenType === 1 ? buildSellSharesUsdcxTx : buildSellSharesTx;
+      tx = buildFn(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`);
+    }
+
     const txId = await execute(tx);
     if (txId) setTimeout(loadShareRecords, 5000);
   };
@@ -146,7 +158,10 @@ export default function Portfolio() {
                 const market = markets.find((m) => m.id === record.marketId);
                 const reserves = market?.reserves ?? [1_000_000, 1_000_000];
                 const outcomeIdx = record.outcome - 1;
+                const isResolved = market?.status === 'resolved' && market.resolvedOutcome === outcomeIdx;
                 const { tokensOut } = estimateSellTokensOut(reserves, outcomeIdx, record.quantity);
+                // Resolved winning shares redeem 1:1 (zero fees); active markets sell via AMM with 2% fees
+                const displayValue = isResolved ? record.quantity : calculateFees(tokensOut).amountAfterFee;
                 const tokenLabel = record.tokenType === 1 ? 'USDCx' : 'ALEO';
                 const outcomeLabel = record.outcome === 1 ? 'UP / YES' : 'DOWN / NO';
 
@@ -166,7 +181,7 @@ export default function Portfolio() {
                             Qty: <span className="font-mono text-gray-400">{formatAleo(record.quantity)}</span>
                           </span>
                           <span className="text-xs text-gray-500">
-                            {market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1 ? 'Claim' : 'Sell'} value: <span className="font-mono text-teal">~{formatAleo(tokensOut)} {tokenLabel}</span>
+                            {isResolved ? 'Claim' : 'Sell'} value: <span className="font-mono text-teal">~{formatAleo(displayValue)} {tokenLabel}</span>
                           </span>
                         </div>
                       </div>
@@ -177,7 +192,7 @@ export default function Portfolio() {
                         loading={txStatus === 'proving'}
                         className="!text-xs"
                       >
-                        {market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1 ? 'Claim' : 'Sell'}
+                        {isResolved ? 'Claim' : 'Sell'}
                       </Button>
                     </div>
                   </Card>

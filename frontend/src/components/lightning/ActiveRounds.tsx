@@ -6,7 +6,7 @@ import { BoltIcon, ArrowUpIcon, ArrowDownIcon } from '@/components/icons';
 import { useTransaction } from '@/hooks/useTransaction';
 import { buildBuySharesPrivateTx, buildBuySharesUsdcxTx, generateNonce } from '@/utils/transactions';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
-import { estimateBuySharesExact } from '@/utils/fpmm';
+import { estimateBuySharesExact, estimateSellTokensOut, calculateFees } from '@/utils/fpmm';
 import { formatUSD, formatAleo } from '@/utils/format';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTradeStore } from '@/stores/tradeStore';
@@ -279,7 +279,11 @@ function RoundCard({ round }: { round: LightningRound }) {
           </div>
           <div className="flex items-center justify-between text-xs mt-0.5">
             <span className="text-gray-500">Potential Win</span>
-            <span className="font-mono text-teal">{formatAleo(userBet.shares)} {tokenLabel}</span>
+            <span className="font-mono text-teal">{(() => {
+              const outcome = userBet.direction === 'up' ? 0 : 1;
+              const { tokensOut } = estimateSellTokensOut(liveReserves, outcome, userBet.shares);
+              return formatAleo(calculateFees(tokensOut).amountAfterFee);
+            })()} {tokenLabel}</span>
           </div>
         </div>
       )}
@@ -313,7 +317,11 @@ function RoundCard({ round }: { round: LightningRound }) {
           </div>
           {userBet.won && (
             <p className="text-xs text-accent-green/80 mt-1">
-              Payout: {formatAleo(userBet.payout || 0)} {tokenLabel} (shares redeemable on-chain)
+              Payout: {(() => {
+                const outcome = userBet.direction === 'up' ? 0 : 1;
+                const { tokensOut } = estimateSellTokensOut(liveReserves, outcome, userBet.payout || 0);
+                return formatAleo(calculateFees(tokensOut).amountAfterFee);
+              })()} {tokenLabel} (sell on-chain to claim)
             </p>
           )}
           {!userBet.won && (

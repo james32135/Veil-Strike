@@ -4,50 +4,67 @@ import { BoltIcon, ClockIcon, FireIcon } from '@/components/icons';
 
 export default function LightningSection() {
   return (
-    <section className="py-24 px-4 bg-dark-50/30">
+    <section className="py-28 px-4 relative">
       <div className="max-w-5xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="glass-card p-10 relative overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 w-40 h-40 bg-teal/5 rounded-full blur-3xl" />
+        <motion.div initial={{ opacity: 0, y: 25 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="glass-card p-10 md:p-14 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-teal/30 to-transparent" />
+          <motion.div className="absolute top-0 right-0 w-60 h-60 rounded-full" style={{ background: 'radial-gradient(circle, rgba(255, 107, 53, 0.08), transparent 70%)', filter: 'blur(40px)' }} animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 6, repeat: Infinity }} />
 
           <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-teal/10 border border-teal/20 rounded-full mb-4">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-5" style={{ background: 'rgba(255, 107, 53, 0.08)', border: '1px solid rgba(255, 107, 53, 0.15)' }}>
                 <BoltIcon className="w-4 h-4 text-teal" />
                 <span className="text-sm text-teal font-heading font-medium">Lightning Markets</span>
               </div>
-              <h2 className="font-heading text-3xl font-bold text-white mb-4">
-                5-Minute Price Predictions
+
+              <h2 className="font-heading text-3xl md:text-4xl font-bold text-white mb-5">
+                Tools For Better{' '}
+                <span className="gradient-text">Cryptocurrency Trading</span>
               </h2>
-              <p className="text-gray-400 leading-relaxed mb-6">
-                Predict whether BTC, ETH, or ALEO will be above or below a target price.
-                Rounds resolve automatically via oracle feeds. Fast trades, instant results.
+
+              <p className="text-smoke/60 leading-relaxed mb-8">
+                Smart platform designed to help you analyze markets and make informed decisions with complete privacy.
               </p>
+
               <Link to="/lightning" className="btn-primary inline-flex items-center gap-2">
-                <BoltIcon className="w-4 h-4" />
-                Try Lightning
+                Get Started
+                <motion.span animate={{ x: [0, 3, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>→</motion.span>
               </Link>
             </div>
 
-            <div className="space-y-4">
-              {[
-                { icon: <ClockIcon className="w-5 h-5" />, label: '5-min / 15-min / 1-hr / 4-hr', desc: 'Choose your timeframe' },
-                { icon: <FireIcon className="w-5 h-5" />, label: 'Live Oracle Prices', desc: 'BTC, ETH, ALEO from CoinGecko' },
-                { icon: <BoltIcon className="w-5 h-5" />, label: 'Auto Resolution', desc: 'Oracle resolves at expiry' },
-              ].map((item) => (
-                <div key={item.label} className="flex items-start gap-3 p-4 bg-dark-200/50 rounded-xl">
-                  <div className="text-teal mt-0.5">{item.icon}</div>
-                  <div>
-                    <p className="text-sm font-heading font-medium text-white">{item.label}</p>
-                    <p className="text-xs text-gray-500">{item.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {/* Glass chart mockup */}
+            <motion.div
+              className="glass-card p-5 relative"
+              style={{ boxShadow: '0 0 40px -10px rgba(255, 107, 53, 0.1), 0 20px 40px -12px rgba(0, 0, 0, 0.6)' }}
+              animate={{ y: [0, -8, 0] }}
+              transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              {/* Tab bar */}
+              <div className="flex items-center gap-2 mb-4">
+                {['5M', '15M', '1H', '1Y', 'ALL'].map((t, i) => (
+                  <span key={t} className={`px-2.5 py-1 rounded-full text-[10px] font-mono ${i === 1 ? 'bg-teal text-white' : 'text-smoke/40'}`}>{t}</span>
+                ))}
+              </div>
+
+              {/* Chart */}
+              <div className="relative h-28 mb-3">
+                <svg viewBox="0 0 300 100" className="w-full h-full" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="lgChartGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" style={{ stopColor: '#FF6B35', stopOpacity: 0.15 }} />
+                      <stop offset="100%" style={{ stopColor: '#FF6B35', stopOpacity: 0 }} />
+                    </linearGradient>
+                  </defs>
+                  <path d="M0 70 Q50 50 80 65 T160 35 T240 55 T300 20" fill="none" stroke="#FF6B35" strokeWidth="2.5" />
+                  <path d="M0 70 Q50 50 80 65 T160 35 T240 55 T300 20 V100 H0 Z" fill="url(#lgChartGrad)" />
+                </svg>
+              </div>
+
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-smoke/30">Your balance</span>
+                <span className="font-mono text-white">0.000000 ETH</span>
+              </div>
+            </motion.div>
           </div>
         </motion.div>
       </div>

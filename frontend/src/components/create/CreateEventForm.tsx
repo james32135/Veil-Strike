@@ -3,7 +3,7 @@ import { useTransaction } from '@/hooks/useTransaction';
 import { buildCreateMarketTx, buildCreateMarketUsdcxTx, generateNonce } from '@/utils/transactions';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { parseAleoInput } from '@/utils/format';
-import { CATEGORIES } from '@/constants';
+import { CATEGORIES, API_BASE, ALEO_TESTNET_API, PROGRAM_ID } from '@/constants';
 import { useWalletStore } from '@/stores/walletStore';
 import Button from '@/components/shared/Button';
 import Card from '@/components/shared/Card';
@@ -38,6 +38,50 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
     const updated = [...outcomes];
     updated[index] = value;
     setOutcomes(updated);
+  };
+
+  /**
+   * After a create_market tx is confirmed, fetch the tx from chain,
+   * extract the market_id from outputs, and register it with the backend.
+   */
+  const registerMarketFromTx = async (txId: string, questionText: string, outcomeLabels: string[], isLightning: boolean) => {
+    const maxRetries = 12;
+    const delay = 10_000; // 10s between retries (tx confirmation takes time)
+
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        await new Promise((r) => setTimeout(r, delay));
+        const res = await fetch(`${ALEO_TESTNET_API}/transaction/${txId}`);
+        if (!res.ok) continue;
+
+        const txData = await res.json();
+        // The market_id is the first output value from the create_market transition
+        const transition = txData?.execution?.transitions?.find(
+          (t: { program: string; function: string }) => t.program === PROGRAM_ID && (t.function === 'create_market' || t.function === 'create_market_usdcx')
+        );
+        if (!transition?.outputs?.[0]?.value) continue;
+
+        const marketId = transition.outputs[0].value as string;
+        console.log(`[CreateMarket] Extracted market_id: ${marketId}`);
+
+        // Register with backend
+        await fetch(`${API_BASE}/markets/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            marketId,
+            question: questionText,
+            outcomes: outcomeLabels,
+            isLightning,
+          }),
+        });
+        console.log(`[CreateMarket] Registered market ${marketId.slice(0, 20)}... with backend`);
+        return;
+      } catch (err) {
+        console.warn(`[CreateMarket] Retry ${i + 1}/${maxRetries} failed:`, err);
+      }
+    }
+    console.warn('[CreateMarket] Could not auto-register market. Use POST /api/markets/register manually.');
   };
 
   const handleCreate = async () => {
@@ -83,7 +127,11 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
         nonce
       );
     }
-    await execute(tx);
+    const txId = await execute(tx);
+    if (txId) {
+      // Extract market_id from on-chain transaction and register with backend
+      registerMarketFromTx(txId, question, outcomes, tokenType === 'USDCX');
+    }
     onSuccess?.();
   };
 

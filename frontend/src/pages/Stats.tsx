@@ -19,7 +19,7 @@ export default function Stats() {
     fetch(`${API_BASE}/stats`)
       .then(r => r.json())
       .then(d => d.stats && setStats(d.stats))
-      .catch(() => {});
+      .catch(() => { });
   }, [fetchMarkets]);
 
   const categoryCount = markets.reduce<Record<string, number>>((acc, m) => {

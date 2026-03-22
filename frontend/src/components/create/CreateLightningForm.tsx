@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTransaction } from '@/hooks/useTransaction';
 import { buildCreateMarketTx, generateNonce } from '@/utils/transactions';
 import { parseAleoInput } from '@/utils/format';
-import { LIGHTNING_DURATIONS } from '@/constants';
+import { LIGHTNING_DURATIONS, API_BASE, ALEO_TESTNET_API, PROGRAM_ID } from '@/constants';
 import { useWalletStore } from '@/stores/walletStore';
 import Button from '@/components/shared/Button';
 import Card from '@/components/shared/Card';
@@ -28,6 +28,34 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
 
   const assetIndex: Record<string, number> = { btc: 0, eth: 1, aleo: 2 };
 
+  const registerMarketFromTx = async (txId: string, questionText: string, outcomeLabels: string[], isLightning: boolean) => {
+    const maxRetries = 12;
+    const delay = 10_000;
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        await new Promise((r) => setTimeout(r, delay));
+        const res = await fetch(`${ALEO_TESTNET_API}/transaction/${txId}`);
+        if (!res.ok) continue;
+        const txData = await res.json();
+        const transition = txData?.execution?.transitions?.find(
+          (t: { program: string; function: string }) => t.program === PROGRAM_ID && t.function === 'create_market'
+        );
+        if (!transition?.outputs?.[0]?.value) continue;
+        const marketId = transition.outputs[0].value as string;
+        console.log(`[CreateLightning] Extracted market_id: ${marketId}`);
+        await fetch(`${API_BASE}/markets/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marketId, question: questionText, outcomes: outcomeLabels, isLightning }),
+        });
+        console.log(`[CreateLightning] Registered market ${marketId.slice(0, 20)}... with backend`);
+        return;
+      } catch (err) {
+        console.warn(`[CreateLightning] Retry ${i + 1}/${maxRetries}:`, err);
+      }
+    }
+  };
+
   const handleCreate = async () => {
     const liquidityMicro = parseAleoInput(initialLiquidity);
     if (liquidityMicro < 1_000_000) return;
@@ -50,7 +78,10 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
       `${liquidityMicro}u128`,
       nonce
     );
-    await execute(tx);
+    const txId = await execute(tx);
+    if (txId) {
+      registerMarketFromTx(txId, question, ['Up', 'Down'], true);
+    }
     onSuccess?.();
   };
 

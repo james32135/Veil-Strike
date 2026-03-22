@@ -114,11 +114,10 @@ export default function Portfolio() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 text-sm font-heading font-medium rounded-lg transition-all duration-200 ${
-              activeTab === tab.id
+            className={`px-4 py-2 text-sm font-heading font-medium rounded-lg transition-all duration-200 ${activeTab === tab.id
                 ? 'bg-dark-300 text-teal shadow-sm'
                 : 'text-gray-500 hover:text-gray-300'
-            }`}
+              }`}
           >
             {tab.label}
           </button>

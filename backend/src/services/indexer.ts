@@ -12,7 +12,9 @@ interface MarketMeta {
 }
 
 // Registry of known market IDs with their off-chain metadata
+// Pre-populated with v4 on-chain markets; new markets registered via POST /api/markets/register
 const MARKET_REGISTRY: Record<string, MarketMeta> = {
+  // ── Standard ALEO Markets ──
   '8085242864126139563244038051773428138878217458560712704220582949499607657325field': {
     questionHash: '100field',
     question: 'Will Bitcoin reach $200K by end of 2026?',
@@ -49,39 +51,41 @@ const MARKET_REGISTRY: Record<string, MarketMeta> = {
     outcomes: ['Yes', 'No'],
     isLightning: false,
   },
+  // ── Lightning ALEO Markets ──
   '455294369202814481808572296872385613210766523398587823774432937118229435492field': {
     questionHash: '700field',
-    question: 'BTC Price Up/Down (Lightning)',
+    question: 'BTC Lightning Round',
     outcomes: ['Up', 'Down'],
     isLightning: true,
   },
   '2985899309493287288033109462171337384878765389403150014680153091857858070707field': {
     questionHash: '800field',
-    question: 'ETH Price Up/Down (Lightning)',
+    question: 'ETH Lightning Round',
     outcomes: ['Up', 'Down'],
     isLightning: true,
   },
   '7209234236981629163723310973365078776830204734745925629370880472855317936451field': {
     questionHash: '900field',
-    question: 'ALEO Price Up/Down (Lightning)',
+    question: 'ALEO Lightning Round',
     outcomes: ['Up', 'Down'],
     isLightning: true,
   },
+  // ── Lightning USDCx Markets (to be created via UI) ──
   '4272505381541829772121013816865257197231947507909388371821957605106869138124field': {
     questionHash: '100field',
-    question: 'BTC Price Up/Down (Lightning USDCx)',
+    question: 'BTC USDCx Lightning Round',
     outcomes: ['Up', 'Down'],
     isLightning: true,
   },
   '4852943562597258903747171372224887618868232466193807856465246683075526845657field': {
     questionHash: '200field',
-    question: 'ETH Price Up/Down (Lightning USDCx)',
+    question: 'ETH USDCx Lightning Round',
     outcomes: ['Up', 'Down'],
     isLightning: true,
   },
   '7065470738032358578092482552162988342737541647713361902926285601518107221702field': {
     questionHash: '300field',
-    question: 'ALEO Price Up/Down (Lightning USDCx)',
+    question: 'ALEO USDCx Lightning Round',
     outcomes: ['Up', 'Down'],
     isLightning: true,
   },

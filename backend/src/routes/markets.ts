@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getCachedMarkets, fetchMarketsFromChain, setCachedMarkets, registerMarket, persistRegistry } from '../services/indexer';
+import { getCachedMarkets, fetchMarketsFromChain, setCachedMarkets, registerMarket, updateMarketMeta, persistRegistry } from '../services/indexer';
 import { savePendingMeta } from '../services/scanner';
 
 const router = Router();
@@ -30,13 +30,22 @@ router.post('/register', async (req, res) => {
     res.status(400).json({ error: 'marketId, question, and outcomes (array) required' });
     return;
   }
-  registerMarket(marketId, {
+  const registered = registerMarket(marketId, {
     questionHash: '',
     question,
     outcomes,
     isLightning: isLightning || false,
     tokenType: tokenType || undefined,
   });
+  if (!registered) {
+    // Market was already registered (e.g. by scanner) — update with real metadata
+    updateMarketMeta(marketId, {
+      question,
+      outcomes,
+      isLightning: isLightning || false,
+      tokenType: tokenType || undefined,
+    });
+  }
   persistRegistry();
   const markets = await fetchMarketsFromChain();
   setCachedMarkets(markets);

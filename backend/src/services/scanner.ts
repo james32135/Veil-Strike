@@ -186,6 +186,7 @@ export async function scanForNewMarkets(blocksToScan: number = 200): Promise<num
             question: pendingMeta?.question || `Market ${found.marketId.slice(0, 16)}...`,
             outcomes: pendingMeta?.outcomes || outcomes,
             isLightning: pendingMeta?.isLightning || false,
+            tokenType: found.isUsdcx ? 'USDCX' : 'ALEO',
           });
 
           if (registered) {

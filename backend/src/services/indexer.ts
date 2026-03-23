@@ -100,6 +100,20 @@ const SEED_REGISTRY: Record<string, MarketMeta> = {
     isLightning: true,
     tokenType: 'USDCX',
   },
+  '3321527741194241633135372110060834449467054437108745164038636216333453029983field': {
+    questionHash: '1463335354965873435782304941165field',
+    question: 'ETH Lightning Round',
+    outcomes: ['Up', 'Down'],
+    isLightning: true,
+    tokenType: 'USDCX',
+  },
+  '2397481690584025289467842374561161223484661892740440096636621473186861951287field': {
+    questionHash: '50182095117564578706936158161field',
+    question: 'ALEO Lightning Round',
+    outcomes: ['Up', 'Down'],
+    isLightning: true,
+    tokenType: 'USDCX',
+  },
 };
 
 // Merge seed + dynamic (file-persisted) registries
@@ -330,7 +344,17 @@ export function setCachedMarkets(markets: MarketInfo[]): void {
 }
 
 export function registerMarket(marketId: string, meta: MarketMeta): boolean {
-  if (MARKET_REGISTRY[marketId]) return false; // Already known
+  const existing = MARKET_REGISTRY[marketId];
+  if (existing) {
+    // Allow updating placeholder entries (scanner discovers first with generic data,
+    // then frontend POST /register arrives with real question/isLightning/tokenType)
+    const isPlaceholder = existing.question.startsWith('Market ') && existing.question.includes('...');
+    if (isPlaceholder && meta.question && !meta.question.startsWith('Market ')) {
+      Object.assign(existing, meta);
+      return true;
+    }
+    return false; // Already has real metadata
+  }
   MARKET_REGISTRY[marketId] = meta;
   return true;
 }

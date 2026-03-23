@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTransaction } from '@/hooks/useTransaction';
-import { buildCreateMarketTx, generateNonce } from '@/utils/transactions';
+import { buildCreateMarketTx, buildCreateMarketUsdcxTx, generateNonce } from '@/utils/transactions';
+import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { parseAleoInput } from '@/utils/format';
 import { LIGHTNING_DURATIONS, API_BASE, ALEO_TESTNET_API, PROGRAM_ID } from '@/constants';
 import { useWalletStore } from '@/stores/walletStore';
@@ -17,7 +18,8 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
   const [direction, setDirection] = useState<'up' | 'down'>('up');
   const [duration, setDuration] = useState<typeof LIGHTNING_DURATIONS[number]>(LIGHTNING_DURATIONS[0]);
   const [initialLiquidity, setInitialLiquidity] = useState('5');
-  const { status, execute } = useTransaction();
+  const [tokenType, setTokenType] = useState<'ALEO' | 'USDCX'>('ALEO');
+  const { status, execute, fetchUsdcxRecord } = useTransaction();
   const walletAddress = useWalletStore((s) => s.address);
 
   const assetLabels: Record<string, string> = {
@@ -28,7 +30,7 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
 
   const assetIndex: Record<string, number> = { btc: 0, eth: 1, aleo: 2 };
 
-  const registerMarketFromTx = async (txId: string, questionText: string, outcomeLabels: string[], isLightning: boolean) => {
+  const registerMarketFromTx = async (txId: string, questionText: string, outcomeLabels: string[], isLightning: boolean, tokenHint?: string) => {
     const maxRetries = 12;
     const delay = 10_000;
     for (let i = 0; i < maxRetries; i++) {
@@ -38,7 +40,7 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
         if (!res.ok) continue;
         const txData = await res.json();
         const transition = txData?.execution?.transitions?.find(
-          (t: { program: string; function: string }) => t.program === PROGRAM_ID && t.function === 'init_market'
+          (t: { program: string; function: string }) => t.program === PROGRAM_ID && (t.function === 'init_market' || t.function === 'init_market_stablecoin')
         );
         if (!transition?.outputs?.[0]?.value) continue;
         const marketId = transition.outputs[0].value as string;
@@ -46,7 +48,7 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
         await fetch(`${API_BASE}/markets/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ marketId, question: questionText, outcomes: outcomeLabels, isLightning }),
+          body: JSON.stringify({ marketId, question: questionText, outcomes: outcomeLabels, isLightning, tokenType: tokenHint }),
         });
         console.log(`[CreateLightning] Registered market ${marketId.slice(0, 20)}... with backend`);
         return;
@@ -61,26 +63,31 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
     if (liquidityMicro < 1_000_000) return;
 
     const nonce = generateNonce();
-    const question = `${assetLabels[asset]} ${direction === 'up' ? 'Up' : 'Down'} in ${duration.label}?`;
+    const question = `${asset.toUpperCase()} Lightning Round`;
     const questionHash = `${BigInt(Array.from(new TextEncoder().encode(question)).reduce((h, b) => h * 31n + BigInt(b), 0n)) % BigInt('0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001')}field`;
     const currentBlock = Math.floor(Date.now() / 15000) + 15044000;
-    const deadline = `${currentBlock + duration.blocks}u32`;
-    const resolutionDeadline = `${currentBlock + duration.blocks + 2880}u32`;
+    const deadline = `${currentBlock + 1_000_000}u32`;
+    const resolutionDeadline = `${currentBlock + 1_000_000 + 2880}u32`;
     const resolver = walletAddress || '';
 
-    const tx = buildCreateMarketTx(
-      questionHash,
-      1,
-      2,
-      deadline,
-      resolutionDeadline,
-      resolver,
-      `${liquidityMicro}u128`,
-      nonce
-    );
+    let tx;
+    if (tokenType === 'USDCX') {
+      const tokenRecord = await fetchUsdcxRecord(liquidityMicro);
+      if (!tokenRecord) return;
+      const proofs = await getUsdcxProofs();
+      tx = buildCreateMarketUsdcxTx(
+        questionHash, 1, 2, deadline, resolutionDeadline, resolver,
+        `${liquidityMicro}u128`, nonce, tokenRecord, proofs
+      );
+    } else {
+      tx = buildCreateMarketTx(
+        questionHash, 1, 2, deadline, resolutionDeadline, resolver,
+        `${liquidityMicro}u128`, nonce
+      );
+    }
     const txId = await execute(tx);
     if (txId) {
-      registerMarketFromTx(txId, question, ['Up', 'Down'], true);
+      registerMarketFromTx(txId, question, ['Up', 'Down'], true, tokenType);
     }
     onSuccess?.();
   };
@@ -119,6 +126,28 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
           Will {assetLabels[asset]} price go {direction} in the next {duration.label}?
         </p>
       </Card>
+
+      {/* Token Type */}
+      <div>
+        <label className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5 block">
+          Token
+        </label>
+        <div className="flex gap-2">
+          {(['ALEO', 'USDCX'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTokenType(t)}
+              className={`px-4 py-2 text-xs rounded-lg border font-heading font-medium transition-all ${
+                tokenType === t
+                  ? 'border-amber-400/40 bg-amber-400/10 text-amber-400'
+                  : 'border-dark-400/50 text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Duration */}
       <div>
@@ -178,7 +207,7 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
       {/* Liquidity */}
       <div>
         <label className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5 block">
-          Initial Liquidity (ALEO)
+          Initial Liquidity ({tokenType})
         </label>
         <input
           type="number"

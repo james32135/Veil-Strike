@@ -13,11 +13,11 @@ import { buildSellSharesTx, buildSellSharesUsdcxTx, buildRedeemSharesTx, buildRe
 import { estimateSellTokensOut, calculateFees } from '@/utils/fpmm';
 import { API_BASE } from '@/constants';
 
-// ALEO lightning market IDs — must match ActiveRounds
-const ALEO_LIGHTNING_IDS: Record<string, string> = {
-  BTC: '455294369202814481808572296872385613210766523398587823774432937118229435492field',
-  ETH: '2985899309493287288033109462171337384878765389403150014680153091857858070707field',
-  ALEO: '7209234236981629163723310973365078776830204734745925629370880472855317936451field',
+// Asset matching terms for dynamic market detection
+const ASSET_TERMS: Record<string, string[]> = {
+  BTC: ['BTC', 'BITCOIN'],
+  ETH: ['ETH', 'ETHEREUM'],
+  ALEO: ['ALEO'],
 };
 
 interface LightningRound {
@@ -92,16 +92,14 @@ export default function LightningHistory({ }: LightningHistoryProps) {
     }
   };
 
-  // Helper: get asset name from market ID
+  // Helper: get asset name from market ID using the market store
   const getAssetFromMarketId = (marketId: string): string => {
-    for (const [asset, id] of Object.entries(ALEO_LIGHTNING_IDS)) {
-      if (id === marketId) return asset;
-    }
-    const usdcxMarket = allMarkets.find((m) => m.id === marketId && m.isLightning);
-    if (usdcxMarket) {
-      if (usdcxMarket.question.toUpperCase().includes('BTC')) return 'BTC';
-      if (usdcxMarket.question.toUpperCase().includes('ETH')) return 'ETH';
-      if (usdcxMarket.question.toUpperCase().includes('ALEO')) return 'ALEO';
+    const market = allMarkets.find((m) => m.id === marketId);
+    if (market) {
+      const q = market.question.toUpperCase();
+      for (const [asset, terms] of Object.entries(ASSET_TERMS)) {
+        if (terms.some((t) => q.includes(t))) return asset;
+      }
     }
     return marketId.slice(0, 8) + '...';
   };

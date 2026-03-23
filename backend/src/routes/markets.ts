@@ -25,7 +25,7 @@ router.post('/refresh', async (_req, res) => {
 });
 
 router.post('/register', async (req, res) => {
-  const { marketId, question, outcomes, isLightning } = req.body;
+  const { marketId, question, outcomes, isLightning, tokenType } = req.body;
   if (!marketId || !question || !Array.isArray(outcomes) || outcomes.length < 2) {
     res.status(400).json({ error: 'marketId, question, and outcomes (array) required' });
     return;
@@ -35,6 +35,7 @@ router.post('/register', async (req, res) => {
     question,
     outcomes,
     isLightning: isLightning || false,
+    tokenType: tokenType || undefined,
   });
   persistRegistry();
   const markets = await fetchMarketsFromChain();

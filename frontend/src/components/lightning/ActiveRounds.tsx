@@ -14,12 +14,29 @@ import { useTradeStore } from '@/stores/tradeStore';
 import { useLightningBetStore } from '@/stores/lightningBetStore';
 import { API_BASE } from '@/constants';
 
-// ALEO lightning market IDs (deterministic: same creator + hash + nonce as v3)
-const ALEO_LIGHTNING_IDS: Record<string, string> = {
-  BTC: '455294369202814481808572296872385613210766523398587823774432937118229435492field',
-  ETH: '2985899309493287288033109462171337384878765389403150014680153091857858070707field',
-  ALEO: '7209234236981629163723310973365078776830204734745925629370880472855317936451field',
+// Asset matching terms for dynamic market detection
+const ASSET_TERMS: Record<string, string[]> = {
+  BTC: ['BTC', 'BITCOIN'],
+  ETH: ['ETH', 'ETHEREUM'],
+  ALEO: ['ALEO'],
 };
+
+function matchesAsset(question: string, asset: string): boolean {
+  const upper = question.toUpperCase();
+  return (ASSET_TERMS[asset] || [asset]).some((term) => upper.includes(term));
+}
+
+/** Find the best lightning market for a given asset + token type from the store.
+ *  When multiple matches exist, prefer smallest totalLiquidity (better payouts). */
+function findLightningMarket(
+  markets: { id: string; tokenType?: string; isLightning: boolean; outcomes: string[]; question: string; totalLiquidity: number }[],
+  asset: string,
+  token: 'ALEO' | 'USDCX',
+) {
+  return markets
+    .filter((m) => m.isLightning && m.tokenType === token && m.outcomes.length === 2 && matchesAsset(m.question, asset))
+    .sort((a, b) => a.totalLiquidity - b.totalLiquidity)[0] ?? null;
+}
 
 type TokenType = 'aleo' | 'usdcx';
 
@@ -63,12 +80,10 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
   const allBets = useLightningBetStore((s) => s.bets);
   const roundBets = allBets.filter((b) => b.roundId === round.id);
 
-  // Get market IDs: ALEO is hardcoded, USDCx is dynamically looked up from the store
-  const aleoMarketId = ALEO_LIGHTNING_IDS[round.asset];
-  const usdcxMarket = allMarkets.find((m) =>
-    m.isLightning && m.tokenType === 'USDCX' && m.question.toUpperCase().includes(round.asset)
-  );
-  const chainMarketId = tokenType === 'aleo' ? aleoMarketId : usdcxMarket?.id;
+  // Dynamically find lightning markets for this asset from the store
+  const aleoMarket = findLightningMarket(allMarkets, round.asset, 'ALEO');
+  const usdcxMarket = findLightningMarket(allMarkets, round.asset, 'USDCX');
+  const chainMarketId = tokenType === 'aleo' ? aleoMarket?.id : usdcxMarket?.id;
   const hasUsdcxMarket = !!usdcxMarket;
   const liveMarket = allMarkets.find((m) => m.id === chainMarketId);
   const liveReserves = liveMarket?.reserves ?? [1_000_000, 1_000_000];
@@ -78,11 +93,14 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
   const userBet = roundBets[0]; // Most recent bet for this round
 
   // Find claimable shares for this round's market + winning outcome
-  const winningOutcomeOnChain = round.result === 'up' ? 1 : 2; // 1-based
-  const bothMarketIds = [aleoMarketId, usdcxMarket?.id].filter(Boolean) as string[];
-  const claimableShares = shareRecords.filter(
-    (r) => bothMarketIds.includes(r.marketId) && r.outcome === winningOutcomeOnChain
-  );
+  // Only allow claiming after round is resolved and result is known
+  const winningOutcomeOnChain = round.result === 'up' ? 1 : (round.result === 'down' ? 2 : 0);
+  const bothMarketIds = [aleoMarket?.id, usdcxMarket?.id].filter(Boolean) as string[];
+  const claimableShares = round.status === 'resolved' && winningOutcomeOnChain > 0
+    ? shareRecords.filter(
+        (r) => bothMarketIds.includes(r.marketId) && r.outcome === winningOutcomeOnChain
+      )
+    : [];
 
   const handleClaim = async (record: ShareRecord) => {
     setClaiming(true);

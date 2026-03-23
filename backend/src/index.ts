@@ -8,7 +8,7 @@ import { fetchMarketsFromChain, setCachedMarkets } from './services/indexer';
 import { resolveExpiredMarkets } from './services/resolver';
 import { scanForNewMarkets } from './services/scanner';
 import { autoResolveMarkets } from './services/auto-resolver';
-import { settleLightningRounds, recordRoundPriceSnapshot } from './services/lightning-manager';
+import { settleLightningRounds, recordRoundPriceSnapshot, initSeedLightningRounds } from './services/lightning-manager';
 import marketsRouter from './routes/markets';
 import oracleRouter from './routes/oracle';
 import statsRouter from './routes/stats';
@@ -36,6 +36,7 @@ async function initialize() {
   ]);
   setCachedMarkets(markets);
   recordPriceSnapshot();
+  initSeedLightningRounds();
   console.log(`[Init] Loaded ${markets.length} markets`);
 
   // Run initial block scan in background (non-blocking)
@@ -94,14 +95,11 @@ cron.schedule('*/2 * * * *', async () => {
   }
 });
 
-// Settle expired lightning rounds every 1 minute
-cron.schedule('*/1 * * * *', async () => {
-  try {
-    await settleLightningRounds();
-  } catch (err) {
-    console.error('[Cron] Lightning settle failed:', err);
-  }
-});
+// Lightning settlement disabled from cron — WASM proving blocks Node.js for minutes.
+// Oracle-based rounds resolve bets in-memory. On-chain settlement via POST /api/lightning/settle
+// cron.schedule('*/1 * * * *', async () => {
+//   try { await settleLightningRounds(); } catch (err) { console.error('[Cron] Lightning settle failed:', err); }
+// });
 
 // Start server
 initialize().then(() => {

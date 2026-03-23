@@ -11,6 +11,7 @@ export interface MarketMeta {
   question: string;
   outcomes: string[];
   isLightning: boolean;
+  tokenType?: 'ALEO' | 'USDCX';
 }
 
 // ── JSON persistence for dynamically discovered/registered markets ──
@@ -42,54 +43,70 @@ function saveDynamicRegistry(registry: Record<string, MarketMeta>): void {
 }
 
 // Registry of known market IDs with their off-chain metadata
-// Pre-populated with v4 on-chain markets; new markets registered via POST /api/markets/register
+// Pre-populated with v5 on-chain markets; new markets registered via POST /api/markets/register
 const SEED_REGISTRY: Record<string, MarketMeta> = {
-  // ── Standard ALEO Markets ──
-  '8085242864126139563244038051773428138878217458560712704220582949499607657325field': {
-    questionHash: '100field',
-    question: 'Will Bitcoin reach $200K by end of 2026?',
+  // ── v5 Event Markets (ALEO) ──
+  '338971154235088352538199839107551243512545519182096229221249781836667033567field': {
+    questionHash: '1001field',
+    question: 'Will Bitcoin reach $100K by end of 2026?',
     outcomes: ['Yes', 'No'],
     isLightning: false,
   },
-  '106130223952973946378599625838994179283045656960052417664956943642466662346field': {
-    questionHash: '200field',
-    question: 'Will Ethereum surpass 1M TPS by Q4 2026?',
+  '8344369443958082297633908627114264945145845352501110640141528990903916036260field': {
+    questionHash: '1002field',
+    question: 'Will SpaceX land humans on Mars by 2027?',
     outcomes: ['Yes', 'No'],
     isLightning: false,
   },
-  '7248450081910056716007189528297723867665937242534770497171487355422634902275field': {
-    questionHash: '300field',
-    question: 'Will AI generate a full feature film by 2026?',
+  '759294365558660204377471741627354062283025499609695409173967931944802482271field': {
+    questionHash: '1003field',
+    question: 'Will US adopt a national CBDC by 2027?',
     outcomes: ['Yes', 'No'],
     isLightning: false,
   },
-  '3029892668231863383232670606962858351558519083464151639902538103512592759022field': {
-    questionHash: '400field',
-    question: 'FIFA World Cup 2026 Winner',
-    outcomes: ['Brazil', 'Argentina', 'France', 'Germany'],
+  '5269872960852394901927611205097204622043685423364840459970451889250394877402field': {
+    questionHash: '1004field',
+    question: 'Best Streaming Platform 2026',
+    outcomes: ['Netflix', 'Disney+', 'YouTube', 'Apple TV+'],
     isLightning: false,
   },
-  '2685252889919556961768696680117253001705690820089940914087678239926418154811field': {
-    questionHash: '500field',
-    question: 'Will SpaceX land humans on Mars by 2026?',
-    outcomes: ['Yes', 'No'],
-    isLightning: false,
+  // ── v5 Lightning Markets (ALEO) — long deadline, per-round oracle ──
+  '4996210007700946181946925844129973971689300422125832342620831605415253333389field': {
+    questionHash: '6001field',
+    question: 'BTC Lightning Round',
+    outcomes: ['Up', 'Down'],
+    isLightning: true,
+    tokenType: 'ALEO',
   },
-  '3494530966902197253377566498945256715234170663993572050548789760705547294802field': {
-    questionHash: '600field',
-    question: 'US Federal Reserve rate below 3% by mid-2026?',
-    outcomes: ['Yes', 'No'],
-    isLightning: false,
+  '4634458192957872849621597187822568246583922089977590111134549454558548213015field': {
+    questionHash: '6002field',
+    question: 'ETH Lightning Round',
+    outcomes: ['Up', 'Down'],
+    isLightning: true,
+    tokenType: 'ALEO',
   },
-  // ── Lightning markets are now created dynamically by lightning-manager ──
-  // Old v4 hardcoded lightning market IDs removed — per-round markets are
-  // auto-registered by the lightning manager and scanner.
+  '4278173522866567246556560167948434723044021497780470115660873330900641551519field': {
+    questionHash: '6003field',
+    question: 'ALEO Lightning Round',
+    outcomes: ['Up', 'Down'],
+    isLightning: true,
+    tokenType: 'ALEO',
+  },
+  // ── v5 Lightning Markets (USDCx) — created from UI ──
+  '7938196380421720328369688973740169956611572353926951376953294488019916309577field': {
+    questionHash: '1336895475942990882398219986290815408080field',
+    question: 'BTC Lightning Round (USDCx)',
+    outcomes: ['Up', 'Down'],
+    isLightning: true,
+    tokenType: 'USDCX',
+  },
 };
 
 // Merge seed + dynamic (file-persisted) registries
+// Seed entries take priority — they have curated question text & correct metadata
 const MARKET_REGISTRY: Record<string, MarketMeta> = {
-  ...SEED_REGISTRY,
   ...loadDynamicRegistry(),
+  ...SEED_REGISTRY,
 };
 
 const STATUS_MAP: Record<number, MarketInfo['status']> = {

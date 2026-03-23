@@ -163,6 +163,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
         shares: Number(exactShares),
         timestamp: Date.now(),
         startPrice: round.startPrice,
+        tokenType,
       });
 
       addTrade({
@@ -322,7 +323,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
           </div>
           <div className="flex items-center justify-between text-xs">
             <span className="text-gray-500">Amount</span>
-            <span className="font-mono text-white">{formatAleo(userBet.amount)} {tokenLabel}</span>
+            <span className="font-mono text-white">{formatAleo(userBet.amount)} {userBet.tokenType === 'usdcx' ? 'USDCx' : 'ALEO'}</span>
           </div>
           <div className="flex items-center justify-between text-xs mt-0.5">
             <span className="text-gray-500">Potential Win</span>
@@ -330,7 +331,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
               const outcome = userBet.direction === 'up' ? 0 : 1;
               const { tokensOut } = estimateSellTokensOut(liveReserves, outcome, userBet.shares);
               return formatAleo(calculateFees(tokensOut).amountAfterFee);
-            })()} {tokenLabel}</span>
+            })()} {userBet.tokenType === 'usdcx' ? 'USDCx' : 'ALEO'}</span>
           </div>
         </div>
       )}
@@ -359,7 +360,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
               {userBet.won ? '🎉 YOU WON!' : '😞 YOU LOST'}
             </span>
             <span className="text-xs font-mono text-gray-400">
-              Bet {userBet.direction.toUpperCase()} • {formatAleo(userBet.amount)} {tokenLabel}
+              Bet {userBet.direction.toUpperCase()} • {formatAleo(userBet.amount)} {userBet.tokenType === 'usdcx' ? 'USDCx' : 'ALEO'}
             </span>
           </div>
           {userBet.won && claimableShares.length > 0 && (
@@ -396,7 +397,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
           )}
           {!userBet.won && (
             <p className="text-xs text-accent-red/60 mt-1">
-              Your {formatAleo(userBet.amount)} {tokenLabel} went to the liquidity pool
+              Your {formatAleo(userBet.amount)} {userBet.tokenType === 'usdcx' ? 'USDCx' : 'ALEO'} went to the liquidity pool
             </p>
           )}
         </div>

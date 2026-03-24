@@ -159,7 +159,8 @@ export function useTransaction() {
         if (result?.transactionId) {
           const rawId = result.transactionId;
           setTxId(rawId);
-          setStatus('broadcasting');
+          // Wallet has confirmed — clear loading state immediately
+          setStatus('confirmed');
 
           // Show a pending toast — stays until background resolution updates it
           const pendingNotifId = addNotification(
@@ -168,7 +169,7 @@ export function useTransaction() {
             'Waiting for on-chain confirmation...'
           );
 
-          // Background: resolve real at1... ID then update toast
+          // Background: resolve real at1... ID then update toast (does NOT affect status)
           (async () => {
             try {
               const realId = await resolveShieldTxId(rawId);
@@ -186,19 +187,17 @@ export function useTransaction() {
               });
 
               setTxId(confirmedId);
-              setStatus('confirmed');
 
               if (onConfirmed) {
                 setTimeout(() => onConfirmed(confirmedId), 3000);
               }
             } catch {
-              // If resolution fails, still mark confirmed with raw ID
+              // Resolution failed — still show success with raw ID
               updateNotification(pendingNotifId, {
                 type: 'success',
                 title: 'Transaction Submitted',
                 message: `TX: ${rawId.slice(0, 20)}...`,
               });
-              setStatus('confirmed');
               if (onConfirmed) setTimeout(() => onConfirmed(rawId), 3000);
             }
           })();

@@ -31,7 +31,7 @@ export default function CryptoIcon({ symbol, size = 20, className = '' }: Crypto
         alt={upper}
         width={size}
         height={size}
-        className={`inline-block ${className}`}
+        className={`inline-block ${upper === 'ALEO' ? 'rounded-full' : ''} ${className}`}
         style={{ width: size, height: size }}
       />
     );

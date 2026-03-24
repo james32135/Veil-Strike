@@ -30,6 +30,19 @@ export default function MarketCard({ market, index = 0 }: MarketCardProps) {
   // Token icon for the market
   const tokenSymbol = market.tokenType || 'ALEO';
 
+  // Detect asset from question for thumbnail icon
+  const questionLower = market.question.toLowerCase();
+  const detectedAsset = questionLower.includes('btc') || questionLower.includes('bitcoin')
+    ? 'BTC'
+    : questionLower.includes('eth') || questionLower.includes('ethereum')
+    ? 'ETH'
+    : questionLower.includes('aleo')
+    ? 'ALEO'
+    : null;
+
+  // Token display label
+  const tokenLabel = tokenSymbol === 'USDCX' ? 'USDCx' : tokenSymbol;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -41,10 +54,10 @@ export default function MarketCard({ market, index = 0 }: MarketCardProps) {
         <div className={`h-px w-full ${market.isLightning ? 'bg-gradient-to-r from-transparent via-amber-400/30 to-transparent' : 'bg-gradient-to-r from-transparent via-white/[0.06] to-transparent'}`} />
 
         <div className="p-5">
-          {/* Header: Image + Category + Title */}
+          {/* Header: Thumbnail + Category/Title + Token Icon */}
           <div className="flex gap-3 mb-4">
-            {/* Event Image */}
-            <div className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 border border-white/[0.06] bg-dark-200">
+            {/* Event Thumbnail */}
+            <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 border border-white/[0.06] bg-dark-200 flex items-center justify-center">
               {market.imageUrl ? (
                 <img
                   src={market.imageUrl}
@@ -54,33 +67,46 @@ export default function MarketCard({ market, index = 0 }: MarketCardProps) {
                   onError={(e) => {
                     const el = e.target as HTMLImageElement;
                     el.style.display = 'none';
-                    el.parentElement!.classList.add('flex', 'items-center', 'justify-center');
-                    const fallback = document.createElement('span');
-                    fallback.className = 'text-lg';
-                    fallback.textContent = market.isLightning ? '⚡' : '📊';
-                    el.parentElement!.appendChild(fallback);
                   }}
                 />
+              ) : detectedAsset ? (
+                <CryptoIcon symbol={detectedAsset} size={30} />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-lg">
-                  {market.isLightning ? '⚡' : '📊'}
-                </div>
+                <span className="text-xl">{market.isLightning ? '⚡' : '📊'}</span>
               )}
             </div>
 
             <div className="flex-1 min-w-0">
               {/* Category Tag */}
-              <div className="flex items-center gap-1.5 mb-1">
-                <CryptoIcon symbol={tokenSymbol} size={12} />
-                <span className="text-[10px] text-gray-500 uppercase tracking-widest font-heading">
-                  {market.isLightning ? 'Lightning' : market.category}
-                </span>
-              </div>
+              <span className="text-[10px] text-gray-500 uppercase tracking-widest font-heading">
+                {market.isLightning ? 'Lightning' : market.category}
+              </span>
 
               {/* Title */}
-              <h3 className="font-heading text-sm font-semibold text-white line-clamp-2 leading-tight group-hover:text-teal/90 transition-colors duration-300">
+              <h3 className="font-heading text-sm font-semibold text-white line-clamp-2 leading-tight group-hover:text-teal/90 transition-colors duration-300 mt-0.5">
                 {market.question}
               </h3>
+            </div>
+
+            {/* Token Icon with tooltip - right side */}
+            <div className="relative flex-shrink-0 group/token">
+              <div className="w-9 h-9 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center cursor-help hover:border-white/[0.12] hover:bg-white/[0.05] transition-all duration-200">
+                <CryptoIcon symbol={tokenSymbol} size={22} />
+              </div>
+              {/* Tooltip */}
+              <div className="absolute right-0 top-full mt-2 opacity-0 pointer-events-none group-hover/token:opacity-100 group-hover/token:pointer-events-auto transition-all duration-200 z-20">
+                <div className="relative bg-dark-100/95 backdrop-blur-xl border border-white/[0.08] rounded-xl px-3.5 py-2.5 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.5)] min-w-[160px]">
+                  {/* Arrow */}
+                  <div className="absolute -top-1.5 right-3.5 w-3 h-3 bg-dark-100/95 border-l border-t border-white/[0.08] rotate-45" />
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <CryptoIcon symbol={tokenSymbol} size={16} />
+                    <span className="text-xs font-heading font-semibold text-white">{tokenLabel}</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 leading-relaxed">
+                    Bet & earn in <span className="text-teal font-medium">{tokenLabel}</span> tokens on this market
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -136,6 +162,14 @@ export default function MarketCard({ market, index = 0 }: MarketCardProps) {
                 {market.status}
               </Badge>
             </div>
+          </div>
+
+          {/* Token info line */}
+          <div className="flex items-center gap-1.5 mt-2.5 pt-2 border-t border-white/[0.02]">
+            <CryptoIcon symbol={tokenSymbol} size={12} />
+            <span className="text-[10px] text-gray-500">
+              Bet with <span className="text-gray-400 font-medium">{tokenLabel}</span>
+            </span>
           </div>
         </div>
       </Link>

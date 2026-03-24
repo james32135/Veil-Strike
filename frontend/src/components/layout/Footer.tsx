@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LogoIcon, ExternalLinkIcon } from '@/components/icons';
+import { ExternalLinkIcon } from '@/components/icons';
 
 const stagger = {
   animate: { transition: { staggerChildren: 0.06 } },
@@ -27,7 +27,7 @@ export default function Footer() {
         >
           <motion.div variants={fadeUp} className="col-span-1">
             <Link to="/" className="inline-flex items-center gap-2.5 mb-5 group">
-              <LogoIcon className="w-7 h-7" />
+              <img src="/logo.png" alt="Veil Strike" className="w-7 h-7 rounded-lg object-cover" />
               <span className="font-heading font-bold text-lg text-white">
                 VEIL<span className="gradient-text">STRIKE</span>
               </span>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogoIcon, MenuIcon, CloseIcon } from '@/components/icons';
+import { MenuIcon, CloseIcon } from '@/components/icons';
 import WalletButton from './WalletButton';
 
 const navLinks = [
@@ -32,7 +32,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-[72px]">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 group">
-            <LogoIcon className="w-8 h-8" />
+            <img src="/logo.png" alt="Veil Strike" className="w-8 h-8 rounded-lg object-cover" />
             <span className="font-heading font-bold text-lg text-white tracking-tight">
               VEIL<span className="gradient-text">STRIKE</span>
             </span>

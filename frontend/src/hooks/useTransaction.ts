@@ -1,8 +1,10 @@
 import { useState, useCallback } from 'react';
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { useNotificationStore } from '@/stores/notificationStore';
-import { PROGRAM_ID, PROGRAM_ID_CX, PROGRAM_ID_SD } from '@/constants';
+import { PROGRAM_ID, PROGRAM_ID_CX, PROGRAM_ID_SD, ALEO_TESTNET_API } from '@/constants';
 import type { AleoTransaction } from '@/types';
+
+const EXPLORER_BASE = 'https://testnet.explorer.provable.com/transaction';
 
 export interface ShareRecord {
   plaintext: string;
@@ -157,7 +159,14 @@ export function useTransaction() {
         if (result?.transactionId) {
           setTxId(result.transactionId);
           setStatus('confirmed');
-          addNotification('success', 'Transaction Confirmed', `ID: ${result.transactionId.slice(0, 12)}...`);
+          const explorerUrl = `${EXPLORER_BASE}/${result.transactionId}`;
+          addNotification(
+            'success',
+            'Transaction Submitted',
+            `TX: ${result.transactionId.slice(0, 16)}...`,
+            explorerUrl,
+            'View on Explorer'
+          );
           return result.transactionId;
         }
 
@@ -173,6 +182,29 @@ export function useTransaction() {
       }
     },
     [connected, executeTransaction, addNotification]
+  );
+
+  /**
+   * Poll the Aleo API for a confirmed transaction and return the real on-chain txId.
+   * Useful when Shield Wallet returns a temporary ID.
+   */
+  const pollTransactionConfirmed = useCallback(
+    async (txId: string, maxAttempts = 40, intervalMs = 5000): Promise<string | null> => {
+      for (let i = 0; i < maxAttempts; i++) {
+        try {
+          const url = `${ALEO_TESTNET_API}/transaction/${txId}`;
+          const res = await fetch(url);
+          if (res.ok) {
+            const data = await res.json();
+            const realId = data?.id || txId;
+            return realId;
+          }
+        } catch { /* keep polling */ }
+        await new Promise(r => setTimeout(r, intervalMs));
+      }
+      return null;
+    },
+    []
   );
 
   const reset = useCallback(() => {
@@ -232,5 +264,5 @@ export function useTransaction() {
     [connected, requestRecords]
   );
 
-  return { status, txId, error, execute, reset, fetchCreditsRecord, fetchUsdcxRecord, fetchShareRecords };
+  return { status, txId, error, execute, reset, fetchCreditsRecord, fetchUsdcxRecord, fetchShareRecords, pollTransactionConfirmed };
 }

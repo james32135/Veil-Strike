@@ -7,7 +7,9 @@ const router = Router();
 
 // ---- Proposal registry (persisted to disk) ----
 interface ProposalMeta {
-  id: string;
+  id: string;          // The nonce field used when submitting
+  txId?: string;       // Transaction ID from the wallet
+  resolvedId?: string; // Actual on-chain proposal ID (BHP256 hash of proposer+nonce)
   title: string;
   description: string;
   actionType: number;
@@ -48,6 +50,39 @@ async function fetchProposalFromChain(proposalId: string) {
   } catch { return null; }
 }
 
+/**
+ * Resolve the actual on-chain proposal ID from a transaction.
+ * The submit_proposal finalize inputs contain the proposal_id as the first argument.
+ */
+async function resolveProposalIdFromTx(txId: string): Promise<string | null> {
+  try {
+    const url = `${config.aleoEndpoint}/testnet/transaction/${txId}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json() as Record<string, unknown>;
+
+    // Navigate: execution.transitions[] → find submit_proposal → extract finalize[0]
+    const execution = data?.execution as Record<string, unknown> | undefined;
+    const transitions = execution?.transitions;
+    if (!Array.isArray(transitions)) return null;
+
+    for (const t of transitions as Record<string, unknown>[]) {
+      if (t.program === config.programId && t.function === 'submit_proposal') {
+        const finalizeInputs = t.finalize as unknown[];
+        if (Array.isArray(finalizeInputs) && finalizeInputs.length > 0) {
+          // First finalize input is the proposal_id (field)
+          const raw = finalizeInputs[0] as Record<string, unknown> | string;
+          const val = typeof raw === 'object' ? raw.value : raw;
+          if (typeof val === 'string' && val.endsWith('field')) {
+            return val;
+          }
+        }
+      }
+    }
+    return null;
+  } catch { return null; }
+}
+
 function parseProposalStruct(raw: string): Record<string, string> | null {
   if (!raw || raw === 'null') return null;
   const fields: Record<string, string> = {};
@@ -63,12 +98,30 @@ function parseProposalStruct(raw: string): Record<string, string> | null {
 
 // List all known proposals with on-chain data
 router.get('/', async (_req, res) => {
+  let registryChanged = false;
   const enriched = await Promise.all(
     proposalRegistry.map(async (meta) => {
-      const raw = await fetchProposalFromChain(meta.id);
+      // Determine the on-chain lookup key
+      let lookupId = meta.resolvedId || null;
+
+      // If we haven't resolved the on-chain ID yet, try via txId
+      if (!lookupId && meta.txId) {
+        const resolved = await resolveProposalIdFromTx(meta.txId);
+        if (resolved) {
+          meta.resolvedId = resolved;
+          registryChanged = true;
+          lookupId = resolved;
+        }
+      }
+
+      // Fallback: try the raw nonce (won't match, but keeps compat)
+      if (!lookupId) lookupId = meta.id;
+
+      const raw = await fetchProposalFromChain(lookupId);
       const chain = raw ? parseProposalStruct(typeof raw === 'string' ? raw : JSON.stringify(raw)) : null;
       return {
         ...meta,
+        onChainId: lookupId,
         chain: chain ? {
           votesFor: chain.votes_for || '0u128',
           votesAgainst: chain.votes_against || '0u128',
@@ -80,21 +133,36 @@ router.get('/', async (_req, res) => {
       };
     })
   );
+  if (registryChanged) persistRegistry();
   res.json({ proposals: enriched });
 });
 
 // Get single proposal
 router.get('/:id', async (req, res) => {
-  const meta = proposalRegistry.find(p => p.id === req.params.id);
+  const meta = proposalRegistry.find(p => p.id === req.params.id || p.resolvedId === req.params.id);
   if (!meta) {
     res.status(404).json({ error: 'Proposal not found' });
     return;
   }
-  const raw = await fetchProposalFromChain(meta.id);
+
+  // Try to resolve on-chain ID if needed
+  let lookupId = meta.resolvedId || null;
+  if (!lookupId && meta.txId) {
+    const resolved = await resolveProposalIdFromTx(meta.txId);
+    if (resolved) {
+      meta.resolvedId = resolved;
+      persistRegistry();
+      lookupId = resolved;
+    }
+  }
+  if (!lookupId) lookupId = meta.id;
+
+  const raw = await fetchProposalFromChain(lookupId);
   const chain = raw ? parseProposalStruct(typeof raw === 'string' ? raw : JSON.stringify(raw)) : null;
   res.json({
     proposal: {
       ...meta,
+      onChainId: lookupId,
       chain: chain ? {
         votesFor: chain.votes_for || '0u128',
         votesAgainst: chain.votes_against || '0u128',
@@ -109,18 +177,24 @@ router.get('/:id', async (req, res) => {
 
 // Register a new proposal (called by frontend after tx confirms)
 router.post('/register', (req, res) => {
-  const { id, title, description, actionType, targetMarket, amount, recipient, tokenType } = req.body;
+  const { id, txId, title, description, actionType, targetMarket, amount, recipient, tokenType } = req.body;
   if (!id || !title) {
     res.status(400).json({ error: 'id and title required' });
     return;
   }
   const existing = proposalRegistry.find(p => p.id === id);
   if (existing) {
+    // Update txId if provided and not already set
+    if (txId && !existing.txId) {
+      existing.txId = txId;
+      persistRegistry();
+    }
     res.json({ success: true, message: 'already registered' });
     return;
   }
   proposalRegistry.push({
     id,
+    txId: txId || undefined,
     title: title || '',
     description: description || '',
     actionType: actionType || 0,

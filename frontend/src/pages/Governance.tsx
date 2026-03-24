@@ -23,6 +23,8 @@ interface ProposalChainData {
 
 interface Proposal {
   id: string;
+  txId?: string;
+  onChainId?: string;
   title: string;
   description: string;
   actionType: number;
@@ -153,6 +155,7 @@ export default function Governance() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: nonce,
+            txId,
             title: title.trim(),
             description: description.trim(),
             actionType,
@@ -171,14 +174,14 @@ export default function Governance() {
       setRecipient('');
       setVoteDurationDays(7);
       setActiveTab('proposals');
-      setTimeout(fetchProposals, 8000);
+      setTimeout(fetchProposals, 12000);
     }
   };
 
   const handleVote = async (proposalId: string, support: boolean) => {
     const tx = buildCastVoteTx(proposalId, support);
     const txId = await execute(tx);
-    if (txId) setTimeout(fetchProposals, 8000);
+    if (txId) setTimeout(fetchProposals, 12000);
   };
 
   const tabs = [
@@ -265,6 +268,9 @@ export default function Governance() {
                 const forPercent = totalVotes > 0 ? (votesFor / totalVotes) * 100 : 50;
                 const isActive = proposal.chain ? !proposal.chain.executed : false;
                 const isExecuted = proposal.chain?.executed || false;
+                const isConfirming = !proposal.chain && !!proposal.txId;
+                // Use the resolved on-chain ID for voting; fall back to raw id
+                const voteId = proposal.onChainId || proposal.id;
 
                 return (
                   <motion.div
@@ -280,8 +286,8 @@ export default function Governance() {
                             <h3 className="text-sm font-heading font-semibold text-white truncate">
                               {proposal.title}
                             </h3>
-                            <Badge variant={isExecuted ? 'green' : isActive ? 'teal' : 'gray'}>
-                              {isExecuted ? 'Executed' : isActive ? 'Active' : 'Pending'}
+                            <Badge variant={isExecuted ? 'green' : isActive ? 'teal' : isConfirming ? 'gray' : 'gray'}>
+                              {isExecuted ? 'Executed' : isActive ? 'Active' : isConfirming ? 'Confirming…' : 'Pending'}
                             </Badge>
                             <Badge variant="gray">
                               {ACTION_LABELS[proposal.actionType] || 'Unknown'}
@@ -324,7 +330,7 @@ export default function Governance() {
                             <Button
                               variant="primary"
                               size="sm"
-                              onClick={() => handleVote(proposal.id, true)}
+                              onClick={() => handleVote(voteId, true)}
                               loading={txStatus === 'proving'}
                               className="!text-xs !px-3"
                             >
@@ -333,12 +339,18 @@ export default function Governance() {
                             <Button
                               variant="danger"
                               size="sm"
-                              onClick={() => handleVote(proposal.id, false)}
+                              onClick={() => handleVote(voteId, false)}
                               loading={txStatus === 'proving'}
                               className="!text-xs !px-3"
                             >
                               Against
                             </Button>
+                          </div>
+                        )}
+                        {isConfirming && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="w-4 h-4 border-2 border-gray-500/30 border-t-gray-400 rounded-full animate-spin" />
+                            <span className="text-[11px] text-gray-500">On-chain…</span>
                           </div>
                         )}
                       </div>

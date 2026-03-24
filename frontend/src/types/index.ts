@@ -104,6 +104,8 @@ export interface Notification {
   title: string;
   message: string;
   timestamp: number;
+  link?: string;
+  linkLabel?: string;
 }
 
 export interface AleoTransaction {

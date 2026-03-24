@@ -17,9 +17,10 @@ const typeStyles = {
 
 export default function Toast({ notification, onDismiss }: ToastProps) {
   useEffect(() => {
-    const timer = setTimeout(() => onDismiss(notification.id), 5000);
+    const duration = notification.link ? 12000 : 5000;
+    const timer = setTimeout(() => onDismiss(notification.id), duration);
     return () => clearTimeout(timer);
-  }, [notification.id, onDismiss]);
+  }, [notification.id, notification.link, onDismiss]);
 
   const style = typeStyles[notification.type];
 
@@ -36,6 +37,16 @@ export default function Toast({ notification, onDismiss }: ToastProps) {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-white">{notification.title}</p>
         <p className="text-xs text-gray-400 mt-0.5">{notification.message}</p>
+        {notification.link && (
+          <a
+            href={notification.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-teal hover:text-teal/80 mt-1 underline underline-offset-2"
+          >
+            {notification.linkLabel || 'View on Explorer'} ↗
+          </a>
+        )}
       </div>
       <button onClick={() => onDismiss(notification.id)} className="text-gray-500 hover:text-gray-300">
         <CloseIcon className="w-4 h-4" />

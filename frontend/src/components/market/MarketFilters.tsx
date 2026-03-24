@@ -1,23 +1,31 @@
 import { SearchIcon, ChevronDownIcon } from '@/components/icons';
 import { CATEGORIES } from '@/constants';
+import CryptoIcon from '@/components/shared/CryptoIcon';
 import type { MarketSortBy } from '@/types';
+
+const TOKEN_FILTERS = ['All', 'ALEO', 'USDCX', 'USAD'] as const;
+export type TokenFilter = (typeof TOKEN_FILTERS)[number];
 
 interface MarketFiltersProps {
   selectedCategory: string;
   sortBy: MarketSortBy;
   searchQuery: string;
+  selectedToken: TokenFilter;
   onCategoryChange: (cat: string) => void;
   onSortChange: (sort: MarketSortBy) => void;
   onSearchChange: (query: string) => void;
+  onTokenChange: (token: TokenFilter) => void;
 }
 
 export default function MarketFilters({
   selectedCategory,
   sortBy,
   searchQuery,
+  selectedToken,
   onCategoryChange,
   onSortChange,
   onSearchChange,
+  onTokenChange,
 }: MarketFiltersProps) {
   return (
     <div className="space-y-4 mb-8">
@@ -47,6 +55,24 @@ export default function MarketFilters({
               }`}
             >
               {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* Token Filter */}
+        <div className="flex items-center gap-1 p-0.5 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+          {TOKEN_FILTERS.map((t) => (
+            <button
+              key={t}
+              onClick={() => onTokenChange(t)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-heading font-medium rounded-md transition-all ${
+                selectedToken === t
+                  ? 'bg-gradient-to-b from-teal/20 to-teal/10 text-teal shadow-[0_0_10px_-3px_rgba(45,212,191,0.25)]'
+                  : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.03]'
+              }`}
+            >
+              {t !== 'All' && <CryptoIcon symbol={t} size={13} />}
+              {t === 'USDCX' ? 'USDCx' : t}
             </button>
           ))}
         </div>

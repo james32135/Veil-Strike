@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useMarketStore } from '@/stores/marketStore';
 
 export function useMarkets() {
-  const { markets, loading, fetchMarkets, getFilteredMarkets, selectedCategory, sortBy, searchQuery, setCategory, setSortBy, setSearchQuery } = useMarketStore();
+  const { markets, loading, fetchMarkets, getFilteredMarkets, selectedCategory, sortBy, searchQuery, selectedToken, setCategory, setSortBy, setSearchQuery, setSelectedToken } = useMarketStore();
 
   useEffect(() => {
     if (markets.length === 0) {
@@ -17,9 +17,11 @@ export function useMarkets() {
     selectedCategory,
     sortBy,
     searchQuery,
+    selectedToken,
     setCategory,
     setSortBy,
     setSearchQuery,
+    setSelectedToken,
     refresh: fetchMarkets,
   };
 }

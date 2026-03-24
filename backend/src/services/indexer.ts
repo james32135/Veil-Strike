@@ -12,6 +12,7 @@ export interface MarketMeta {
   outcomes: string[];
   isLightning: boolean;
   tokenType?: 'ALEO' | 'USDCX' | 'USAD';
+  imageUrl?: string;
 }
 
 // ── JSON persistence for dynamically discovered/registered markets ──
@@ -262,6 +263,7 @@ export async function fetchMarketsFromChain(): Promise<MarketInfo[]> {
         isLightning: meta.isLightning,
         tokenType: TOKEN_TYPE_MAP[tokenType] || 'ALEO',
         resolvedOutcome,
+        imageUrl: meta.imageUrl,
       });
     } catch (err) {
       console.error(`[Indexer] Error fetching market ${marketId.slice(0, 20)}...`, err);

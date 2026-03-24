@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Market, MarketSortBy } from '@/types';
 import { fetchRealMarkets } from '@/utils/marketApi';
+import type { TokenFilter } from '@/components/market/MarketFilters';
 
 interface MarketState {
   markets: Market[];
@@ -8,10 +9,12 @@ interface MarketState {
   selectedCategory: string;
   sortBy: MarketSortBy;
   searchQuery: string;
+  selectedToken: TokenFilter;
   fetchMarkets: () => Promise<void>;
   setCategory: (category: string) => void;
   setSortBy: (sortBy: MarketSortBy) => void;
   setSearchQuery: (query: string) => void;
+  setSelectedToken: (token: TokenFilter) => void;
   getFilteredMarkets: () => Market[];
 }
 
@@ -21,6 +24,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   selectedCategory: 'All',
   sortBy: 'volume',
   searchQuery: '',
+  selectedToken: 'All',
 
   fetchMarkets: async () => {
     set({ loading: true });
@@ -35,9 +39,10 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   setCategory: (category) => set({ selectedCategory: category }),
   setSortBy: (sortBy) => set({ sortBy }),
   setSearchQuery: (query) => set({ searchQuery: query }),
+  setSelectedToken: (token) => set({ selectedToken: token }),
 
   getFilteredMarkets: () => {
-    const { markets, selectedCategory, sortBy, searchQuery } = get();
+    const { markets, selectedCategory, sortBy, searchQuery, selectedToken } = get();
 
     let filtered = [...markets];
 
@@ -50,6 +55,10 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       filtered = filtered.filter(
         (m) => m.question.toLowerCase().includes(q)
       );
+    }
+
+    if (selectedToken !== 'All') {
+      filtered = filtered.filter((m) => (m.tokenType || 'ALEO') === selectedToken);
     }
 
     switch (sortBy) {

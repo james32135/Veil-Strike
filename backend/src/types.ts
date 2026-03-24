@@ -20,6 +20,7 @@ export interface MarketInfo {
   isLightning: boolean;
   resolvedOutcome?: number;
   tokenType?: string;
+  imageUrl?: string;
 }
 
 export interface ProtocolStats {

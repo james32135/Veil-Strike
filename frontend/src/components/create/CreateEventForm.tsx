@@ -20,6 +20,7 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
   const [initialLiquidity, setInitialLiquidity] = useState('10');
   const [durationDays, setDurationDays] = useState('7');
   const [tokenType, setTokenType] = useState<'ALEO' | 'USDCX' | 'USAD'>('ALEO');
+  const [imageUrl, setImageUrl] = useState('');
   const { status, execute, fetchUsdcxRecord } = useTransaction();
   const walletAddress = useWalletStore((s) => s.address);
 
@@ -121,6 +122,7 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
     questionHash: string,
     outcomeLabels: string[],
     isLightning: boolean,
+    eventImageUrl?: string,
   ) => {
     // Step 1: Immediately save pending metadata with backend so the
     // block scanner can match question text when it finds the market.
@@ -196,6 +198,7 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
             question: questionText,
             outcomes: outcomeLabels,
             isLightning,
+            imageUrl: eventImageUrl || undefined,
           }),
         });
         console.log(`[CreateMarket] Registered market ${marketId.slice(0, 20)}... with backend`);
@@ -255,7 +258,7 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
     if (txId) {
       // Extract market_id from on-chain transaction and register with backend
       const isLightning = /lightning|round/i.test(question);
-      registerMarketFromTx(txId, question, questionHash, outcomes, isLightning);
+      registerMarketFromTx(txId, question, questionHash, outcomes, isLightning, imageUrl || undefined);
     }
     onSuccess?.();
   };
@@ -281,6 +284,32 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
           maxLength={200}
         />
         <p className="text-[10px] text-gray-600 mt-1">{question.length}/200 characters</p>
+      </div>
+
+      {/* Event Image URL */}
+      <div>
+        <label className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5 block">
+          Event Image URL <span className="text-gray-600 normal-case">(optional)</span>
+        </label>
+        <div className="flex gap-3 items-start">
+          <input
+            type="url"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            placeholder="https://example.com/event-image.jpg"
+            className="input-field flex-1"
+          />
+          {imageUrl && (
+            <div className="w-12 h-12 rounded-lg border border-white/[0.06] overflow-hidden flex-shrink-0 bg-dark-200">
+              <img
+                src={imageUrl}
+                alt="Preview"
+                className="w-full h-full object-cover"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Category */}

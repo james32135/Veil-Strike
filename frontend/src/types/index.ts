@@ -17,6 +17,7 @@ export interface Market {
   isLightning: boolean;
   resolvedOutcome?: number;
   tokenType?: string;
+  imageUrl?: string;
 }
 
 export interface SharePosition {

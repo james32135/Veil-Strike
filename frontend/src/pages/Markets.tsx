@@ -14,9 +14,11 @@ export default function Markets() {
     selectedCategory,
     sortBy,
     searchQuery,
+    selectedToken,
     setCategory,
     setSortBy,
     setSearchQuery,
+    setSelectedToken,
   } = useMarkets();
 
   useEffect(() => {
@@ -35,9 +37,11 @@ export default function Markets() {
         selectedCategory={selectedCategory}
         sortBy={sortBy}
         searchQuery={searchQuery}
+        selectedToken={selectedToken}
         onCategoryChange={setCategory}
         onSortChange={setSortBy}
         onSearchChange={setSearchQuery}
+        onTokenChange={setSelectedToken}
       />
 
       {loading ? (
@@ -51,9 +55,9 @@ export default function Markets() {
           actionHref="/create"
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-          {markets.map((market) => (
-            <MarketCard key={market.id} market={market} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+          {markets.map((market, i) => (
+            <MarketCard key={market.id} market={market} index={i} />
           ))}
         </div>
       )}

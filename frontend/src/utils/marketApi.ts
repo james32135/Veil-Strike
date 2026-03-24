@@ -23,5 +23,6 @@ export async function fetchRealMarkets(): Promise<Market[]> {
     isLightning: m.isLightning as boolean,
     resolvedOutcome: m.resolvedOutcome as number | undefined,
     tokenType: (m.tokenType as string) || 'ALEO',
+    imageUrl: (m.imageUrl as string) || undefined,
   }));
 }

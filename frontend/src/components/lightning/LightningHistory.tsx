@@ -5,6 +5,7 @@ import Badge from '@/components/shared/Badge';
 import Button from '@/components/shared/Button';
 import EmptyState from '@/components/shared/EmptyState';
 import { ClockIcon } from '@/components/icons';
+import CryptoIcon from '@/components/shared/CryptoIcon';
 import { useLightningBetStore } from '@/stores/lightningBetStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTransaction } from '@/hooks/useTransaction';
@@ -165,7 +166,7 @@ export default function LightningHistory({ }: LightningHistoryProps) {
                         {outcomeLabel}
                       </span>
                       {' '}
-                      <span className="font-mono font-bold">{assetName}</span>
+                      <span className="font-mono font-bold"><CryptoIcon symbol={assetName} size={14} className="mr-1" />{assetName}</span>
                       {' • '}
                       <span className="font-mono">{formatAleo(record.quantity)} {tokenLabel}</span>
                     </p>
@@ -203,7 +204,7 @@ export default function LightningHistory({ }: LightningHistoryProps) {
               >
                 <div className="flex-1 min-w-0 mr-3">
                   <p className="text-sm text-gray-300">
-                    <span className="font-mono font-bold">{bet.asset}</span>
+                    <span className="font-mono font-bold"><CryptoIcon symbol={bet.asset} size={14} className="mr-1" />{bet.asset}</span>
                     {' — Bet '}
                     <span className={bet.direction === 'up' ? 'text-accent-green' : 'text-accent-red'}>
                       {bet.direction.toUpperCase()}
@@ -222,7 +223,7 @@ export default function LightningHistory({ }: LightningHistoryProps) {
               >
                 <div className="flex-1 min-w-0 mr-3">
                   <p className="text-sm text-gray-300">
-                    <span className="font-mono font-bold">{bet.asset}</span>
+                    <span className="font-mono font-bold"><CryptoIcon symbol={bet.asset} size={14} className="mr-1" />{bet.asset}</span>
                     {' — Bet '}
                     <span className={bet.direction === 'up' ? 'text-accent-green' : 'text-accent-red'}>
                       {bet.direction.toUpperCase()}

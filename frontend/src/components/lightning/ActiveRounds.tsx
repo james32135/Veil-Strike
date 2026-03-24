@@ -3,6 +3,7 @@ import Card from '@/components/shared/Card';
 import Badge from '@/components/shared/Badge';
 import Button from '@/components/shared/Button';
 import { BoltIcon, ArrowUpIcon, ArrowDownIcon } from '@/components/icons';
+import CryptoIcon from '@/components/shared/CryptoIcon';
 import { useTransaction } from '@/hooks/useTransaction';
 import type { ShareRecord } from '@/hooks/useTransaction';
 import { buildBuySharesPrivateTx, buildBuySharesStableTx, buildSellSharesTx, generateNonce } from '@/utils/transactions';
@@ -210,6 +211,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <BoltIcon className="w-4 h-4 text-amber-400" />
+          <CryptoIcon symbol={round.asset} size={18} />
           <span className={`text-sm font-heading font-bold ${assetColors[round.asset]}`}>
             {round.asset}
           </span>
@@ -258,7 +260,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
                       : 'text-gray-500 hover:text-gray-300'
                   }`}
                 >
-                  ALEO
+                  <CryptoIcon symbol="ALEO" size={14} className="mr-1" />ALEO
                 </button>
                 {hasUsdcxMarket && (
                 <button
@@ -269,7 +271,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
                       : 'text-gray-500 hover:text-gray-300'
                   }`}
                 >
-                  USDCx
+                  <CryptoIcon symbol="USDCX" size={14} className="mr-1" />USDCx
                 </button>
                 )}
                 {hasUsadMarket && (
@@ -281,7 +283,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
                       : 'text-gray-500 hover:text-gray-300'
                   }`}
                 >
-                  USAD
+                  <CryptoIcon symbol="USAD" size={14} className="mr-1" />USAD
                 </button>
                 )}
               </div>

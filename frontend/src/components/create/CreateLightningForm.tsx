@@ -7,6 +7,7 @@ import { LIGHTNING_DURATIONS, API_BASE, ALEO_TESTNET_API, PROGRAM_ID, PROGRAM_ID
 import { useWalletStore } from '@/stores/walletStore';
 import Button from '@/components/shared/Button';
 import Card from '@/components/shared/Card';
+import CryptoIcon from '@/components/shared/CryptoIcon';
 import { BoltIcon } from '@/components/icons';
 
 interface CreateLightningFormProps {
@@ -110,7 +111,7 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
                   : 'border-dark-400/50 text-gray-500 hover:text-gray-300'
               }`}
             >
-              {a.toUpperCase()}
+              <CryptoIcon symbol={a} size={18} className="mr-1" />{a.toUpperCase()}
             </button>
           ))}
         </div>
@@ -143,7 +144,7 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
                   : 'border-dark-400/50 text-gray-500 hover:text-gray-300'
               }`}
             >
-              {t}
+              <CryptoIcon symbol={t} size={14} className="mr-1" />{t}
             </button>
           ))}
         </div>

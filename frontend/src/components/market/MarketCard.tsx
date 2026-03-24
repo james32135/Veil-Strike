@@ -5,6 +5,7 @@ import { calculatePrices } from '@/utils/fpmm';
 import { formatAleo } from '@/utils/format';
 import { PRECISION, CHART_COLORS } from '@/constants';
 import Badge from '@/components/shared/Badge';
+import CryptoIcon from '@/components/shared/CryptoIcon';
 import OutcomeBar from '@/components/charts/OutcomeBar';
 
 interface MarketCardProps {
@@ -33,10 +34,10 @@ export default function MarketCard({ market, index = 0 }: MarketCardProps) {
           </Badge>
           <Badge variant="green" size="sm">{market.status}</Badge>
           {market.tokenType === 'USDCX' && (
-            <Badge variant="teal" size="sm">USDCx</Badge>
+            <Badge variant="teal" size="sm"><CryptoIcon symbol="USDCX" size={12} className="mr-1" />USDCx</Badge>
           )}
           {market.tokenType === 'USAD' && (
-            <Badge variant="green" size="sm">USAD</Badge>
+            <Badge variant="green" size="sm"><CryptoIcon symbol="USAD" size={12} className="mr-1" />USAD</Badge>
           )}
           {market.outcomes.length > 2 && (
             <Badge variant="gray" size="sm">{market.outcomes.length} outcomes</Badge>

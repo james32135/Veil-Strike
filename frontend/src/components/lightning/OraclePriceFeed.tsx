@@ -2,6 +2,7 @@ import { useOracleStore } from '@/stores/oracleStore';
 import { formatPrice } from '@/utils/format';
 import Card from '@/components/shared/Card';
 import { ChartIcon, ArrowUpIcon, ArrowDownIcon } from '@/components/icons';
+import CryptoIcon from '@/components/shared/CryptoIcon';
 
 export default function OraclePriceFeed() {
   const { prices, lastUpdated } = useOracleStore();
@@ -28,7 +29,7 @@ export default function OraclePriceFeed() {
           <div key={asset.symbol} className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-dark-200 flex items-center justify-center">
-                <ChartIcon className="w-3.5 h-3.5 text-teal" />
+                <CryptoIcon symbol={asset.symbol} size={18} />
               </div>
               <span className="text-sm font-heading font-medium text-gray-300">{asset.symbol}</span>
             </div>

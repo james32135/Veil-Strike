@@ -7,6 +7,7 @@ import { CATEGORIES, API_BASE, ALEO_TESTNET_API, PROGRAM_ID, PROGRAM_ID_CX, PROG
 import { useWalletStore } from '@/stores/walletStore';
 import Button from '@/components/shared/Button';
 import Card from '@/components/shared/Card';
+import CryptoIcon from '@/components/shared/CryptoIcon';
 
 interface CreateEventFormProps {
   onSuccess?: () => void;
@@ -320,7 +321,7 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
                   : 'border-dark-400/50 text-gray-500 hover:text-gray-300'
               }`}
             >
-              {t}
+              <CryptoIcon symbol={t} size={14} className="mr-1" />{t}
             </button>
           ))}
         </div>

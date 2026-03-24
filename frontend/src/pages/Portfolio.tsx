@@ -13,6 +13,7 @@ import Badge from '@/components/shared/Badge';
 import Button from '@/components/shared/Button';
 import EmptyState from '@/components/shared/EmptyState';
 import { ChartIcon, ClockIcon, ShieldIcon } from '@/components/icons';
+import CryptoIcon from '@/components/shared/CryptoIcon';
 import { motion } from 'framer-motion';
 import { API_BASE } from '@/constants';
 
@@ -168,7 +169,7 @@ export default function Portfolio() {
                       <div className="flex-1 min-w-0 mr-3">
                         <div className="flex items-center gap-2 mb-1">
                           <Badge variant={record.outcome === 1 ? 'green' : 'red'}>{outcomeLabel}</Badge>
-                          <Badge variant="teal">{tokenLabel}</Badge>
+                          <Badge variant="teal"><CryptoIcon symbol={tokenLabel} size={12} className="mr-1" />{tokenLabel}</Badge>
                         </div>
                         <p className="text-sm font-mono text-gray-300 truncate">
                           {market?.question || `Market ${record.marketId.slice(0, 12)}...`}
@@ -269,7 +270,7 @@ export default function Portfolio() {
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0 mr-3">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-heading font-semibold text-white">{bet.asset}</span>
+                        <span className="text-sm font-heading font-semibold text-white"><CryptoIcon symbol={bet.asset} size={16} className="mr-1" />{bet.asset}</span>
                         <Badge variant={bet.direction === 'up' ? 'green' : 'red'}>
                           {bet.direction === 'up' ? '↑ UP' : '↓ DOWN'}
                         </Badge>

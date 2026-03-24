@@ -23,45 +23,54 @@ export default function MarketCard({ market, index = 0 }: MarketCardProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 15 }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05 }}
+      transition={{ delay: index * 0.06, duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
     >
-      <Link to={`/markets/${market.id}`} className="block glass-card-hover p-6 h-full">
-        <div className="flex items-center gap-2 mb-3">
-          <Badge variant={market.isLightning ? 'teal' : 'gray'} size="sm">
-            {market.isLightning ? 'Lightning' : market.category}
-          </Badge>
-          <Badge variant="green" size="sm">{market.status}</Badge>
-          {market.tokenType === 'USDCX' && (
-            <Badge variant="teal" size="sm"><CryptoIcon symbol="USDCX" size={12} className="mr-1" />USDCx</Badge>
-          )}
-          {market.tokenType === 'USAD' && (
-            <Badge variant="green" size="sm"><CryptoIcon symbol="USAD" size={12} className="mr-1" />USAD</Badge>
-          )}
-          {market.outcomes.length > 2 && (
-            <Badge variant="gray" size="sm">{market.outcomes.length} outcomes</Badge>
-          )}
-        </div>
+      <Link to={`/markets/${market.id}`} className="block glass-card-hover p-0 h-full group">
+        {/* Top accent line */}
+        <div className={`h-px w-full ${market.isLightning ? 'bg-gradient-to-r from-transparent via-amber-400/30 to-transparent' : 'bg-gradient-to-r from-transparent via-white/[0.06] to-transparent'}`} />
 
-        <h3 className="font-heading text-base font-semibold text-white mb-4 line-clamp-2 min-h-[2.5rem]">
-          {market.question}
-        </h3>
-
-        <OutcomeBar outcomes={outcomesWithPrices.slice(0, 3)} />
-
-        <div className="flex items-center justify-between mt-4 pt-3 border-t border-dark-300/30">
-          <div>
-            <p className="text-xs text-gray-500">Volume</p>
-            <p className="text-sm font-mono text-gray-300">{formatAleo(market.totalVolume)}</p>
+        <div className="p-5">
+          {/* Badge Row */}
+          <div className="flex flex-wrap items-center gap-1.5 mb-3">
+            <Badge variant={market.isLightning ? 'teal' : 'gray'} size="sm">
+              {market.isLightning ? '⚡ Lightning' : market.category}
+            </Badge>
+            <Badge variant="green" size="sm">{market.status}</Badge>
+            {market.tokenType === 'USDCX' && (
+              <Badge variant="teal" size="sm"><CryptoIcon symbol="USDCX" size={12} className="mr-1" />USDCx</Badge>
+            )}
+            {market.tokenType === 'USAD' && (
+              <Badge variant="green" size="sm"><CryptoIcon symbol="USAD" size={12} className="mr-1" />USAD</Badge>
+            )}
+            {market.outcomes.length > 2 && (
+              <Badge variant="gray" size="sm">{market.outcomes.length} outcomes</Badge>
+            )}
           </div>
-          <div className="text-center">
-            <p className="text-xs text-gray-500">Trades</p>
-            <p className="text-sm font-mono text-gray-300">{market.tradeCount}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-gray-500">Liquidity</p>
-            <p className="text-sm font-mono text-gray-300">{formatAleo(market.totalLiquidity)}</p>
+
+          {/* Title */}
+          <h3 className="font-heading text-base font-semibold text-white mb-4 line-clamp-2 min-h-[2.5rem] group-hover:text-teal/90 transition-colors duration-300">
+            {market.question}
+          </h3>
+
+          {/* Outcome Bar */}
+          <OutcomeBar outcomes={outcomesWithPrices.slice(0, 3)} />
+
+          {/* Stats Footer */}
+          <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/[0.04]">
+            <div>
+              <p className="text-[10px] text-gray-600 uppercase tracking-wider font-heading">Volume</p>
+              <p className="text-sm font-mono text-gray-300 tabular-nums">{formatAleo(market.totalVolume)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-[10px] text-gray-600 uppercase tracking-wider font-heading">Trades</p>
+              <p className="text-sm font-mono text-gray-300 tabular-nums">{market.tradeCount}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] text-gray-600 uppercase tracking-wider font-heading">Liquidity</p>
+              <p className="text-sm font-mono text-gray-300 tabular-nums">{formatAleo(market.totalLiquidity)}</p>
+            </div>
           </div>
         </div>
       </Link>

@@ -310,18 +310,18 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
         <label className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5 block">
           Token
         </label>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5 p-1 rounded-xl bg-white/[0.02] border border-white/[0.04]">
           {(['ALEO', 'USDCX', 'USAD'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTokenType(t)}
-              className={`px-4 py-2 text-xs rounded-lg border font-heading font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-2 text-xs rounded-lg font-heading font-medium transition-all ${
                 tokenType === t
-                  ? 'border-teal/40 bg-teal/10 text-teal'
-                  : 'border-dark-400/50 text-gray-500 hover:text-gray-300'
+                  ? 'bg-gradient-to-b from-teal/20 to-teal/10 text-teal shadow-[0_0_12px_-3px_rgba(45,212,191,0.3)]'
+                  : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.03]'
               }`}
             >
-              <CryptoIcon symbol={t} size={14} className="mr-1" />{t}
+              <CryptoIcon symbol={t} size={14} />{t}
             </button>
           ))}
         </div>

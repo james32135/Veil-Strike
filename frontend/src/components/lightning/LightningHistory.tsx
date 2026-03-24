@@ -133,19 +133,27 @@ export default function LightningHistory({ }: LightningHistoryProps) {
     <div className="space-y-4">
       {/* On-chain Share Records — Only resolved winning shares */}
       {claimableRecords.length > 0 && (
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs text-gray-500 uppercase tracking-wider font-heading">
-              💰 Claim Your Winnings
-            </h3>
-            <button
-              onClick={loadShareRecords}
-              className="text-[10px] text-teal hover:text-teal/80 transition-colors"
-            >
-              Refresh
+        <Card className="p-0 overflow-hidden" glow>
+          {/* Accent bar */}
+          <div className="h-px bg-gradient-to-r from-transparent via-accent-green/30 to-transparent" />
+          <div className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-accent-green/10 border border-accent-green/15 flex items-center justify-center">
+                  <span className="text-sm">💰</span>
+                </div>
+                <h3 className="text-xs text-gray-400 uppercase tracking-widest font-heading font-semibold">
+                  Claim Your Winnings
+                </h3>
+              </div>
+              <button
+                onClick={loadShareRecords}
+                className="text-[10px] text-teal hover:text-teal/80 transition-colors px-2 py-1 rounded-lg border border-white/[0.04] hover:border-teal/15 bg-white/[0.01]"
+              >
+                Refresh
             </button>
           </div>
-          <div className="space-y-0">
+          <div className="space-y-1">
             {claimableRecords.map((record, idx) => {
               const tokenLabel = record.tokenType === 1 ? 'USDCx' : record.tokenType === 2 ? 'USAD' : 'ALEO';
               const outcomeLabel = record.outcome === 1 ? 'UP' : 'DOWN';
@@ -158,28 +166,32 @@ export default function LightningHistory({ }: LightningHistoryProps) {
               return (
                 <div
                   key={idx}
-                  className="flex items-center justify-between py-3 border-b border-dark-400/10 last:border-0"
+                  className="flex items-center justify-between py-3 px-3 rounded-xl border border-white/[0.03] bg-white/[0.01] hover:border-accent-green/10 hover:bg-accent-green/[0.02] transition-all duration-300"
                 >
                   <div className="flex-1 min-w-0 mr-3">
-                    <p className="text-sm text-gray-300">
-                      <span className={record.outcome === 1 ? 'text-accent-green' : 'text-accent-red'}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={record.outcome === 1 ? 'text-accent-green text-xs font-medium' : 'text-accent-red text-xs font-medium'}>
                         {outcomeLabel}
                       </span>
-                      {' '}
-                      <span className="font-mono font-bold"><CryptoIcon symbol={assetName} size={14} className="mr-1" />{assetName}</span>
-                      {' • '}
-                      <span className="font-mono">{formatAleo(record.quantity)} {tokenLabel}</span>
-                    </p>
-                    <p className="text-[10px] text-gray-600 mt-0.5">
-                      {isResolved ? 'Redeem' : 'Claim'} value: ~{formatAleo(displayValue)} {tokenLabel}
-                    </p>
+                      <div className="flex items-center gap-1">
+                        <CryptoIcon symbol={assetName} size={14} />
+                        <span className="font-mono font-bold text-sm text-white">{assetName}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="px-2 py-0.5 rounded-md bg-white/[0.02] border border-white/[0.04]">
+                        <span className="font-mono text-xs text-gray-400 tabular-nums">{formatAleo(record.quantity)} {tokenLabel}</span>
+                      </div>
+                      <span className="text-[10px] text-gray-600">→</span>
+                      <span className="text-xs font-mono text-accent-green tabular-nums">~{formatAleo(displayValue)} {tokenLabel}</span>
+                    </div>
                   </div>
                   <Button
                     variant="primary"
                     size="sm"
                     onClick={() => handleSellShares(record)}
                     loading={txStatus === 'proving'}
-                    className="!text-xs !bg-accent-green !text-black !border-accent-green hover:!bg-accent-green/80"
+                    className="!text-xs !bg-gradient-to-r !from-accent-green/20 !to-accent-green/10 !text-accent-green !border !border-accent-green/20 hover:!shadow-[0_0_16px_-4px_rgba(34,197,94,0.3)] !rounded-xl"
                   >
                     💰 Claim
                   </Button>
@@ -187,64 +199,73 @@ export default function LightningHistory({ }: LightningHistoryProps) {
               );
             })}
           </div>
+        </div>
         </Card>
       )}
 
       {/* User's Bet Results */}
       {recentBets.length > 0 && (
-        <Card className="p-4">
-          <h3 className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-3">
-            Your Bets
-          </h3>
-          <div className="space-y-0">
-            {pendingBets.map((bet) => (
-              <div
-                key={`${bet.roundId}-${bet.timestamp}`}
-                className="flex items-center justify-between py-3 border-b border-dark-400/10 last:border-0"
-              >
-                <div className="flex-1 min-w-0 mr-3">
-                  <p className="text-sm text-gray-300">
-                    <span className="font-mono font-bold"><CryptoIcon symbol={bet.asset} size={14} className="mr-1" />{bet.asset}</span>
-                    {' — Bet '}
-                    <span className={bet.direction === 'up' ? 'text-accent-green' : 'text-accent-red'}>
-                      {bet.direction.toUpperCase()}
-                    </span>
-                    {' • '}{formatAleo(bet.amount)} {bet.tokenType === 'usdcx' ? 'USDCx' : bet.tokenType === 'usad' ? 'USAD' : 'ALEO'}
-                  </p>
-                  <p className="text-[10px] text-gray-600 mt-0.5">{formatTimeAgo(bet.timestamp)} • Waiting for round to end...</p>
-                </div>
-                <Badge variant="warning">PENDING</Badge>
-              </div>
-            ))}
-            {resolvedBets.map((bet) => (
-              <div
-                key={`${bet.roundId}-${bet.timestamp}`}
-                className="flex items-center justify-between py-3 border-b border-dark-400/10 last:border-0"
-              >
-                <div className="flex-1 min-w-0 mr-3">
-                  <p className="text-sm text-gray-300">
-                    <span className="font-mono font-bold"><CryptoIcon symbol={bet.asset} size={14} className="mr-1" />{bet.asset}</span>
-                    {' — Bet '}
-                    <span className={bet.direction === 'up' ? 'text-accent-green' : 'text-accent-red'}>
-                      {bet.direction.toUpperCase()}
-                    </span>
-                    {' → Result: '}
-                    <span className={bet.result === 'up' ? 'text-accent-green' : 'text-accent-red'}>
-                      {bet.result?.toUpperCase()}
-                    </span>
-                  </p>
-                  <div className="flex items-center gap-3 text-[10px] text-gray-600 mt-0.5">
-                    <span>{formatTimeAgo(bet.timestamp)}</span>
-                    <span>Bet: {formatAleo(bet.amount)} {bet.tokenType === 'usdcx' ? 'USDCx' : bet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span>
-                    {bet.won && <span className="text-accent-green">Won: {formatAleo(bet.payout || 0)} shares → sell on Portfolio to claim</span>}
-                    {!bet.won && <span className="text-accent-red">Lost: {formatAleo(bet.amount)} {bet.tokenType === 'usdcx' ? 'USDCx' : bet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span>}
+        <Card className="p-0 overflow-hidden">
+          <div className="h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+          <div className="p-5">
+            <h3 className="text-xs text-gray-400 uppercase tracking-widest font-heading font-semibold mb-4">
+              Your Bets
+            </h3>
+            <div className="space-y-1.5">
+              {pendingBets.map((bet) => (
+                <div
+                  key={`${bet.roundId}-${bet.timestamp}`}
+                  className="flex items-center justify-between py-3 px-3 rounded-xl border border-white/[0.03] bg-white/[0.01] hover:border-amber-400/10 hover:bg-amber-400/[0.02] transition-all duration-300"
+                >
+                  <div className="flex-1 min-w-0 mr-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <CryptoIcon symbol={bet.asset} size={14} />
+                      <span className="font-mono font-bold text-sm text-white">{bet.asset}</span>
+                      <span className={`text-xs font-medium ${bet.direction === 'up' ? 'text-accent-green' : 'text-accent-red'}`}>
+                        {bet.direction.toUpperCase()}
+                      </span>
+                      <span className="text-[10px] text-gray-600">•</span>
+                      <span className="font-mono text-xs text-gray-400 tabular-nums">{formatAleo(bet.amount)} {bet.tokenType === 'usdcx' ? 'USDCx' : bet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span>
+                    </div>
+                    <p className="text-[10px] text-gray-600">{formatTimeAgo(bet.timestamp)} • Waiting for round to end...</p>
                   </div>
+                  <Badge variant="warning" size="sm">PENDING</Badge>
                 </div>
-                <Badge variant={bet.won ? 'success' : 'danger'}>
-                  {bet.won ? '✓ WON' : '✗ LOST'}
-                </Badge>
-              </div>
-            ))}
+              ))}
+              {resolvedBets.map((bet) => (
+                <div
+                  key={`${bet.roundId}-${bet.timestamp}`}
+                  className={`flex items-center justify-between py-3 px-3 rounded-xl border transition-all duration-300 ${
+                    bet.won
+                      ? 'border-accent-green/10 bg-accent-green/[0.02] hover:border-accent-green/20'
+                      : 'border-accent-red/10 bg-accent-red/[0.02] hover:border-accent-red/20'
+                  }`}
+                >
+                  <div className="flex-1 min-w-0 mr-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <CryptoIcon symbol={bet.asset} size={14} />
+                      <span className="font-mono font-bold text-sm text-white">{bet.asset}</span>
+                      <span className={`text-xs font-medium ${bet.direction === 'up' ? 'text-accent-green' : 'text-accent-red'}`}>
+                        {bet.direction.toUpperCase()}
+                      </span>
+                      <span className="text-[10px] text-gray-600">→</span>
+                      <span className={`text-xs font-medium ${bet.result === 'up' ? 'text-accent-green' : 'text-accent-red'}`}>
+                        {bet.result?.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[10px] text-gray-600">
+                      <span>{formatTimeAgo(bet.timestamp)}</span>
+                      <span className="font-mono tabular-nums">{formatAleo(bet.amount)} {bet.tokenType === 'usdcx' ? 'USDCx' : bet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span>
+                      {bet.won && <span className="text-accent-green font-mono">+{formatAleo(bet.payout || 0)} shares</span>}
+                      {!bet.won && <span className="text-accent-red font-mono">-{formatAleo(bet.amount)}</span>}
+                    </div>
+                  </div>
+                  <Badge variant={bet.won ? 'success' : 'danger'} size="sm">
+                    {bet.won ? '✓ WON' : '✗ LOST'}
+                  </Badge>
+                </div>
+              ))}
+            </div>
           </div>
         </Card>
       )}

@@ -100,18 +100,18 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
         <label className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5 block">
           Asset
         </label>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-white/[0.02] border border-white/[0.04]">
           {(['btc', 'eth', 'aleo'] as const).map((a) => (
             <button
               key={a}
               onClick={() => setAsset(a)}
-              className={`py-3 text-sm font-heading rounded-xl border transition-all ${
+              className={`flex items-center justify-center gap-2 py-3 text-sm font-heading rounded-lg transition-all ${
                 asset === a
-                  ? 'border-amber-400/40 bg-amber-400/10 text-amber-400'
-                  : 'border-dark-400/50 text-gray-500 hover:text-gray-300'
+                  ? 'bg-gradient-to-b from-amber-400/20 to-amber-400/10 text-amber-400 shadow-[0_0_12px_-3px_rgba(251,191,36,0.3)]'
+                  : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.03]'
               }`}
             >
-              <CryptoIcon symbol={a} size={18} className="mr-1" />{a.toUpperCase()}
+              <CryptoIcon symbol={a} size={18} />{a.toUpperCase()}
             </button>
           ))}
         </div>
@@ -133,18 +133,18 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
         <label className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5 block">
           Token
         </label>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5 p-1 rounded-xl bg-white/[0.02] border border-white/[0.04]">
           {(['ALEO', 'USDCX', 'USAD'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTokenType(t)}
-              className={`px-4 py-2 text-xs rounded-lg border font-heading font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-2 text-xs rounded-lg font-heading font-medium transition-all ${
                 tokenType === t
-                  ? 'border-amber-400/40 bg-amber-400/10 text-amber-400'
-                  : 'border-dark-400/50 text-gray-500 hover:text-gray-300'
+                  ? 'bg-gradient-to-b from-amber-400/20 to-amber-400/10 text-amber-400 shadow-[0_0_12px_-3px_rgba(251,191,36,0.3)]'
+                  : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.03]'
               }`}
             >
-              <CryptoIcon symbol={t} size={14} className="mr-1" />{t}
+              <CryptoIcon symbol={t} size={14} />{t}
             </button>
           ))}
         </div>

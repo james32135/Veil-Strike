@@ -201,104 +201,133 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
   };
 
   return (
-    <Card className="p-5 relative overflow-hidden">
-      <div className={`absolute top-0 left-0 w-full h-0.5 ${
+    <Card className="p-0 relative overflow-hidden group/card">
+      {/* Animated top accent bar */}
+      <div className={`relative h-1 overflow-hidden ${
         round.status === 'resolved'
-          ? round.result === 'up' ? 'bg-accent-green' : 'bg-accent-red'
-          : 'bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500'
-      }`} />
-
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <BoltIcon className="w-4 h-4 text-amber-400" />
-          <CryptoIcon symbol={round.asset} size={18} />
-          <span className={`text-sm font-heading font-bold ${assetColors[round.asset]}`}>
-            {round.asset}
-          </span>
-          <Badge variant={round.status === 'open' ? 'success' : round.status === 'locked' ? 'warning' : 'gray'}>
-            {round.status === 'open' ? 'LIVE' : round.status === 'locked' ? 'LOCKED' : 'ENDED'}
-          </Badge>
-        </div>
-        {round.status !== 'resolved' && (
-          <span className={`text-xs font-mono ${secondsLeft < 60 ? 'text-accent-red animate-pulse' : 'text-gray-400'}`}>
-            {minutes}:{secs.toString().padStart(2, '0')}
-          </span>
-        )}
+          ? round.result === 'up' ? 'bg-accent-green/30' : 'bg-accent-red/30'
+          : 'bg-gradient-to-r from-amber-400/20 via-amber-500/30 to-orange-500/20'
+      }`}>
+        <div className={`absolute inset-0 ${
+          round.status === 'resolved'
+            ? round.result === 'up' ? 'bg-accent-green' : 'bg-accent-red'
+            : 'bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500'
+        } ${round.status === 'open' ? 'animate-pulse' : ''}`} style={{ width: round.status === 'open' ? `${Math.max(10, (secondsLeft / 300) * 100)}%` : '100%' }} />
       </div>
 
-      <div className="text-xs text-gray-500 mb-1">Start Price</div>
-      <div className="text-lg font-mono font-bold text-white mb-3">
-        {round.asset === 'ALEO' ? `$${round.startPrice.toFixed(4)}` : formatUSD(round.startPrice)}
-      </div>
-
-      {round.status === 'resolved' && round.endPrice && (
-        <div className="mb-3">
-          <div className="text-xs text-gray-500 mb-1">End Price</div>
-          <div className={`text-lg font-mono font-bold ${
-            round.result === 'up' ? 'text-accent-green' : 'text-accent-red'
-          }`}>
-            {round.asset === 'ALEO' ? `$${round.endPrice.toFixed(4)}` : formatUSD(round.endPrice)}
-            <span className="text-sm ml-2">
-              ({priceChange !== null ? `${priceChange >= 0 ? '+' : ''}${priceChange.toFixed(3)}%` : ''})
-            </span>
+      <div className="p-5">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="relative">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400/10 to-amber-600/5 border border-amber-400/15 flex items-center justify-center">
+                <CryptoIcon symbol={round.asset} size={20} />
+              </div>
+              <BoltIcon className="w-3 h-3 text-amber-400 absolute -bottom-0.5 -right-0.5 drop-shadow-[0_0_4px_rgba(251,191,36,0.5)]" />
+            </div>
+            <div>
+              <span className={`text-sm font-heading font-bold ${assetColors[round.asset]}`}>
+                {round.asset}
+              </span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <Badge variant={round.status === 'open' ? 'success' : round.status === 'locked' ? 'warning' : 'gray'} size="sm">
+                  {round.status === 'open' ? 'LIVE' : round.status === 'locked' ? 'LOCKED' : 'ENDED'}
+                </Badge>
+              </div>
+            </div>
           </div>
+          {round.status !== 'resolved' && (
+            <div className={`px-3 py-1.5 rounded-xl border ${secondsLeft < 60 ? 'border-accent-red/20 bg-accent-red/5' : 'border-white/[0.06] bg-white/[0.02]'}`}>
+              <span className={`text-xs font-mono font-bold tabular-nums ${secondsLeft < 60 ? 'text-accent-red animate-pulse' : 'text-gray-300'}`}>
+                {minutes}:{secs.toString().padStart(2, '0')}
+              </span>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Price Section */}
+        <div className="grid grid-cols-1 gap-2 mb-4">
+          <div className="px-3 py-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+            <div className="text-[10px] text-gray-500 uppercase tracking-wider font-heading mb-0.5">Start Price</div>
+            <div className="text-lg font-mono font-bold text-white tabular-nums">
+              {round.asset === 'ALEO' ? `$${round.startPrice.toFixed(4)}` : formatUSD(round.startPrice)}
+            </div>
+          </div>
+
+          {round.status === 'resolved' && round.endPrice && (
+            <div className={`px-3 py-2.5 rounded-xl border ${
+              round.result === 'up' ? 'bg-accent-green/[0.04] border-accent-green/10' : 'bg-accent-red/[0.04] border-accent-red/10'
+            }`}>
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider font-heading mb-0.5">End Price</div>
+              <div className={`text-lg font-mono font-bold tabular-nums ${
+                round.result === 'up' ? 'text-accent-green' : 'text-accent-red'
+              }`}>
+                {round.asset === 'ALEO' ? `$${round.endPrice.toFixed(4)}` : formatUSD(round.endPrice)}
+                <span className="text-xs ml-2 font-normal">
+                  ({priceChange !== null ? `${priceChange >= 0 ? '+' : ''}${priceChange.toFixed(3)}%` : ''})
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
 
       {round.status === 'open' && !userBet && (
         <>
-          <div className="mb-3">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs text-gray-500">Token</label>
-              {hasStableMarket && (
-              <div className="flex rounded-lg border border-dark-400/50 overflow-hidden">
+          <div className="mb-4">
+            {/* Token Selector */}
+            {hasStableMarket && (
+            <div className="mb-3">
+              <label className="text-[10px] text-gray-500 uppercase tracking-wider font-heading mb-1.5 block">Token</label>
+              <div className="flex gap-1.5 p-1 rounded-xl bg-white/[0.02] border border-white/[0.04]">
                 <button
                   onClick={() => setTokenType('aleo')}
-                  className={`px-3 py-1 text-xs font-medium transition-all ${
+                  className={`flex items-center justify-center gap-1.5 flex-1 py-1.5 text-xs font-medium rounded-lg transition-all duration-300 ${
                     tokenType === 'aleo'
-                      ? 'bg-teal/20 text-teal'
-                      : 'text-gray-500 hover:text-gray-300'
+                      ? 'bg-teal/15 text-teal border border-teal/20 shadow-[0_0_12px_-4px_rgba(255,107,53,0.2)]'
+                      : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02] border border-transparent'
                   }`}
                 >
-                  <CryptoIcon symbol="ALEO" size={14} className="mr-1" />ALEO
+                  <CryptoIcon symbol="ALEO" size={14} />ALEO
                 </button>
                 {hasUsdcxMarket && (
                 <button
                   onClick={() => setTokenType('usdcx')}
-                  className={`px-3 py-1 text-xs font-medium transition-all ${
+                  className={`flex items-center justify-center gap-1.5 flex-1 py-1.5 text-xs font-medium rounded-lg transition-all duration-300 ${
                     tokenType === 'usdcx'
-                      ? 'bg-blue-500/20 text-blue-400'
-                      : 'text-gray-500 hover:text-gray-300'
+                      ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20 shadow-[0_0_12px_-4px_rgba(59,130,246,0.2)]'
+                      : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02] border border-transparent'
                   }`}
                 >
-                  <CryptoIcon symbol="USDCX" size={14} className="mr-1" />USDCx
+                  <CryptoIcon symbol="USDCX" size={14} />USDCx
                 </button>
                 )}
                 {hasUsadMarket && (
                 <button
                   onClick={() => setTokenType('usad')}
-                  className={`px-3 py-1 text-xs font-medium transition-all ${
+                  className={`flex items-center justify-center gap-1.5 flex-1 py-1.5 text-xs font-medium rounded-lg transition-all duration-300 ${
                     tokenType === 'usad'
-                      ? 'bg-purple-500/20 text-purple-400'
-                      : 'text-gray-500 hover:text-gray-300'
+                      ? 'bg-purple-500/15 text-purple-400 border border-purple-500/20 shadow-[0_0_12px_-4px_rgba(168,85,247,0.2)]'
+                      : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02] border border-transparent'
                   }`}
                 >
-                  <CryptoIcon symbol="USAD" size={14} className="mr-1" />USAD
+                  <CryptoIcon symbol="USAD" size={14} />USAD
                 </button>
                 )}
               </div>
-              )}
             </div>
-            <label className="text-xs text-gray-500 mb-1 block">Amount ({tokenLabel})</label>
-            <div className="flex gap-2">
+            )}
+
+            {/* Amount Chips */}
+            <label className="text-[10px] text-gray-500 uppercase tracking-wider font-heading mb-1.5 block">Amount ({tokenLabel})</label>
+            <div className="flex gap-1.5">
               {['1', '5', '10', '25'].map((val) => (
                 <button
                   key={val}
                   onClick={() => setBetAmount(val)}
-                  className={`flex-1 py-1.5 text-xs rounded-lg border transition-all ${
+                  className={`flex-1 py-2 text-xs font-mono font-medium rounded-xl border transition-all duration-300 ${
                     betAmount === val
-                      ? 'border-teal/40 bg-teal/10 text-teal'
-                      : 'border-dark-400/50 text-gray-500 hover:text-gray-300'
+                      ? 'border-teal/30 bg-teal/10 text-teal shadow-[0_0_10px_-4px_rgba(255,107,53,0.15)]'
+                      : 'border-white/[0.04] bg-white/[0.01] text-gray-500 hover:text-gray-300 hover:border-white/[0.08]'
                   }`}
                 >
                   {val}
@@ -307,11 +336,12 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
             </div>
           </div>
 
+          {/* UP / DOWN Buttons */}
           <div className="grid grid-cols-2 gap-2">
             <Button
               variant="primary"
               size="sm"
-              className="!bg-accent-green/10 !text-accent-green !border-accent-green/20 hover:!bg-accent-green/20"
+              className="!bg-gradient-to-r !from-accent-green/20 !to-accent-green/10 !text-accent-green !border !border-accent-green/20 hover:!from-accent-green/30 hover:!to-accent-green/15 hover:!shadow-[0_0_20px_-4px_rgba(34,197,94,0.3)] !rounded-xl !transition-all !duration-300"
               onClick={() => handleBet('up')}
               loading={txStatus === 'proving'}
             >
@@ -321,6 +351,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
             <Button
               variant="danger"
               size="sm"
+              className="!bg-gradient-to-r !from-accent-red/20 !to-accent-red/10 !text-accent-red !border !border-accent-red/20 hover:!from-accent-red/30 hover:!to-accent-red/15 hover:!shadow-[0_0_20px_-4px_rgba(239,68,68,0.3)] !rounded-xl !transition-all !duration-300"
               onClick={() => handleBet('down')}
               loading={txStatus === 'proving'}
             >
@@ -333,20 +364,20 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
 
       {/* Show user's active bet */}
       {userBet && round.status !== 'resolved' && (
-        <div className={`p-3 rounded-xl border ${
+        <div className={`p-3.5 rounded-xl border backdrop-blur-sm ${
           userBet.direction === 'up'
-            ? 'border-accent-green/30 bg-accent-green/5'
-            : 'border-accent-red/30 bg-accent-red/5'
+            ? 'border-accent-green/20 bg-gradient-to-br from-accent-green/[0.06] to-accent-green/[0.02]'
+            : 'border-accent-red/20 bg-gradient-to-br from-accent-red/[0.06] to-accent-red/[0.02]'
         }`}>
-          <div className="flex items-center justify-between text-xs mb-1">
-            <span className="text-gray-400">Your Bet</span>
-            <Badge variant={userBet.direction === 'up' ? 'success' : 'danger'}>
+          <div className="flex items-center justify-between text-xs mb-1.5">
+            <span className="text-gray-400 font-heading">Your Bet</span>
+            <Badge variant={userBet.direction === 'up' ? 'success' : 'danger'} size="sm">
               {userBet.direction === 'up' ? '↑ UP' : '↓ DOWN'}
             </Badge>
           </div>
           <div className="flex items-center justify-between text-xs">
             <span className="text-gray-500">Amount</span>
-            <span className="font-mono text-white">{formatAleo(userBet.amount)} {userBet.tokenType === 'usdcx' ? 'USDCx' : userBet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span>
+            <span className="font-mono font-medium text-white">{formatAleo(userBet.amount)} {userBet.tokenType === 'usdcx' ? 'USDCx' : userBet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span>
           </div>
           <div className="flex items-center justify-between text-xs mt-0.5">
             <span className="text-gray-500">Potential Win</span>
@@ -360,8 +391,10 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
       )}
 
       {round.status === 'resolved' && (
-        <div className={`text-center py-2 rounded-xl ${
-          round.result === 'up' ? 'bg-accent-green/10 text-accent-green' : 'bg-accent-red/10 text-accent-red'
+        <div className={`text-center py-3 rounded-xl border ${
+          round.result === 'up'
+            ? 'bg-gradient-to-r from-accent-green/[0.06] to-accent-green/[0.03] border-accent-green/15 text-accent-green'
+            : 'bg-gradient-to-r from-accent-red/[0.06] to-accent-red/[0.03] border-accent-red/15 text-accent-red'
         }`}>
           <span className="text-sm font-heading font-bold">
             {round.result === 'up' ? '↑ UP WINS' : '↓ DOWN WINS'}
@@ -371,10 +404,10 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
 
       {/* Show user's result when round resolved */}
       {userBet && round.status === 'resolved' && (
-        <div className={`mt-2 p-3 rounded-xl border ${
+        <div className={`mt-2 p-3.5 rounded-xl border ${
           userBet.won
-            ? 'border-accent-green/30 bg-accent-green/5'
-            : 'border-accent-red/30 bg-accent-red/5'
+            ? 'border-accent-green/20 bg-gradient-to-br from-accent-green/[0.06] to-accent-green/[0.02]'
+            : 'border-accent-red/20 bg-gradient-to-br from-accent-red/[0.06] to-accent-red/[0.02]'
         }`}>
           <div className="flex items-center justify-between">
             <span className={`text-sm font-heading font-bold ${
@@ -425,6 +458,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
           )}
         </div>
       )}
+      </div>
     </Card>
   );
 }

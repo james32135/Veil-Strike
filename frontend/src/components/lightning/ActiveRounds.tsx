@@ -5,7 +5,7 @@ import Button from '@/components/shared/Button';
 import { BoltIcon, ArrowUpIcon, ArrowDownIcon } from '@/components/icons';
 import { useTransaction } from '@/hooks/useTransaction';
 import type { ShareRecord } from '@/hooks/useTransaction';
-import { buildBuySharesPrivateTx, buildBuySharesStableTx, buildSellSharesTx, buildSellSharesUsdcxTx, generateNonce } from '@/utils/transactions';
+import { buildBuySharesPrivateTx, buildBuySharesStableTx, buildSellSharesTx, generateNonce } from '@/utils/transactions';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { estimateBuySharesExact, estimateSellTokensOut, calculateFees } from '@/utils/fpmm';
 import { formatUSD, formatAleo } from '@/utils/format';
@@ -115,8 +115,8 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
       const outcomeIdx = record.outcome - 1;
       const { tokensOut } = estimateSellTokensOut(reserves, outcomeIdx, record.quantity);
       if (tokensOut <= 0) return;
-      const buildFn = record.tokenType === 1 ? buildSellSharesUsdcxTx : buildSellSharesTx;
-      const tx = buildFn(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`);
+      const tokenTypeStr = record.tokenType === 1 ? 'USDCX' : record.tokenType === 2 ? 'USAD' : undefined;
+      const tx = buildSellSharesTx(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
       const txId = await execute(tx);
       if (txId) {
         setTimeout(onClaimed, 5000);
@@ -344,7 +344,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
           </div>
           <div className="flex items-center justify-between text-xs">
             <span className="text-gray-500">Amount</span>
-            <span className="font-mono text-white">{formatAleo(userBet.amount)} {userBet.tokenType === 'usdcx' ? 'USDCx' : 'ALEO'}</span>
+            <span className="font-mono text-white">{formatAleo(userBet.amount)} {userBet.tokenType === 'usdcx' ? 'USDCx' : userBet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span>
           </div>
           <div className="flex items-center justify-between text-xs mt-0.5">
             <span className="text-gray-500">Potential Win</span>
@@ -352,7 +352,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
               const outcome = userBet.direction === 'up' ? 0 : 1;
               const { tokensOut } = estimateSellTokensOut(liveReserves, outcome, userBet.shares);
               return formatAleo(calculateFees(tokensOut).amountAfterFee);
-            })()} {userBet.tokenType === 'usdcx' ? 'USDCx' : 'ALEO'}</span>
+            })()} {userBet.tokenType === 'usdcx' ? 'USDCx' : userBet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span>
           </div>
         </div>
       )}
@@ -381,13 +381,13 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
               {userBet.won ? '🎉 YOU WON!' : '😞 YOU LOST'}
             </span>
             <span className="text-xs font-mono text-gray-400">
-              Bet {userBet.direction.toUpperCase()} • {formatAleo(userBet.amount)} {userBet.tokenType === 'usdcx' ? 'USDCx' : 'ALEO'}
+              Bet {userBet.direction.toUpperCase()} • {formatAleo(userBet.amount)} {userBet.tokenType === 'usdcx' ? 'USDCx' : userBet.tokenType === 'usad' ? 'USAD' : 'ALEO'}
             </span>
           </div>
           {userBet.won && claimableShares.length > 0 && (
             <div className="mt-2 space-y-1">
               {claimableShares.map((record, idx) => {
-                const tLabel = record.tokenType === 1 ? 'USDCx' : 'ALEO';
+                const tLabel = record.tokenType === 1 ? 'USDCx' : record.tokenType === 2 ? 'USAD' : 'ALEO';
                 const market = allMarkets.find((m) => m.id === record.marketId);
                 const reserves = market?.reserves ?? [1_000_000, 1_000_000];
                 const { tokensOut } = estimateSellTokensOut(reserves, record.outcome - 1, record.quantity);
@@ -418,7 +418,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
           )}
           {!userBet.won && (
             <p className="text-xs text-accent-red/60 mt-1">
-              Your {formatAleo(userBet.amount)} {userBet.tokenType === 'usdcx' ? 'USDCx' : 'ALEO'} went to the liquidity pool
+              Your {formatAleo(userBet.amount)} {userBet.tokenType === 'usdcx' ? 'USDCx' : userBet.tokenType === 'usad' ? 'USAD' : 'ALEO'} went to the liquidity pool
             </p>
           )}
         </div>

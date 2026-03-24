@@ -9,7 +9,7 @@ import { useLightningBetStore } from '@/stores/lightningBetStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTransaction } from '@/hooks/useTransaction';
 import type { ShareRecord } from '@/hooks/useTransaction';
-import { buildSellSharesTx, buildSellSharesUsdcxTx, buildRedeemSharesTx, buildRedeemSharesUsdcxTx } from '@/utils/transactions';
+import { buildSellSharesTx, buildRedeemSharesTx } from '@/utils/transactions';
 import { estimateSellTokensOut, calculateFees } from '@/utils/fpmm';
 import { API_BASE } from '@/constants';
 
@@ -72,17 +72,17 @@ export default function LightningHistory({ }: LightningHistoryProps) {
     const isResolved = market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1;
 
     let tx;
+    const tokenTypeStr = record.tokenType === 1 ? 'USDCX' : record.tokenType === 2 ? 'USAD' : undefined;
     if (isResolved) {
-      tx = record.tokenType === 1
-        ? buildRedeemSharesUsdcxTx(record.plaintext)
+      tx = tokenTypeStr
+        ? buildRedeemSharesTx(record.plaintext, tokenTypeStr as 'USDCX' | 'USAD')
         : buildRedeemSharesTx(record.plaintext);
     } else {
       const reserves = market?.reserves ?? [1_000_000, 1_000_000];
       const outcomeIdx = record.outcome - 1;
       const { tokensOut } = estimateSellTokensOut(reserves, outcomeIdx, record.quantity);
       if (tokensOut <= 0) return;
-      const buildFn = record.tokenType === 1 ? buildSellSharesUsdcxTx : buildSellSharesTx;
-      tx = buildFn(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`);
+      tx = buildSellSharesTx(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
     }
 
     const txId = await execute(tx);
@@ -138,7 +138,7 @@ export default function LightningHistory({ }: LightningHistoryProps) {
           </div>
           <div className="space-y-0">
             {shareRecords.map((record, idx) => {
-              const tokenLabel = record.tokenType === 1 ? 'USDCx' : 'ALEO';
+              const tokenLabel = record.tokenType === 1 ? 'USDCx' : record.tokenType === 2 ? 'USAD' : 'ALEO';
               const outcomeLabel = record.outcome === 1 ? 'UP' : 'DOWN';
               const assetName = getAssetFromMarketId(record.marketId);
               const market = allMarkets.find((m) => m.id === record.marketId);

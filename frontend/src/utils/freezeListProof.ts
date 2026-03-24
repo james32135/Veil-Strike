@@ -1,9 +1,16 @@
-const FREEZELIST_PROGRAM_ID = 'test_usdcx_freezelist.aleo';
+const FREEZELIST_PROGRAMS: Record<string, string> = {
+  USDCX: 'test_usdcx_freezelist.aleo',
+  USAD: 'test_usad_freezelist.aleo',
+};
 const ALEO_API = 'https://api.explorer.provable.com/v1/testnet';
 
-export async function getFreezeListRoot(): Promise<string | null> {
+function getFreezelistProgramId(tokenType: 'USDCX' | 'USAD' = 'USDCX'): string {
+  return FREEZELIST_PROGRAMS[tokenType];
+}
+
+export async function getFreezeListRoot(tokenType: 'USDCX' | 'USAD' = 'USDCX'): Promise<string | null> {
   try {
-    const res = await fetch(`${ALEO_API}/program/${FREEZELIST_PROGRAM_ID}/mapping/freeze_list_root/1u8`);
+    const res = await fetch(`${ALEO_API}/program/${getFreezelistProgramId(tokenType)}/mapping/freeze_list_root/1u8`);
     if (res.ok) {
       const val = await res.text();
       return val ? val.replace(/['"]/g, '').trim() : null;
@@ -14,9 +21,9 @@ export async function getFreezeListRoot(): Promise<string | null> {
   return null;
 }
 
-export async function getFreezeListCount(): Promise<number> {
+export async function getFreezeListCount(tokenType: 'USDCX' | 'USAD' = 'USDCX'): Promise<number> {
   try {
-    const res = await fetch(`${ALEO_API}/program/${FREEZELIST_PROGRAM_ID}/mapping/freeze_list_last_index/true`);
+    const res = await fetch(`${ALEO_API}/program/${getFreezelistProgramId(tokenType)}/mapping/freeze_list_last_index/true`);
     if (res.ok) {
       const val = await res.text();
       if (val) {
@@ -30,9 +37,9 @@ export async function getFreezeListCount(): Promise<number> {
   return 0;
 }
 
-export async function getFreezeListIndex(index: number): Promise<string | null> {
+export async function getFreezeListIndex(index: number, tokenType: 'USDCX' | 'USAD' = 'USDCX'): Promise<string | null> {
   try {
-    const res = await fetch(`${ALEO_API}/program/${FREEZELIST_PROGRAM_ID}/mapping/freeze_list_index/${index}u32`);
+    const res = await fetch(`${ALEO_API}/program/${getFreezelistProgramId(tokenType)}/mapping/freeze_list_index/${index}u32`);
     if (res.ok) {
       const val = await res.text();
       return val ? val.replace(/['"]/g, '').trim() : null;
@@ -93,9 +100,9 @@ export async function generateFreezeListProof(
   }
 }
 
-export async function getUsdcxProofs(): Promise<string> {
-  const count = await getFreezeListCount();
-  const firstIndex = count > 0 ? await getFreezeListIndex(0) : null;
+export async function getUsdcxProofs(tokenType: 'USDCX' | 'USAD' = 'USDCX'): Promise<string> {
+  const count = await getFreezeListCount(tokenType);
+  const firstIndex = count > 0 ? await getFreezeListIndex(0, tokenType) : null;
 
   let index0FieldStr: string | undefined;
   if (firstIndex) {

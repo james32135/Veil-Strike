@@ -80,19 +80,22 @@ export function useTransaction() {
   );
 
   /**
-   * Fetch a test_usdcx_stablecoin.aleo Token record with at least `minAmount` balance.
+   * Fetch a stablecoin Token record with at least `minAmount` balance.
+   * Supports both USDCx and USAD token types.
    * Returns the record plaintext string to pass as a transaction input.
    */
   const fetchUsdcxRecord = useCallback(
-    async (minAmount: number): Promise<string | null> => {
+    async (minAmount: number, tokenType: 'USDCX' | 'USAD' = 'USDCX'): Promise<string | null> => {
       if (!connected) {
         addNotification('error', 'Wallet Not Connected', 'Please connect your Shield Wallet first.');
         return null;
       }
+      const programId = tokenType === 'USAD' ? 'test_usad_stablecoin.aleo' : 'test_usdcx_stablecoin.aleo';
+      const label = tokenType === 'USAD' ? 'USAD' : 'USDCx';
       try {
-        const records = await requestRecords('test_usdcx_stablecoin.aleo', true);
+        const records = await requestRecords(programId, true);
         if (!records || records.length === 0) {
-          addNotification('error', 'No USDCx Records', 'No private USDCx token records found. You need private USDCx to trade.');
+          addNotification('error', `No ${label} Records`, `No private ${label} token records found. You need private ${label} to trade.`);
           return null;
         }
 
@@ -118,11 +121,11 @@ export function useTransaction() {
           }
         }
 
-        addNotification('error', 'Insufficient USDCx', `No USDCx record with at least ${(minAmount / 1_000_000).toFixed(2)} USDCx found. Convert public USDCx to private first.`);
+        addNotification('error', `Insufficient ${label}`, `No ${label} record with at least ${(minAmount / 1_000_000).toFixed(2)} ${label} found. Convert public ${label} to private first.`);
         return null;
       } catch (err) {
         console.error('[fetchUsdcxRecord] Error:', err);
-        addNotification('error', 'USDCx Fetch Failed', err instanceof Error ? err.message : 'Could not fetch USDCx records.');
+        addNotification('error', `${label} Fetch Failed`, err instanceof Error ? err.message : `Could not fetch ${label} records.`);
         return null;
       }
     },

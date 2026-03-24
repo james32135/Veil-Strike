@@ -4,7 +4,7 @@ import { calculatePrices, estimateBuySharesExact, estimateSellTokensOut, calcula
 import { formatAleo, parseAleoInput } from '@/utils/format';
 import { PRECISION, API_BASE } from '@/constants';
 import { useTransaction } from '@/hooks/useTransaction';
-import { buildBuySharesPrivateTx, buildBuySharesUsdcxTx, buildSellSharesTx, buildSellSharesUsdcxTx, generateNonce } from '@/utils/transactions';
+import { buildBuySharesPrivateTx, buildBuySharesStableTx, buildSellSharesTx, generateNonce } from '@/utils/transactions';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTradeStore } from '@/stores/tradeStore';
@@ -24,8 +24,8 @@ export default function TradePanel({ market }: TradePanelProps) {
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
   const addTrade = useTradeStore((s) => s.addTrade);
 
-  const isUsdcx = market.tokenType === 'USDCX';
-  const tokenLabel = isUsdcx ? 'USDCx' : 'ALEO';
+  const isStable = market.tokenType === 'USDCX' || market.tokenType === 'USAD';
+  const tokenLabel = market.tokenType === 'USAD' ? 'USAD' : market.tokenType === 'USDCX' ? 'USDCx' : 'ALEO';
 
   const prices = calculatePrices(market.reserves);
   const amountMicro = parseAleoInput(amount);
@@ -54,11 +54,13 @@ export default function TradePanel({ market }: TradePanelProps) {
       const typeSuffix = 'u128';
 
       let tx;
-      if (isUsdcx) {
-        const tokenRecord = await fetchUsdcxRecord(amountMicro);
+      if (isStable) {
+        const stableType = market.tokenType as 'USDCX' | 'USAD';
+        const tokenRecord = await fetchUsdcxRecord(amountMicro, stableType);
         if (!tokenRecord) return;
-        const proofs = await getUsdcxProofs();
-        tx = buildBuySharesUsdcxTx(
+        const proofs = await getUsdcxProofs(stableType);
+        tx = buildBuySharesStableTx(
+          stableType,
           market.id, selectedOutcome,
           `${amountMicro}${typeSuffix}`, `${exactShares}${typeSuffix}`, `${minShares}${typeSuffix}`,
           nonce, tokenRecord, proofs
@@ -108,8 +110,8 @@ export default function TradePanel({ market }: TradePanelProps) {
       const tokensDesired = `${sellEstimate.tokensOut}u128`;
       const maxShares = `${amountMicro}u128`;
 
-      const tx = isUsdcx
-        ? buildSellSharesUsdcxTx(shareRecord, tokensDesired, maxShares)
+      const tx = isStable
+        ? buildSellSharesTx(shareRecord, tokensDesired, maxShares, market.tokenType as 'USDCX' | 'USAD')
         : buildSellSharesTx(shareRecord, tokensDesired, maxShares);
 
       const txId = await execute(tx);

@@ -5,7 +5,7 @@ import Button from '@/components/shared/Button';
 import { BoltIcon, ArrowUpIcon, ArrowDownIcon } from '@/components/icons';
 import { useTransaction } from '@/hooks/useTransaction';
 import type { ShareRecord } from '@/hooks/useTransaction';
-import { buildBuySharesPrivateTx, buildBuySharesUsdcxTx, buildSellSharesTx, buildSellSharesUsdcxTx, generateNonce } from '@/utils/transactions';
+import { buildBuySharesPrivateTx, buildBuySharesStableTx, buildSellSharesTx, buildSellSharesUsdcxTx, generateNonce } from '@/utils/transactions';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { estimateBuySharesExact, estimateSellTokensOut, calculateFees } from '@/utils/fpmm';
 import { formatUSD, formatAleo } from '@/utils/format';
@@ -137,11 +137,13 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
     const nonce = generateNonce();
 
     let tx;
-    if (tokenType === 'usdcx') {
-      const tokenRecord = await fetchUsdcxRecord(amountMicro);
+    if (tokenType === 'usdcx' || tokenType === 'usad') {
+      const stableType = tokenType === 'usad' ? 'USAD' : 'USDCX';
+      const tokenRecord = await fetchUsdcxRecord(amountMicro, stableType);
       if (!tokenRecord) return;
-      const proofs = await getUsdcxProofs();
-      tx = buildBuySharesUsdcxTx(
+      const proofs = await getUsdcxProofs(stableType);
+      tx = buildBuySharesStableTx(
+        stableType,
         chainMarketId, outcome,
         `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce,
         tokenRecord, proofs

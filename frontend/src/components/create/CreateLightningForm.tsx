@@ -72,9 +72,9 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
 
     let tx;
     if (tokenType === 'USDCX' || tokenType === 'USAD') {
-      const tokenRecord = await fetchUsdcxRecord(liquidityMicro);
+      const tokenRecord = await fetchUsdcxRecord(liquidityMicro, tokenType);
       if (!tokenRecord) return;
-      const proofs = await getUsdcxProofs();
+      const proofs = await getUsdcxProofs(tokenType);
       tx = buildCreateMarketStableTx(
         tokenType, questionHash, 1, 2, deadline, resolutionDeadline, resolver,
         `${liquidityMicro}u128`, nonce, tokenRecord, proofs

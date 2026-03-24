@@ -222,9 +222,9 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
     const isStable = tokenType === 'USDCX' || tokenType === 'USAD';
     let tx;
     if (isStable) {
-      const tokenRecord = await fetchUsdcxRecord(liquidityMicro);
+      const tokenRecord = await fetchUsdcxRecord(liquidityMicro, tokenType);
       if (!tokenRecord) return;
-      const proofs = await getUsdcxProofs();
+      const proofs = await getUsdcxProofs(tokenType);
       tx = buildCreateMarketStableTx(
         tokenType,
         questionHash,

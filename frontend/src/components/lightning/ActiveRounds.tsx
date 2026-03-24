@@ -343,20 +343,20 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
               size="sm"
               className="!bg-gradient-to-r !from-accent-green/20 !to-accent-green/10 !text-accent-green !border !border-accent-green/20 hover:!from-accent-green/30 hover:!to-accent-green/15 hover:!shadow-[0_0_20px_-4px_rgba(34,197,94,0.3)] !rounded-xl !transition-all !duration-300"
               onClick={() => handleBet('up')}
-              loading={txStatus === 'proving'}
+              loading={txStatus === 'proving' || txStatus === 'broadcasting'}
             >
               <ArrowUpIcon className="w-4 h-4 mr-1" />
-              UP
+              {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : 'UP'}
             </Button>
             <Button
               variant="danger"
               size="sm"
               className="!bg-gradient-to-r !from-accent-red/20 !to-accent-red/10 !text-accent-red !border !border-accent-red/20 hover:!from-accent-red/30 hover:!to-accent-red/15 hover:!shadow-[0_0_20px_-4px_rgba(239,68,68,0.3)] !rounded-xl !transition-all !duration-300"
               onClick={() => handleBet('down')}
-              loading={txStatus === 'proving'}
+              loading={txStatus === 'proving' || txStatus === 'broadcasting'}
             >
               <ArrowDownIcon className="w-4 h-4 mr-1" />
-              DOWN
+              {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : 'DOWN'}
             </Button>
           </div>
         </>
@@ -436,10 +436,10 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
                       variant="primary"
                       size="sm"
                       onClick={() => handleClaim(record)}
-                      loading={claiming || txStatus === 'proving'}
+                      loading={claiming || txStatus === 'proving' || txStatus === 'broadcasting'}
                       className="!text-xs !py-1 !px-3 !bg-accent-green !text-black !border-accent-green hover:!bg-accent-green/80"
                     >
-                      💰 Claim
+                      {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : '💰 Claim'}
                     </Button>
                   </div>
                 );

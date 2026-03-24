@@ -215,10 +215,10 @@ export default function Portfolio() {
                           variant="primary"
                           size="sm"
                           onClick={() => handleSell(record)}
-                          loading={txStatus === 'proving'}
+                          loading={txStatus === 'proving' || txStatus === 'broadcasting'}
                           className={`!text-xs !rounded-xl ${isResolved ? '!bg-gradient-to-r !from-accent-green/20 !to-accent-green/10 !text-accent-green !border !border-accent-green/20 hover:!shadow-[0_0_16px_-4px_rgba(34,197,94,0.3)]' : ''}`}
                         >
-                          {isResolved ? '💰 Claim' : 'Sell'}
+                          {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : isResolved ? '💰 Claim' : 'Sell'}
                         </Button>
                       </div>
                     </Card>

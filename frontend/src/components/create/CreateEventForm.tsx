@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useTransaction } from '@/hooks/useTransaction';
 import { buildCreateMarketTx, buildCreateMarketStableTx, generateNonce } from '@/utils/transactions';
+import { registerMarketFromTx } from '@/utils/marketRegistration';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { parseAleoInput } from '@/utils/format';
-import { CATEGORIES, API_BASE, ALEO_TESTNET_API, PROGRAM_ID, PROGRAM_ID_CX, PROGRAM_ID_SD, ALL_PROGRAM_IDS } from '@/constants';
+import { CATEGORIES } from '@/constants';
 import { useWalletStore } from '@/stores/walletStore';
+import { useMarketStore } from '@/stores/marketStore';
 import Button from '@/components/shared/Button';
 import Card from '@/components/shared/Card';
 import CryptoIcon from '@/components/shared/CryptoIcon';
@@ -23,6 +25,7 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
   const [imageUrl, setImageUrl] = useState('');
   const { status, execute, fetchUsdcxRecord } = useTransaction();
   const walletAddress = useWalletStore((s) => s.address);
+  const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
 
   const handleAddOutcome = () => {
     if (outcomes.length < 6) {
@@ -40,174 +43,6 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
     const updated = [...outcomes];
     updated[index] = value;
     setOutcomes(updated);
-  };
-
-  /**
-   * After a create_market tx is confirmed, fetch the tx from chain,
-   * extract the market_id from outputs, and register it with the backend.
-   */
-  /**
-   * Resolve a Shield wallet internal ID to a real Aleo at1... transaction ID.
-   * Shield returns IDs like "shield_XXXXX" where XXXXX is a transition ID.
-   * We use the Aleo API to look up the real tx ID from the transition.
-   */
-  const resolveShieldTxId = async (walletTxId: string): Promise<string | null> => {
-    if (walletTxId.startsWith('at1')) return walletTxId;
-
-    // Extract transition ID: "shield_XXXXX" → "XXXXX"
-    const transitionId = walletTxId.startsWith('shield_')
-      ? walletTxId.replace('shield_', '')
-      : walletTxId;
-
-    // Aleo API: find real tx ID from transition ID
-    const maxAttempts = 15;
-    for (let i = 0; i < maxAttempts; i++) {
-      try {
-        await new Promise(r => setTimeout(r, 10_000));
-        const res = await fetch(
-          `${ALEO_TESTNET_API}/find/transactionID/from_transition/${transitionId}`
-        );
-        if (res.ok) {
-          const realTxId = (await res.json()) as string;
-          if (typeof realTxId === 'string' && realTxId.startsWith('at1')) {
-            console.log(`[CreateMarket] Resolved Shield ID → ${realTxId.slice(0, 20)}...`);
-            return realTxId;
-          }
-        }
-      } catch { /* retry */ }
-    }
-    return null;
-  };
-
-  /**
-   * Extract finalize arguments from a future output value string.
-   * Returns top-level field/address/u* values after stripping nested child futures.
-   */
-  const extractFinalizeArgs = (value: string): string[] => {
-    const args: string[] = [];
-    const outerIdx = value.indexOf('arguments:');
-    if (outerIdx === -1) return args;
-    const bracketStart = value.indexOf('[', outerIdx);
-    if (bracketStart === -1) return args;
-
-    let depth = 0, bracketEnd = -1;
-    for (let i = bracketStart; i < value.length; i++) {
-      if (value[i] === '[') depth++;
-      else if (value[i] === ']') { depth--; if (depth === 0) { bracketEnd = i; break; } }
-    }
-    if (bracketEnd === -1) return args;
-
-    const content = value.substring(bracketStart + 1, bracketEnd);
-    let topLevel = '';
-    let braceDepth = 0;
-    for (let i = 0; i < content.length; i++) {
-      if (content[i] === '{') braceDepth++;
-      else if (content[i] === '}') braceDepth--;
-      else if (braceDepth === 0) topLevel += content[i];
-    }
-
-    const pattern = /(\d+field|\d+u\d+|aleo[a-z0-9]+)/g;
-    let match;
-    while ((match = pattern.exec(topLevel)) !== null) args.push(match[1]);
-    return args;
-  };
-
-  /**
-   * After a create_market tx is confirmed on-chain, extract market_id
-   * from the future output and register with the backend.
-   */
-  const registerMarketFromTx = async (
-    txId: string,
-    questionText: string,
-    questionHash: string,
-    outcomeLabels: string[],
-    isLightning: boolean,
-    eventImageUrl?: string,
-  ) => {
-    // Step 1: Immediately save pending metadata with backend so the
-    // block scanner can match question text when it finds the market.
-    try {
-      await fetch(`${API_BASE}/markets/pending`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questionHash, question: questionText, outcomes: outcomeLabels, isLightning }),
-      });
-      console.log(`[CreateMarket] Saved pending metadata for hash ${questionHash.slice(0, 20)}...`);
-    } catch { /* non-critical */ }
-
-    // Step 2: Resolve the real on-chain tx ID (Shield wallet returns internal IDs)
-    let realTxId = txId;
-    if (!txId.startsWith('at1')) {
-      console.log(`[CreateMarket] Resolving Shield wallet ID: ${txId.slice(0, 30)}...`);
-      const resolved = await resolveShieldTxId(txId);
-      if (!resolved) {
-        console.warn('[CreateMarket] Could not resolve Shield tx ID — backend scanner will auto-discover the market.');
-        return;
-      }
-      realTxId = resolved;
-    }
-
-    // Step 3: Fetch the confirmed tx and extract market_id from future output
-    const maxRetries = 12;
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        await new Promise(r => setTimeout(r, 10_000));
-        const res = await fetch(`${ALEO_TESTNET_API}/transaction/${realTxId}`);
-        if (!res.ok) continue;
-
-        const txData = await res.json();
-        const transition = txData?.execution?.transitions?.find(
-          (t: { program: string; function: string }) =>
-            t.program === PROGRAM_ID &&
-            t.function === 'open_market') || txData?.execution?.transitions?.find(
-          (t: { program: string; function: string }) =>
-            (t.program === PROGRAM_ID_CX || t.program === PROGRAM_ID_SD) &&
-            t.function === 'open_market'
-        );
-        if (!transition) continue;
-
-        // Extract market_id from the future output's finalize arguments (arg[0])
-        let marketId: string | null = null;
-        for (const output of (transition.outputs || [])) {
-          if (output.type === 'future') {
-            const args = extractFinalizeArgs(output.value || '');
-            if (args.length > 0 && args[0].endsWith('field')) {
-              marketId = args[0];
-              break;
-            }
-          }
-        }
-
-        // Fallback: first private output (LPToken record has market_id field)
-        if (!marketId && transition.outputs?.[0]?.value) {
-          const val = transition.outputs[0].value as string;
-          const match = val.match(/(\d+field)/);
-          if (match) marketId = match[1];
-        }
-
-        if (!marketId) continue;
-
-        console.log(`[CreateMarket] Extracted market_id: ${marketId}`);
-
-        // Register with backend (this also persists to disk)
-        await fetch(`${API_BASE}/markets/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            marketId,
-            question: questionText,
-            outcomes: outcomeLabels,
-            isLightning,
-            imageUrl: eventImageUrl || undefined,
-          }),
-        });
-        console.log(`[CreateMarket] Registered market ${marketId.slice(0, 20)}... with backend`);
-        return;
-      } catch (err) {
-        console.warn(`[CreateMarket] Retry ${i + 1}/${maxRetries} failed:`, err);
-      }
-    }
-    console.warn('[CreateMarket] Frontend auto-registration timed out — backend scanner will auto-discover the market.');
   };
 
   const handleCreate = async () => {
@@ -256,11 +91,19 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
     }
     const txId = await execute(tx);
     if (txId) {
-      // Extract market_id from on-chain transaction and register with backend
       const isLightning = /lightning|round/i.test(question);
-      registerMarketFromTx(txId, question, questionHash, outcomes, isLightning, imageUrl || undefined);
+      registerMarketFromTx({
+        txId,
+        questionText: question,
+        questionHash,
+        outcomeLabels: outcomes,
+        isLightning,
+        tokenType,
+        imageUrl: imageUrl || undefined,
+        onRegistered: fetchMarkets,
+      });
+      onSuccess?.();
     }
-    onSuccess?.();
   };
 
   const isValid = question.trim() &&

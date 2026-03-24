@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useTransaction } from '@/hooks/useTransaction';
 import { buildCreateMarketTx, buildCreateMarketStableTx, generateNonce } from '@/utils/transactions';
+import { registerMarketFromTx } from '@/utils/marketRegistration';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { parseAleoInput } from '@/utils/format';
-import { LIGHTNING_DURATIONS, API_BASE, ALEO_TESTNET_API, PROGRAM_ID, PROGRAM_ID_CX, PROGRAM_ID_SD, ALL_PROGRAM_IDS } from '@/constants';
+import { LIGHTNING_DURATIONS } from '@/constants';
 import { useWalletStore } from '@/stores/walletStore';
+import { useMarketStore } from '@/stores/marketStore';
 import Button from '@/components/shared/Button';
 import Card from '@/components/shared/Card';
 import CryptoIcon from '@/components/shared/CryptoIcon';
@@ -22,6 +24,7 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
   const [tokenType, setTokenType] = useState<'ALEO' | 'USDCX' | 'USAD'>('ALEO');
   const { status, execute, fetchUsdcxRecord } = useTransaction();
   const walletAddress = useWalletStore((s) => s.address);
+  const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
 
   const assetLabels: Record<string, string> = {
     btc: 'Bitcoin (BTC)',
@@ -30,34 +33,6 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
   };
 
   const assetIndex: Record<string, number> = { btc: 0, eth: 1, aleo: 2 };
-
-  const registerMarketFromTx = async (txId: string, questionText: string, outcomeLabels: string[], isLightning: boolean, tokenHint?: string) => {
-    const maxRetries = 12;
-    const delay = 10_000;
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        await new Promise((r) => setTimeout(r, delay));
-        const res = await fetch(`${ALEO_TESTNET_API}/transaction/${txId}`);
-        if (!res.ok) continue;
-        const txData = await res.json();
-        const transition = txData?.execution?.transitions?.find(
-          (t: { program: string; function: string }) => ALL_PROGRAM_IDS.includes(t.program as any) && t.function === 'open_market'
-        );
-        if (!transition?.outputs?.[0]?.value) continue;
-        const marketId = transition.outputs[0].value as string;
-        console.log(`[CreateLightning] Extracted market_id: ${marketId}`);
-        await fetch(`${API_BASE}/markets/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ marketId, question: questionText, outcomes: outcomeLabels, isLightning, tokenType: tokenHint }),
-        });
-        console.log(`[CreateLightning] Registered market ${marketId.slice(0, 20)}... with backend`);
-        return;
-      } catch (err) {
-        console.warn(`[CreateLightning] Retry ${i + 1}/${maxRetries}:`, err);
-      }
-    }
-  };
 
   const handleCreate = async () => {
     const liquidityMicro = parseAleoInput(initialLiquidity);
@@ -88,9 +63,17 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
     }
     const txId = await execute(tx);
     if (txId) {
-      registerMarketFromTx(txId, question, ['Up', 'Down'], true, tokenType);
+      registerMarketFromTx({
+        txId,
+        questionText: question,
+        questionHash,
+        outcomeLabels: ['Up', 'Down'],
+        isLightning: true,
+        tokenType,
+        onRegistered: fetchMarkets,
+      });
+      onSuccess?.();
     }
-    onSuccess?.();
   };
 
   return (

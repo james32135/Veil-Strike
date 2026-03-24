@@ -190,10 +190,10 @@ export default function LightningHistory({ }: LightningHistoryProps) {
                     variant="primary"
                     size="sm"
                     onClick={() => handleSellShares(record)}
-                    loading={txStatus === 'proving'}
+                    loading={txStatus === 'proving' || txStatus === 'broadcasting'}
                     className="!text-xs !bg-gradient-to-r !from-accent-green/20 !to-accent-green/10 !text-accent-green !border !border-accent-green/20 hover:!shadow-[0_0_16px_-4px_rgba(34,197,94,0.3)] !rounded-xl"
                   >
-                    💰 Claim
+                    {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : '💰 Claim'}
                   </Button>
                 </div>
               );

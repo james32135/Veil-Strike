@@ -118,5 +118,65 @@
     ],
     "isLightning": false,
     "tokenType": "USDCX"
+  },
+  "8176765476356828983898339436940836259792394711796838807228641088672201532972field": {
+    "questionHash": "1371028014249054369999275734663316558641569316619913595351field",
+    "question": "Will BTC reach $90,000 by end of 2026?",
+    "outcomes": [
+      "Yes",
+      "No"
+    ],
+    "isLightning": false,
+    "tokenType": "USAD"
+  },
+  "1748225076504426010721862116154185429989310491804208139850702836125580194769field": {
+    "questionHash": "48081297141958707664999505033field",
+    "question": "BTC Lightning Round",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "tokenType": "USAD"
+  },
+  "8418816152587112880728463364314048935352571864391544549963589204687272742930field": {
+    "questionHash": "1216792417823535749913232589860318212830121837000988425273657743410field",
+    "question": "Will SpaceX land humans on Mars before 2030?",
+    "outcomes": [
+      "Yes",
+      "No"
+    ],
+    "isLightning": false,
+    "tokenType": "USAD"
+  },
+  "7484750296161621539781711478873571240397740280954715104059700018973038109552field": {
+    "questionHash": "528993266113061709206864109215082332109631295524625061528field",
+    "question": " Will ETH reach $4,000 by end of 2026?",
+    "outcomes": [
+      "Yes",
+      "No"
+    ],
+    "isLightning": false,
+    "tokenType": "USAD"
+  },
+  "208207379238473067876063901559226777773814611498196023918188821977271923671field": {
+    "questionHash": "1463335354965873435782304941165field",
+    "question": "ALEO Lightning Round",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "tokenType": "USAD"
+  },
+  "6826836523046610870322863039843274387610839213014529864342128976212588764851field": {
+    "questionHash": "50182095117564578706936158161field",
+    "question": "ETH Lightning Round",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "tokenType": "USAD"
   }
 }

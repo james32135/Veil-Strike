@@ -32,7 +32,7 @@ const SEED_LIGHTNING_FALLBACK: Record<'BTC' | 'ETH' | 'ALEO', string> = {
 
 /** Dynamically resolve the best lightning market per asset+token from the market cache.
  *  Prefers smallest-liquidity market (better payouts). Falls back to hardcoded IDs for ALEO. */
-function getSeedLightningId(asset: 'BTC' | 'ETH' | 'ALEO', token: 'ALEO' | 'USDCX' = 'ALEO'): string | null {
+function getSeedLightningId(asset: 'BTC' | 'ETH' | 'ALEO', token: 'ALEO' | 'USDCX' | 'USAD' = 'ALEO'): string | null {
   const markets = getCachedMarkets();
   const terms = ASSET_TERMS[asset] || [asset];
   const match = markets
@@ -247,7 +247,7 @@ export function initSeedLightningRounds(): void {
     ? currentRoundStart + ROUND_DURATION_MS
     : currentRoundStart;
 
-  const TOKEN_TYPES: ('ALEO' | 'USDCX')[] = ['ALEO', 'USDCX'];
+  const TOKEN_TYPES: ('ALEO' | 'USDCX' | 'USAD')[] = ['ALEO', 'USDCX', 'USAD'];
 
   for (const token of TOKEN_TYPES) {
     for (const asset of ASSETS) {

@@ -6,6 +6,7 @@ import Card from '@/components/shared/Card';
 import Badge from '@/components/shared/Badge';
 import Button from '@/components/shared/Button';
 import EmptyState from '@/components/shared/EmptyState';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { ShieldIcon } from '@/components/icons';
 import { motion } from 'framer-motion';
 import { API_BASE, PROGRAM_ID } from '@/constants';
@@ -168,7 +169,20 @@ export default function Governance() {
       nonce
     );
 
-    const txId = await execute(tx);
+    const txId = await execute(tx, async () => {
+      // Auto-refresh after confirmation: re-resolve proposal IDs
+      const receiptIds = await fetchGovernanceReceipts();
+      if (receiptIds.length > 0) {
+        try {
+          await fetch(`${API_BASE}/governance/resolve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ proposalIds: receiptIds }),
+          });
+        } catch { /* ignore */ }
+      }
+      fetchProposals();
+    });
     if (txId) {
       try {
         await fetch(`${API_BASE}/governance/register`, {
@@ -195,34 +209,12 @@ export default function Governance() {
       setRecipient('');
       setVoteDurationDays(7);
       setActiveTab('proposals');
-      setTimeout(fetchProposals, 12000);
-
-      // Resolve the real on-chain proposal ID from wallet GovernanceReceipt records
-      const resolveNewProposal = async () => {
-        for (let attempt = 0; attempt < 10; attempt++) {
-          await new Promise(r => setTimeout(r, 5000));
-          const receiptIds = await fetchGovernanceReceipts();
-          if (receiptIds.length > 0) {
-            try {
-              await fetch(`${API_BASE}/governance/resolve`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ proposalIds: receiptIds }),
-              });
-              fetchProposals();
-            } catch { /* ignore */ }
-            break;
-          }
-        }
-      };
-      resolveNewProposal();
     }
   };
 
   const handleVote = async (proposalId: string, support: boolean) => {
     const tx = buildCastVoteTx(proposalId, support);
-    const txId = await execute(tx);
-    if (txId) setTimeout(fetchProposals, 12000);
+    await execute(tx, fetchProposals);
   };
 
   const tabs = [
@@ -289,6 +281,9 @@ export default function Governance() {
       {/* Proposals List */}
       {activeTab === 'proposals' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <div className="flex justify-end mb-2">
+            <RefreshButton onRefresh={fetchProposals} label="Refresh" />
+          </div>
           {loading ? (
             <div className="flex justify-center py-16">
               <div className="w-6 h-6 border-2 border-teal/30 border-t-teal rounded-full animate-spin" />
@@ -372,19 +367,19 @@ export default function Governance() {
                               variant="primary"
                               size="sm"
                               onClick={() => handleVote(voteId, true)}
-                              loading={txStatus === 'proving'}
+                              loading={txStatus === 'proving' || txStatus === 'broadcasting'}
                               className="!text-xs !px-3"
                             >
-                              Vote For
+                              {txStatus === 'broadcasting' ? 'Submitting...' : 'Vote For'}
                             </Button>
                             <Button
                               variant="danger"
                               size="sm"
                               onClick={() => handleVote(voteId, false)}
-                              loading={txStatus === 'proving'}
+                              loading={txStatus === 'proving' || txStatus === 'broadcasting'}
                               className="!text-xs !px-3"
                             >
-                              Against
+                              {txStatus === 'broadcasting' ? 'Submitting...' : 'Against'}
                             </Button>
                           </div>
                         )}
@@ -596,11 +591,11 @@ export default function Governance() {
                   variant="primary"
                   size="lg"
                   onClick={handleSubmitProposal}
-                  loading={txStatus === 'proving'}
+                  loading={txStatus === 'proving' || txStatus === 'broadcasting'}
                   disabled={!title.trim()}
                   className="w-full"
                 >
-                  Submit Proposal
+                  {txStatus === 'broadcasting' ? 'Submitting...' : 'Submit Proposal'}
                 </Button>
                 <p className="text-[11px] text-gray-600 text-center mt-2">This will prompt your Leo Wallet to sign and broadcast a transaction on Aleo Testnet.</p>
               </div>

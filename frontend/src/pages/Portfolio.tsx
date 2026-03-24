@@ -12,6 +12,7 @@ import Card from '@/components/shared/Card';
 import Badge from '@/components/shared/Badge';
 import Button from '@/components/shared/Button';
 import EmptyState from '@/components/shared/EmptyState';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { ChartIcon, ClockIcon, ShieldIcon } from '@/components/icons';
 import CryptoIcon from '@/components/shared/CryptoIcon';
 import { motion } from 'framer-motion';
@@ -55,8 +56,8 @@ export default function Portfolio() {
       tx = buildSellSharesTx(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
     }
 
-    const txId = await execute(tx);
-    if (txId) setTimeout(loadShareRecords, 5000);
+    const txId = await execute(tx, loadShareRecords);
+    void txId;
   };
 
   // Computed stats
@@ -168,9 +169,7 @@ export default function Portfolio() {
           ) : (
             <div className="space-y-2">
               <div className="flex justify-end mb-2">
-                <button onClick={loadShareRecords} className="text-xs text-teal hover:text-teal/80 transition-colors">
-                  Refresh Records
-                </button>
+                <RefreshButton onRefresh={loadShareRecords} label="Refresh Records" />
               </div>
               {shareRecords.map((record, idx) => {
                 const market = markets.find((m) => m.id === record.marketId);

@@ -100,7 +100,7 @@ export interface ChartDataPoint {
 
 export interface Notification {
   id: string;
-  type: 'success' | 'error' | 'warning' | 'info';
+  type: 'success' | 'error' | 'warning' | 'info' | 'pending';
   title: string;
   message: string;
   timestamp: number;

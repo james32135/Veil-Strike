@@ -6,6 +6,7 @@ import Button from '@/components/shared/Button';
 import EmptyState from '@/components/shared/EmptyState';
 import { ClockIcon } from '@/components/icons';
 import CryptoIcon from '@/components/shared/CryptoIcon';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { useLightningBetStore } from '@/stores/lightningBetStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTransaction } from '@/hooks/useTransaction';
@@ -86,11 +87,7 @@ export default function LightningHistory({ }: LightningHistoryProps) {
       tx = buildSellSharesTx(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
     }
 
-    const txId = await execute(tx);
-    if (txId) {
-      setTimeout(loadShareRecords, 5000);
-      setTimeout(loadShareRecords, 15000);
-    }
+    await execute(tx, loadShareRecords);
   };
 
   // Helper: get asset name from market ID using the market store
@@ -146,12 +143,7 @@ export default function LightningHistory({ }: LightningHistoryProps) {
                   Claim Your Winnings
                 </h3>
               </div>
-              <button
-                onClick={loadShareRecords}
-                className="text-[10px] text-teal hover:text-teal/80 transition-colors px-2 py-1 rounded-lg border border-white/[0.04] hover:border-teal/15 bg-white/[0.01]"
-              >
-                Refresh
-            </button>
+              <RefreshButton onRefresh={loadShareRecords} label="Refresh" />
           </div>
           <div className="space-y-1">
             {claimableRecords.map((record, idx) => {

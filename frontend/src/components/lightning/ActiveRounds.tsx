@@ -4,6 +4,7 @@ import Badge from '@/components/shared/Badge';
 import Button from '@/components/shared/Button';
 import { BoltIcon, ArrowUpIcon, ArrowDownIcon } from '@/components/icons';
 import CryptoIcon from '@/components/shared/CryptoIcon';
+import RefreshButton from '@/components/shared/RefreshButton';
 import { useTransaction } from '@/hooks/useTransaction';
 import type { ShareRecord } from '@/hooks/useTransaction';
 import { buildBuySharesPrivateTx, buildBuySharesStableTx, buildSellSharesTx, generateNonce } from '@/utils/transactions';
@@ -118,11 +119,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
       if (tokensOut <= 0) return;
       const tokenTypeStr = record.tokenType === 1 ? 'USDCX' : record.tokenType === 2 ? 'USAD' : undefined;
       const tx = buildSellSharesTx(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
-      const txId = await execute(tx);
-      if (txId) {
-        setTimeout(onClaimed, 5000);
-        setTimeout(onClaimed, 15000);
-      }
+      await execute(tx, onClaimed);
     } finally {
       setClaiming(false);
     }
@@ -161,7 +158,8 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
         record
       );
     }
-    const txId = await execute(tx);
+    const refreshChain = () => fetch(`${API_BASE}/markets/refresh`, { method: 'POST' }).then(() => fetchMarkets()).catch(() => fetchMarkets());
+    const txId = await execute(tx, refreshChain);
     if (txId) {
       addBet({
         roundId: round.id,
@@ -183,10 +181,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
         price: 0.5,
         timestamp: Date.now(),
       });
-      const refreshChain = () => fetch(`${API_BASE}/markets/refresh`, { method: 'POST' }).then(() => fetchMarkets()).catch(() => fetchMarkets());
       refreshChain();
-      setTimeout(refreshChain, 15000);
-      setTimeout(refreshChain, 30000);
     }
   };
 
@@ -516,6 +511,9 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <RefreshButton onRefresh={async () => { await fetchRounds(); await loadShareRecords(); }} label="Refresh" />
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {activeRounds.map((round) => (
           <RoundCard key={round.id} round={round} shareRecords={shareRecords} onClaimed={loadShareRecords} />

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { PROGRAM_ID, PROGRAM_ID_CX, PROGRAM_ID_SD, ALEO_TESTNET_API } from '@/constants';
+import { resolveShieldTxId } from '@/utils/marketRegistration';
 import type { AleoTransaction } from '@/types';
 
 const EXPLORER_BASE = 'https://testnet.explorer.provable.com/transaction';
@@ -21,7 +22,7 @@ export function useTransaction() {
   const [txId, setTxId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { connected, executeTransaction, requestRecords } = useWallet();
-  const { addNotification } = useNotificationStore();
+  const { addNotification, updateNotification } = useNotificationStore();
 
   /**
    * Fetch a credits.aleo record with at least `minMicrocredits` balance.
@@ -135,7 +136,7 @@ export function useTransaction() {
   );
 
   const execute = useCallback(
-    async (transaction: AleoTransaction) => {
+    async (transaction: AleoTransaction, onConfirmed?: (realTxId: string) => void) => {
       if (!connected) {
         addNotification('error', 'Wallet Not Connected', 'Please connect your Shield Wallet first.');
         return null;
@@ -145,7 +146,6 @@ export function useTransaction() {
       setError(null);
 
       try {
-        addNotification('info', 'Transaction Preparing', `Executing ${transaction.functionName}...`);
         setStatus('proving');
 
         const result = await executeTransaction({
@@ -157,17 +157,53 @@ export function useTransaction() {
         });
 
         if (result?.transactionId) {
-          setTxId(result.transactionId);
-          setStatus('confirmed');
-          const explorerUrl = `${EXPLORER_BASE}/${result.transactionId}`;
-          addNotification(
-            'success',
+          const rawId = result.transactionId;
+          setTxId(rawId);
+          setStatus('broadcasting');
+
+          // Show a pending toast — stays until background resolution updates it
+          const pendingNotifId = addNotification(
+            'pending',
             'Transaction Submitted',
-            `TX: ${result.transactionId.slice(0, 16)}...`,
-            explorerUrl,
-            'View on Explorer'
+            'Waiting for on-chain confirmation...'
           );
-          return result.transactionId;
+
+          // Background: resolve real at1... ID then update toast
+          (async () => {
+            try {
+              const realId = await resolveShieldTxId(rawId);
+              const confirmedId = (realId && realId.startsWith('at1')) ? realId : rawId;
+              const explorerUrl = confirmedId.startsWith('at1')
+                ? `${EXPLORER_BASE}/${confirmedId}`
+                : undefined;
+
+              updateNotification(pendingNotifId, {
+                type: 'success',
+                title: 'Transaction Confirmed',
+                message: `TX: ${confirmedId.slice(0, 20)}...`,
+                link: explorerUrl,
+                linkLabel: explorerUrl ? 'View on Explorer' : undefined,
+              });
+
+              setTxId(confirmedId);
+              setStatus('confirmed');
+
+              if (onConfirmed) {
+                setTimeout(() => onConfirmed(confirmedId), 3000);
+              }
+            } catch {
+              // If resolution fails, still mark confirmed with raw ID
+              updateNotification(pendingNotifId, {
+                type: 'success',
+                title: 'Transaction Submitted',
+                message: `TX: ${rawId.slice(0, 20)}...`,
+              });
+              setStatus('confirmed');
+              if (onConfirmed) setTimeout(() => onConfirmed(rawId), 3000);
+            }
+          })();
+
+          return rawId;
         }
 
         setStatus('error');
@@ -181,7 +217,7 @@ export function useTransaction() {
         return null;
       }
     },
-    [connected, executeTransaction, addNotification]
+    [connected, executeTransaction, addNotification, updateNotification]
   );
 
   /**

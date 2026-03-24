@@ -13,16 +13,19 @@ const typeStyles = {
   error: { bg: 'border-accent-red/30 bg-accent-red/5', icon: 'text-accent-red' },
   warning: { bg: 'border-yellow-500/30 bg-yellow-500/5', icon: 'text-yellow-500' },
   info: { bg: 'border-teal/30 bg-teal/5', icon: 'text-teal' },
+  pending: { bg: 'border-amber-500/30 bg-amber-500/5', icon: 'text-amber-400' },
 };
 
 export default function Toast({ notification, onDismiss }: ToastProps) {
   useEffect(() => {
+    // Pending toasts stay until updated — no auto-dismiss
+    if (notification.type === 'pending') return;
     const duration = notification.link ? 12000 : 5000;
     const timer = setTimeout(() => onDismiss(notification.id), duration);
     return () => clearTimeout(timer);
-  }, [notification.id, notification.link, onDismiss]);
+  }, [notification.id, notification.type, notification.link, onDismiss]);
 
-  const style = typeStyles[notification.type];
+  const style = typeStyles[notification.type] ?? typeStyles.info;
 
   return (
     <motion.div
@@ -32,7 +35,16 @@ export default function Toast({ notification, onDismiss }: ToastProps) {
       className={`flex items-start gap-3 p-4 rounded-xl border backdrop-blur-xl ${style.bg}`}
     >
       <div className={style.icon}>
-        {notification.type === 'success' ? <CheckIcon className="w-5 h-5" /> : <InfoIcon className="w-5 h-5" />}
+        {notification.type === 'pending' ? (
+          <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+          </svg>
+        ) : notification.type === 'success' ? (
+          <CheckIcon className="w-5 h-5" />
+        ) : (
+          <InfoIcon className="w-5 h-5" />
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-white">{notification.title}</p>

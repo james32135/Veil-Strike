@@ -11,10 +11,11 @@ export async function resolveShieldTxId(walletTxId: string): Promise<string | nu
     ? walletTxId.replace('shield_', '')
     : walletTxId;
 
-  const maxAttempts = 15;
+  const maxAttempts = 10;
   for (let i = 0; i < maxAttempts; i++) {
+    // First attempt after 2s, subsequent retries every 5s (max ~47s total)
+    await new Promise(r => setTimeout(r, i === 0 ? 2_000 : 5_000));
     try {
-      await new Promise(r => setTimeout(r, 10_000));
       const res = await fetch(
         `${ALEO_TESTNET_API}/find/transactionID/from_transition/${transitionId}`
       );

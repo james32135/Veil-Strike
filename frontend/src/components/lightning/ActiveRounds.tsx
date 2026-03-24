@@ -7,7 +7,7 @@ import CryptoIcon from '@/components/shared/CryptoIcon';
 import RefreshButton from '@/components/shared/RefreshButton';
 import { useTransaction } from '@/hooks/useTransaction';
 import type { ShareRecord } from '@/hooks/useTransaction';
-import { buildBuySharesPrivateTx, buildBuySharesStableTx, buildSellSharesTx, generateNonce } from '@/utils/transactions';
+import { buildBuySharesPrivateTx, buildBuySharesStableTx, buildSellSharesTx, buildRedeemSharesTx, generateNonce } from '@/utils/transactions';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { estimateBuySharesExact, estimateSellTokensOut, calculateFees } from '@/utils/fpmm';
 import { formatUSD, formatAleo } from '@/utils/format';
@@ -113,12 +113,21 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
     setClaiming(true);
     try {
       const market = allMarkets.find((m) => m.id === record.marketId);
-      const reserves = market?.reserves ?? [1_000_000, 1_000_000];
-      const outcomeIdx = record.outcome - 1;
-      const { tokensOut } = estimateSellTokensOut(reserves, outcomeIdx, record.quantity);
-      if (tokensOut <= 0) return;
+      const isOnChainResolved = market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1;
       const tokenTypeStr = record.tokenType === 1 ? 'USDCX' : record.tokenType === 2 ? 'USAD' : undefined;
-      const tx = buildSellSharesTx(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
+
+      let tx;
+      if (isOnChainResolved) {
+        // Market resolved on-chain — redeem at full value via harvest_winnings
+        tx = buildRedeemSharesTx(record.plaintext, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
+      } else {
+        // Market not yet resolved on-chain — sell through AMM
+        const reserves = market?.reserves ?? [1_000_000, 1_000_000];
+        const outcomeIdx = record.outcome - 1;
+        const { tokensOut } = estimateSellTokensOut(reserves, outcomeIdx, record.quantity);
+        if (tokensOut <= 0) return;
+        tx = buildSellSharesTx(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
+      }
       await execute(tx, onClaimed);
     } finally {
       setClaiming(false);

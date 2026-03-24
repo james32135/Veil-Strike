@@ -181,6 +181,12 @@ export default function Portfolio() {
                 const tokenLabel = record.tokenType === 1 ? 'USDCx' : record.tokenType === 2 ? 'USAD' : 'ALEO';
                 const outcomeLabel = record.outcome === 1 ? 'UP / YES' : 'DOWN / NO';
 
+                // Detect lightning winning position — user won even if on-chain market not yet resolved
+                const isLightningWin = !isResolved && market?.isLightning && lightningBets.some(
+                  (b) => b.won && b.direction === (record.outcome === 1 ? 'up' : 'down')
+                );
+                const isClaimable = isResolved || isLightningWin;
+
                 return (
                   <motion.div
                     key={idx}
@@ -195,6 +201,7 @@ export default function Portfolio() {
                             <Badge variant={record.outcome === 1 ? 'green' : 'red'}>{outcomeLabel}</Badge>
                             <Badge variant="teal"><CryptoIcon symbol={tokenLabel} size={12} className="mr-1" />{tokenLabel}</Badge>
                             {isResolved && <Badge variant="success" size="sm">Claimable</Badge>}
+                            {isLightningWin && <Badge variant="success" size="sm">⚡ Won</Badge>}
                           </div>
                           <p className="text-sm font-mono text-gray-300 truncate group-hover/share:text-white transition-colors duration-300">
                             {market?.question || `Market ${record.marketId.slice(0, 12)}...`}
@@ -204,9 +211,9 @@ export default function Portfolio() {
                               <span className="text-[10px] text-gray-500">Qty </span>
                               <span className="text-xs font-mono text-gray-300 tabular-nums">{formatAleo(record.quantity)}</span>
                             </div>
-                            <div className="px-2.5 py-1 rounded-lg bg-teal/[0.04] border border-teal/[0.08]">
-                              <span className="text-[10px] text-gray-500">{isResolved ? 'Claim' : 'Sell'} </span>
-                              <span className="text-xs font-mono text-teal tabular-nums">~{formatAleo(displayValue)} {tokenLabel}</span>
+                            <div className={`px-2.5 py-1 rounded-lg ${isClaimable ? 'bg-accent-green/[0.06] border border-accent-green/[0.12]' : 'bg-teal/[0.04] border border-teal/[0.08]'}`}>
+                              <span className="text-[10px] text-gray-500">{isClaimable ? 'Claim' : 'Sell'} </span>
+                              <span className={`text-xs font-mono tabular-nums ${isClaimable ? 'text-accent-green' : 'text-teal'}`}>~{formatAleo(displayValue)} {tokenLabel}</span>
                             </div>
                           </div>
                         </div>
@@ -215,9 +222,9 @@ export default function Portfolio() {
                           size="sm"
                           onClick={() => handleSell(record)}
                           loading={txStatus === 'proving' || txStatus === 'broadcasting'}
-                          className={`!text-xs !rounded-xl ${isResolved ? '!bg-gradient-to-r !from-accent-green/20 !to-accent-green/10 !text-accent-green !border !border-accent-green/20 hover:!shadow-[0_0_16px_-4px_rgba(34,197,94,0.3)]' : ''}`}
+                          className={`!text-xs !rounded-xl ${isClaimable ? '!bg-gradient-to-r !from-accent-green/20 !to-accent-green/10 !text-accent-green !border !border-accent-green/20 hover:!shadow-[0_0_16px_-4px_rgba(34,197,94,0.3)]' : ''}`}
                         >
-                          {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : isResolved ? '💰 Claim' : 'Sell'}
+                          {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : isClaimable ? '💰 Claim' : 'Sell Shares'}
                         </Button>
                       </div>
                     </Card>

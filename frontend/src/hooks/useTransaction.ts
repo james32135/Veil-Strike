@@ -162,14 +162,19 @@ export function useTransaction() {
           // Wallet has confirmed — clear loading state immediately
           setStatus('confirmed');
 
-          // Show a pending toast — stays until background resolution updates it
-          const pendingNotifId = addNotification(
-            'pending',
+          // Show immediate success toast — wallet accepted the transaction
+          const toastId = addNotification(
+            'success',
             'Transaction Submitted',
-            'Waiting for on-chain confirmation...'
+            'Your transaction was accepted by the wallet.'
           );
 
-          // Background: resolve real at1... ID then update toast (does NOT affect status)
+          // Fire onConfirmed callback after short delay (data refresh)
+          if (onConfirmed) {
+            setTimeout(() => onConfirmed(rawId), 3000);
+          }
+
+          // Background: resolve real at1... ID then upgrade toast with explorer link
           (async () => {
             try {
               const realId = await resolveShieldTxId(rawId);
@@ -178,27 +183,18 @@ export function useTransaction() {
                 ? `${EXPLORER_BASE}/${confirmedId}`
                 : undefined;
 
-              updateNotification(pendingNotifId, {
-                type: 'success',
-                title: 'Transaction Confirmed',
-                message: `TX: ${confirmedId.slice(0, 20)}...`,
-                link: explorerUrl,
-                linkLabel: explorerUrl ? 'View on Explorer' : undefined,
-              });
+              if (explorerUrl) {
+                updateNotification(toastId, {
+                  title: 'Transaction Confirmed',
+                  message: `TX: ${confirmedId.slice(0, 20)}...`,
+                  link: explorerUrl,
+                  linkLabel: 'View on Explorer',
+                });
+              }
 
               setTxId(confirmedId);
-
-              if (onConfirmed) {
-                setTimeout(() => onConfirmed(confirmedId), 3000);
-              }
             } catch {
-              // Resolution failed — still show success with raw ID
-              updateNotification(pendingNotifId, {
-                type: 'success',
-                title: 'Transaction Submitted',
-                message: `TX: ${rawId.slice(0, 20)}...`,
-              });
-              if (onConfirmed) setTimeout(() => onConfirmed(rawId), 3000);
+              // Resolution failed — toast already shows success, nothing to do
             }
           })();
 

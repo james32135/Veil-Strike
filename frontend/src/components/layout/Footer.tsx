@@ -27,7 +27,10 @@ export default function Footer() {
         >
           <motion.div variants={fadeUp} className="col-span-1">
             <Link to="/" className="inline-flex items-center gap-2.5 mb-5 group">
-              <img src="/logo.png" alt="Veil Strike" className="w-7 h-7 rounded-lg object-cover" />
+              <div className="relative w-8 h-8 flex-shrink-0">
+                <div className="absolute inset-0 rounded-full bg-orange/15 blur-md" />
+                <img src="/logo-rounded.png" alt="Veil Strike" className="relative w-8 h-8 rounded-full ring-1 ring-white/10" />
+              </div>
               <span className="font-heading font-bold text-lg text-white">
                 VEIL<span className="gradient-text">STRIKE</span>
               </span>

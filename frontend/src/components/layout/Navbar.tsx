@@ -32,7 +32,10 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-[72px]">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 group">
-            <img src="/logo.png" alt="Veil Strike" className="w-8 h-8 rounded-lg object-cover" />
+            <div className="relative w-9 h-9 flex-shrink-0">
+              <div className="absolute inset-0 rounded-full bg-orange/20 blur-md group-hover:bg-orange/30 transition-colors" />
+              <img src="/logo-rounded.png" alt="Veil Strike" className="relative w-9 h-9 rounded-full ring-1 ring-white/10 group-hover:ring-orange/40 transition-all" />
+            </div>
             <span className="font-heading font-bold text-lg text-white tracking-tight">
               VEIL<span className="gradient-text">STRIKE</span>
             </span>

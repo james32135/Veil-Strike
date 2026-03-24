@@ -6,7 +6,7 @@ import { useTransaction } from '@/hooks/useTransaction';
 import type { ShareRecord } from '@/hooks/useTransaction';
 import { formatAleo, formatTimeAgo } from '@/utils/format';
 import { estimateSellTokensOut, calculateFees } from '@/utils/fpmm';
-import { buildSellSharesTx, buildSellSharesUsdcxTx, buildRedeemSharesTx, buildRedeemSharesUsdcxTx } from '@/utils/transactions';
+import { buildSellSharesTx, buildRedeemSharesTx } from '@/utils/transactions';
 import PageHeader from '@/components/layout/PageHeader';
 import Card from '@/components/shared/Card';
 import Badge from '@/components/shared/Badge';
@@ -42,19 +42,16 @@ export default function Portfolio() {
     const isResolved = market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1;
 
     let tx;
+    const tokenTypeStr = record.tokenType === 1 ? 'USDCX' : record.tokenType === 2 ? 'USAD' : undefined;
     if (isResolved) {
-      // Resolved winning shares: redeem at 1:1, zero fees
-      tx = record.tokenType === 1
-        ? buildRedeemSharesUsdcxTx(record.plaintext)
-        : buildRedeemSharesTx(record.plaintext);
+      tx = buildRedeemSharesTx(record.plaintext, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
     } else {
       // Active market: sell through AMM (subject to pricing + fees)
       const reserves = market?.reserves ?? [1_000_000, 1_000_000];
       const outcomeIdx = record.outcome - 1;
       const { tokensOut } = estimateSellTokensOut(reserves, outcomeIdx, record.quantity);
       if (tokensOut <= 0) return;
-      const buildFn = record.tokenType === 1 ? buildSellSharesUsdcxTx : buildSellSharesTx;
-      tx = buildFn(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`);
+      tx = buildSellSharesTx(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
     }
 
     const txId = await execute(tx);
@@ -97,7 +94,7 @@ export default function Portfolio() {
           <Card className="p-4">
             <p className="text-[10px] text-gray-500 uppercase tracking-wider font-heading mb-1">Total Invested</p>
             <p className="text-2xl font-mono font-bold text-white">{formatAleo(totalInvested)}</p>
-            <p className="text-[10px] text-gray-600">ALEO</p>
+            <p className="text-[10px] text-gray-600">All tokens</p>
           </Card>
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
@@ -106,7 +103,7 @@ export default function Portfolio() {
             <p className={`text-2xl font-mono font-bold ${pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
               {pnl >= 0 ? '+' : ''}{formatAleo(pnl)}
             </p>
-            <p className="text-[10px] text-gray-600">ALEO</p>
+            <p className="text-[10px] text-gray-600">All tokens</p>
           </Card>
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
@@ -162,7 +159,7 @@ export default function Portfolio() {
                 const { tokensOut } = estimateSellTokensOut(reserves, outcomeIdx, record.quantity);
                 // Resolved winning shares redeem 1:1 (zero fees); active markets sell via AMM with 2% fees
                 const displayValue = isResolved ? record.quantity : calculateFees(tokensOut).amountAfterFee;
-                const tokenLabel = record.tokenType === 1 ? 'USDCx' : 'ALEO';
+                const tokenLabel = record.tokenType === 1 ? 'USDCx' : record.tokenType === 2 ? 'USAD' : 'ALEO';
                 const outcomeLabel = record.outcome === 1 ? 'UP / YES' : 'DOWN / NO';
 
                 return (
@@ -284,9 +281,9 @@ export default function Portfolio() {
                         {!bet.result && <Badge variant="gray">PENDING</Badge>}
                       </div>
                       <div className="flex items-center gap-4 text-xs text-gray-500">
-                        <span>Bet: <span className="font-mono text-gray-400">{formatAleo(bet.amount)} ALEO</span></span>
-                        {bet.won && <span>Won: <span className="font-mono text-accent-green">{formatAleo(bet.payout || 0)} ALEO</span></span>}
-                        {bet.won === false && <span>Lost: <span className="font-mono text-accent-red">{formatAleo(bet.amount)} ALEO</span></span>}
+                        <span>Bet: <span className="font-mono text-gray-400">{formatAleo(bet.amount)} {bet.tokenType === 'usdcx' ? 'USDCx' : bet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span></span>
+                        {bet.won && <span>Won: <span className="font-mono text-accent-green">{formatAleo(bet.payout || 0)} {bet.tokenType === 'usdcx' ? 'USDCx' : bet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span></span>}
+                        {bet.won === false && <span>Lost: <span className="font-mono text-accent-red">{formatAleo(bet.amount)} {bet.tokenType === 'usdcx' ? 'USDCx' : bet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span></span>}
                         <span>{formatTimeAgo(bet.timestamp)}</span>
                       </div>
                     </div>

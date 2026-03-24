@@ -108,7 +108,15 @@ export default function LightningHistory({ }: LightningHistoryProps) {
   const resolvedBets = recentBets.filter((b) => b.result);
   const pendingBets = recentBets.filter((b) => !b.result);
 
-  if (rounds.length === 0 && recentBets.length === 0 && shareRecords.length === 0) {
+  // Only show share records for lightning markets that are resolved (winning shares to claim)
+  const claimableRecords = shareRecords.filter((r) => {
+    const market = allMarkets.find((m) => m.id === r.marketId);
+    if (!market || !market.isLightning) return false;
+    // Only show if market is resolved and this is the winning outcome
+    return market.status === 'resolved' && market.resolvedOutcome === r.outcome - 1;
+  });
+
+  if (rounds.length === 0 && recentBets.length === 0 && claimableRecords.length === 0) {
     return (
       <Card className="p-6">
         <EmptyState
@@ -122,8 +130,8 @@ export default function LightningHistory({ }: LightningHistoryProps) {
 
   return (
     <div className="space-y-4">
-      {/* On-chain Share Records — Sell to claim profit */}
-      {shareRecords.length > 0 && (
+      {/* On-chain Share Records — Only resolved winning shares */}
+      {claimableRecords.length > 0 && (
         <Card className="p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs text-gray-500 uppercase tracking-wider font-heading">
@@ -137,7 +145,7 @@ export default function LightningHistory({ }: LightningHistoryProps) {
             </button>
           </div>
           <div className="space-y-0">
-            {shareRecords.map((record, idx) => {
+            {claimableRecords.map((record, idx) => {
               const tokenLabel = record.tokenType === 1 ? 'USDCx' : record.tokenType === 2 ? 'USAD' : 'ALEO';
               const outcomeLabel = record.outcome === 1 ? 'UP' : 'DOWN';
               const assetName = getAssetFromMarketId(record.marketId);
@@ -200,7 +208,7 @@ export default function LightningHistory({ }: LightningHistoryProps) {
                     <span className={bet.direction === 'up' ? 'text-accent-green' : 'text-accent-red'}>
                       {bet.direction.toUpperCase()}
                     </span>
-                    {' • '}{formatAleo(bet.amount)} ALEO
+                    {' • '}{formatAleo(bet.amount)} {bet.tokenType === 'usdcx' ? 'USDCx' : bet.tokenType === 'usad' ? 'USAD' : 'ALEO'}
                   </p>
                   <p className="text-[10px] text-gray-600 mt-0.5">{formatTimeAgo(bet.timestamp)} • Waiting for round to end...</p>
                 </div>
@@ -226,9 +234,9 @@ export default function LightningHistory({ }: LightningHistoryProps) {
                   </p>
                   <div className="flex items-center gap-3 text-[10px] text-gray-600 mt-0.5">
                     <span>{formatTimeAgo(bet.timestamp)}</span>
-                    <span>Bet: {formatAleo(bet.amount)} ALEO</span>
+                    <span>Bet: {formatAleo(bet.amount)} {bet.tokenType === 'usdcx' ? 'USDCx' : bet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span>
                     {bet.won && <span className="text-accent-green">Won: {formatAleo(bet.payout || 0)} shares → sell on Portfolio to claim</span>}
-                    {!bet.won && <span className="text-accent-red">Lost: {formatAleo(bet.amount)} ALEO</span>}
+                    {!bet.won && <span className="text-accent-red">Lost: {formatAleo(bet.amount)} {bet.tokenType === 'usdcx' ? 'USDCx' : bet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span>}
                   </div>
                 </div>
                 <Badge variant={bet.won ? 'success' : 'danger'}>

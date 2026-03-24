@@ -9,7 +9,7 @@ export interface LightningBet {
   shares: number;
   timestamp: number;
   startPrice: number;
-  tokenType?: 'aleo' | 'usdcx';
+  tokenType?: 'aleo' | 'usdcx' | 'usad';
   // Filled when round resolves
   endPrice?: number;
   result?: 'up' | 'down';

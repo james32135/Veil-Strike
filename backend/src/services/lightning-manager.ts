@@ -30,16 +30,17 @@ const SEED_LIGHTNING_FALLBACK: Record<'BTC' | 'ETH' | 'ALEO', string> = {
   ALEO: '4278173522866567246556560167948434723044021497780470115660873330900641551519field',
 };
 
-/** Dynamically resolve the best ALEO lightning market per asset from the market cache.
- *  Prefers smallest-liquidity market (better payouts). Falls back to hardcoded IDs. */
-function getSeedLightningId(asset: 'BTC' | 'ETH' | 'ALEO'): string {
+/** Dynamically resolve the best lightning market per asset+token from the market cache.
+ *  Prefers smallest-liquidity market (better payouts). Falls back to hardcoded IDs for ALEO. */
+function getSeedLightningId(asset: 'BTC' | 'ETH' | 'ALEO', token: 'ALEO' | 'USDCX' = 'ALEO'): string | null {
   const markets = getCachedMarkets();
   const terms = ASSET_TERMS[asset] || [asset];
   const match = markets
-    .filter((m) => m.isLightning && (m.tokenType === 'ALEO' || !m.tokenType) && m.outcomes.length === 2
+    .filter((m) => m.isLightning && m.tokenType === token && m.outcomes.length === 2
       && terms.some((t) => m.question.toUpperCase().includes(t)))
     .sort((a, b) => a.totalLiquidity - b.totalLiquidity)[0];
-  return match?.id || SEED_LIGHTNING_FALLBACK[asset];
+  if (match) return match.id;
+  return token === 'ALEO' ? SEED_LIGHTNING_FALLBACK[asset] : null;
 }
 
 // Track active lightning round market IDs per asset
@@ -197,6 +198,7 @@ export function getActiveLightningRounds(): Array<{
   id: string;
   marketId: string;
   asset: string;
+  tokenType: string;
   startTime: number;
   endTime: number;
   startPrice: number;
@@ -206,6 +208,7 @@ export function getActiveLightningRounds(): Array<{
     id: string;
     marketId: string;
     asset: string;
+    tokenType: string;
     startTime: number;
     endTime: number;
     startPrice: number;
@@ -213,10 +216,14 @@ export function getActiveLightningRounds(): Array<{
   }> = [];
 
   for (const [key, round] of activeRounds) {
+    // key format: "BTC-ALEO-17743..." or legacy "BTC-17743..."
+    const parts = key.split('-');
+    const tokenType = parts.length >= 3 ? parts[1] : 'ALEO';
     rounds.push({
       id: key,
       marketId: round.marketId,
       asset: round.asset,
+      tokenType,
       startTime: round.startTime,
       endTime: round.endTime,
       startPrice: round.startPrice,
@@ -240,23 +247,28 @@ export function initSeedLightningRounds(): void {
     ? currentRoundStart + ROUND_DURATION_MS
     : currentRoundStart;
 
-  for (const asset of ASSETS) {
-    const marketId = getSeedLightningId(asset);
-    const price = getAssetPrice(asset);
-    if (price <= 0) continue;
+  const TOKEN_TYPES: ('ALEO' | 'USDCX')[] = ['ALEO', 'USDCX'];
 
-    const key = `${asset}-${roundStart}`;
-    if (activeRounds.has(key)) continue;
+  for (const token of TOKEN_TYPES) {
+    for (const asset of ASSETS) {
+      const marketId = getSeedLightningId(asset, token);
+      if (!marketId) continue;
+      const price = getAssetPrice(asset);
+      if (price <= 0) continue;
 
-    const round: ActiveRound = {
-      marketId,
-      asset,
-      startTime: roundStart,
-      endTime: roundStart + ROUND_DURATION_MS,
-      startPrice: price,
-      settled: false,
-    };
-    activeRounds.set(key, round);
-    console.log(`[LightningMgr] Seed round ${key} market=${marketId.slice(0, 20)}... price=$${price}`);
+      const key = `${asset}-${token}-${roundStart}`;
+      if (activeRounds.has(key)) continue;
+
+      const round: ActiveRound = {
+        marketId,
+        asset,
+        startTime: roundStart,
+        endTime: roundStart + ROUND_DURATION_MS,
+        startPrice: price,
+        settled: false,
+      };
+      activeRounds.set(key, round);
+      console.log(`[LightningMgr] Seed round ${key} market=${marketId.slice(0, 20)}... price=$${price}`);
+    }
   }
 }

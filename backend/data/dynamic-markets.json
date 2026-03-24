@@ -1,7 +1,87 @@
 {
-  "3321527741194241633135372110060834449467054437108745164038636216333453029983field": {
-    "questionHash": "1463335354965873435782304941165field",
-    "question": "Market 3321527741194241...",
+  "8318455321324156967883971809403831810883862233239686474826459528406047193196field": {
+    "questionHash": "103field",
+    "question": "ALEO Lightning Round",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "tokenType": "ALEO"
+  },
+  "8366292685348322202647698484583614323449189430328147355664425371980541908806field": {
+    "questionHash": "102field",
+    "question": "ETH Lightning Round",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "tokenType": "ALEO"
+  },
+  "1449418419376155183439291418627190529088386476686971153673338155154257079023field": {
+    "questionHash": "101field",
+    "question": "BTC Lightning Round",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "tokenType": "ALEO"
+  },
+  "3162032775188820042107767786920125679129004919343246258294137460620954853398field": {
+    "questionHash": "4field",
+    "question": "Will SpaceX land humans on Mars before 2030?",
+    "outcomes": [
+      "Yes",
+      "No"
+    ],
+    "isLightning": false,
+    "tokenType": "ALEO"
+  },
+  "6785469156502389526765652032731696701055136828936215548098259544467400937093field": {
+    "questionHash": "2field",
+    "question": "Will ETH reach $5,000 by end of 2026?",
+    "outcomes": [
+      "Yes",
+      "No"
+    ],
+    "isLightning": false,
+    "tokenType": "ALEO"
+  },
+  "1615661506030272100260590810728009409119211143381132715362933223641772857583field": {
+    "questionHash": "1field",
+    "question": "Will BTC reach $100,000 by end of 2026?",
+    "outcomes": [
+      "Yes",
+      "No"
+    ],
+    "isLightning": false,
+    "tokenType": "ALEO"
+  },
+  "6377642481847816995350375872493009816935876392488812366528587121880283054826field": {
+    "questionHash": "48081297141958707664999505033field",
+    "question": "BTC Lightning Round",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "tokenType": "USDCX"
+  },
+  "3815314030533662345331984144570980419371198818985788825550372680350622287609field": {
+    "questionHash": "50182095117564578706936158161field",
+    "question": "ETH Lightning Round",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "tokenType": "USDCX"
+  },
+  "3441491836419174879178864220101034331625521574527733182472265910022022905294field": {
+    "questionHash": "528993266113061709206864109886872860928713577560767663129field",
+    "question": " Will ETH reach $5,000 by end of 2026?",
     "outcomes": [
       "Yes",
       "No"
@@ -9,9 +89,29 @@
     "isLightning": false,
     "tokenType": "USDCX"
   },
-  "2397481690584025289467842374561161223484661892740440096636621473186861951287field": {
-    "questionHash": "50182095117564578706936158161field",
-    "question": "Market 2397481690584025...",
+  "8444245623792972465319660727100657974918231835696856408728601482888600986757field": {
+    "questionHash": "42501868441720685469977542612437717297952052187062489388221field",
+    "question": "Will BTC reach $100,000 by end of 2026?",
+    "outcomes": [
+      "Yes",
+      "No"
+    ],
+    "isLightning": false,
+    "tokenType": "USDCX"
+  },
+  "425777084402850885549972682094815476561635873207906090950510039664212928070field": {
+    "questionHash": "1463335354965873435782304941165field",
+    "question": "ALEO Lightning Round",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "tokenType": "USDCX"
+  },
+  "4376244491471409480014900525578139070322292561595170170257337765050532419467field": {
+    "questionHash": "1216792417823535749913232589860318212830121837000988425273657743410field",
+    "question": "Will SpaceX land humans on Mars before 2030?",
     "outcomes": [
       "Yes",
       "No"

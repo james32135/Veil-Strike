@@ -9,6 +9,7 @@ import { API_BASE } from '@/constants';
 interface LightningRound {
   id: string;
   asset: 'BTC' | 'ETH' | 'ALEO';
+  tokenType?: string;
   startTime: number;
   endTime: number;
   startPrice: number;

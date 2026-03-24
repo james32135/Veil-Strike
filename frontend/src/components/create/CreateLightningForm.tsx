@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTransaction } from '@/hooks/useTransaction';
-import { buildCreateMarketTx, buildCreateMarketUsdcxTx, generateNonce } from '@/utils/transactions';
+import { buildCreateMarketTx, buildCreateMarketStableTx, generateNonce } from '@/utils/transactions';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { parseAleoInput } from '@/utils/format';
 import { LIGHTNING_DURATIONS, API_BASE, ALEO_TESTNET_API, PROGRAM_ID, PROGRAM_ID_CX, PROGRAM_ID_SD, ALL_PROGRAM_IDS } from '@/constants';
@@ -18,7 +18,7 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
   const [direction, setDirection] = useState<'up' | 'down'>('up');
   const [duration, setDuration] = useState<typeof LIGHTNING_DURATIONS[number]>(LIGHTNING_DURATIONS[0]);
   const [initialLiquidity, setInitialLiquidity] = useState('5');
-  const [tokenType, setTokenType] = useState<'ALEO' | 'USDCX'>('ALEO');
+  const [tokenType, setTokenType] = useState<'ALEO' | 'USDCX' | 'USAD'>('ALEO');
   const { status, execute, fetchUsdcxRecord } = useTransaction();
   const walletAddress = useWalletStore((s) => s.address);
 
@@ -71,12 +71,12 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
     const resolver = walletAddress || '';
 
     let tx;
-    if (tokenType === 'USDCX') {
+    if (tokenType === 'USDCX' || tokenType === 'USAD') {
       const tokenRecord = await fetchUsdcxRecord(liquidityMicro);
       if (!tokenRecord) return;
       const proofs = await getUsdcxProofs();
-      tx = buildCreateMarketUsdcxTx(
-        questionHash, 1, 2, deadline, resolutionDeadline, resolver,
+      tx = buildCreateMarketStableTx(
+        tokenType, questionHash, 1, 2, deadline, resolutionDeadline, resolver,
         `${liquidityMicro}u128`, nonce, tokenRecord, proofs
       );
     } else {
@@ -133,7 +133,7 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
           Token
         </label>
         <div className="flex gap-2">
-          {(['ALEO', 'USDCX'] as const).map((t) => (
+          {(['ALEO', 'USDCX', 'USAD'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTokenType(t)}

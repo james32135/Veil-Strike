@@ -31,18 +31,19 @@ function matchesAsset(question: string, asset: string): boolean {
 function findLightningMarket(
   markets: { id: string; tokenType?: string; isLightning: boolean; outcomes: string[]; question: string; totalLiquidity: number }[],
   asset: string,
-  token: 'ALEO' | 'USDCX',
+  token: 'ALEO' | 'USDCX' | 'USAD',
 ) {
   return markets
     .filter((m) => m.isLightning && m.tokenType === token && m.outcomes.length === 2 && matchesAsset(m.question, asset))
     .sort((a, b) => a.totalLiquidity - b.totalLiquidity)[0] ?? null;
 }
 
-type TokenType = 'aleo' | 'usdcx';
+type TokenType = 'aleo' | 'usdcx' | 'usad';
 
 interface LightningRound {
   id: string;
   asset: 'BTC' | 'ETH' | 'ALEO';
+  tokenType?: string;
   startTime: number;
   lockTime: number;
   endTime: number;
@@ -70,7 +71,8 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
   const secs = secondsLeft % 60;
   const { status: txStatus, execute, fetchCreditsRecord, fetchUsdcxRecord } = useTransaction();
   const [betAmount, setBetAmount] = useState('1');
-  const [tokenType, setTokenType] = useState<TokenType>('aleo');
+  const roundToken = (round.tokenType || 'ALEO').toLowerCase() as TokenType;
+  const [tokenType, setTokenType] = useState<TokenType>(roundToken);
   const [claiming, setClaiming] = useState(false);
 
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
@@ -83,19 +85,22 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
   // Dynamically find lightning markets for this asset from the store
   const aleoMarket = findLightningMarket(allMarkets, round.asset, 'ALEO');
   const usdcxMarket = findLightningMarket(allMarkets, round.asset, 'USDCX');
-  const chainMarketId = tokenType === 'aleo' ? aleoMarket?.id : usdcxMarket?.id;
+  const usadMarket = findLightningMarket(allMarkets, round.asset, 'USAD');
+  const chainMarketId = tokenType === 'usdcx' ? usdcxMarket?.id : tokenType === 'usad' ? usadMarket?.id : aleoMarket?.id;
   const hasUsdcxMarket = !!usdcxMarket;
+  const hasUsadMarket = !!usadMarket;
+  const hasStableMarket = hasUsdcxMarket || hasUsadMarket;
   const liveMarket = allMarkets.find((m) => m.id === chainMarketId);
   const liveReserves = liveMarket?.reserves ?? [1_000_000, 1_000_000];
 
-  const tokenLabel = tokenType === 'aleo' ? 'ALEO' : 'USDCx';
+  const tokenLabel = tokenType === 'usdcx' ? 'USDCx' : tokenType === 'usad' ? 'USAD' : 'ALEO';
 
   const userBet = roundBets[0]; // Most recent bet for this round
 
   // Find claimable shares for this round's market + winning outcome
   // Only allow claiming after round is resolved and result is known
   const winningOutcomeOnChain = round.result === 'up' ? 1 : (round.result === 'down' ? 2 : 0);
-  const bothMarketIds = [aleoMarket?.id, usdcxMarket?.id].filter(Boolean) as string[];
+  const bothMarketIds = [aleoMarket?.id, usdcxMarket?.id, usadMarket?.id].filter(Boolean) as string[];
   const claimableShares = round.status === 'resolved' && winningOutcomeOnChain > 0
     ? shareRecords.filter(
         (r) => bothMarketIds.includes(r.marketId) && r.outcome === winningOutcomeOnChain
@@ -241,7 +246,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
           <div className="mb-3">
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs text-gray-500">Token</label>
-              {hasUsdcxMarket && (
+              {hasStableMarket && (
               <div className="flex rounded-lg border border-dark-400/50 overflow-hidden">
                 <button
                   onClick={() => setTokenType('aleo')}
@@ -253,6 +258,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
                 >
                   ALEO
                 </button>
+                {hasUsdcxMarket && (
                 <button
                   onClick={() => setTokenType('usdcx')}
                   className={`px-3 py-1 text-xs font-medium transition-all ${
@@ -263,6 +269,19 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
                 >
                   USDCx
                 </button>
+                )}
+                {hasUsadMarket && (
+                <button
+                  onClick={() => setTokenType('usad')}
+                  className={`px-3 py-1 text-xs font-medium transition-all ${
+                    tokenType === 'usad'
+                      ? 'bg-purple-500/20 text-purple-400'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  USAD
+                </button>
+                )}
               </div>
               )}
             </div>

@@ -8,7 +8,12 @@ import Lightning from '@/pages/Lightning';
 import Portfolio from '@/pages/Portfolio';
 import CreateMarket from '@/pages/CreateMarket';
 import Stats from '@/pages/Stats';
+import Governance from '@/pages/Governance';
 import Docs from '@/pages/Docs';
+import Terms from '@/pages/Terms';
+import RiskDisclosure from '@/pages/RiskDisclosure';
+import Privacy from '@/pages/Privacy';
+import FAQ from '@/pages/FAQ';
 
 export default function App() {
   return (
@@ -22,7 +27,12 @@ export default function App() {
           <Route path="/portfolio" element={<Portfolio />} />
           <Route path="/create" element={<CreateMarket />} />
           <Route path="/stats" element={<Stats />} />
+          <Route path="/governance" element={<Governance />} />
           <Route path="/docs" element={<Docs />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/risk" element={<RiskDisclosure />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/faq" element={<FAQ />} />
         </Route>
       </Routes>
     </WalletProvider>

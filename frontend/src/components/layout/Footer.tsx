@@ -72,6 +72,16 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
+                <Link to="/governance" className="text-sm text-smoke/60 hover:text-teal transition-all duration-300 hover:translate-x-1 inline-block">
+                  Governance
+                </Link>
+              </li>
+              <li>
+                <Link to="/faq" className="text-sm text-smoke/60 hover:text-teal transition-all duration-300 hover:translate-x-1 inline-block">
+                  FAQ
+                </Link>
+              </li>
+              <li>
                 <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-smoke/60 hover:text-teal transition-all duration-300 hover:translate-x-1">
                   GitHub <ExternalLinkIcon className="w-3 h-3 opacity-40" />
                 </a>
@@ -97,9 +107,12 @@ export default function Footer() {
         </motion.div>
 
         <div className="mt-14 pt-7 border-t border-white/[0.04] flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-smoke/30">
-            Built for Aleo Privacy Buildathon Wave 3
-          </p>
+          <div className="flex items-center gap-4">
+            <Link to="/terms" className="text-xs text-smoke/30 hover:text-smoke/60 transition-colors">Terms</Link>
+            <Link to="/risk" className="text-xs text-smoke/30 hover:text-smoke/60 transition-colors">Risk</Link>
+            <Link to="/privacy" className="text-xs text-smoke/30 hover:text-smoke/60 transition-colors">Privacy</Link>
+            <Link to="/faq" className="text-xs text-smoke/30 hover:text-smoke/60 transition-colors">FAQ</Link>
+          </div>
           <p className="text-xs text-smoke/30 flex items-center gap-2">
             <span className="w-1 h-1 rounded-full bg-teal/40" />
             Zero-knowledge proofs powered by Aleo

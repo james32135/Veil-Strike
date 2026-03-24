@@ -1,11 +1,12 @@
 // On-chain block scanner — discovers new markets automatically
-// Scans recent blocks for init_market / init_market_stablecoin transitions
+// Scans recent blocks for open_market transitions across all 3 programs
 // and auto-registers any new markets found with the indexer.
 
 import { config } from '../config';
 import { registerMarket, persistRegistry } from './indexer';
 
-const CREATE_MARKET_FUNCTIONS = new Set(['init_market', 'init_market_stablecoin']);
+const CREATE_FUNCTION = 'open_market';
+const PROGRAM_SET = new Set(config.allProgramIds);
 
 // Track the last scanned block to avoid re-scanning
 let lastScannedBlock = 0;
@@ -79,7 +80,7 @@ async function scanBlock(blockHeight: number): Promise<Array<{
   questionHash: string;
   numOutcomes: number;
   category: number;
-  isUsdcx: boolean;
+  tokenType: string;
   transactionId: string;
 }>> {
   const results: Array<{
@@ -87,7 +88,7 @@ async function scanBlock(blockHeight: number): Promise<Array<{
     questionHash: string;
     numOutcomes: number;
     category: number;
-    isUsdcx: boolean;
+    tokenType: string;
     transactionId: string;
   }> = [];
 
@@ -104,10 +105,11 @@ async function scanBlock(blockHeight: number): Promise<Array<{
       const transitions = tx.execution?.transitions || [];
 
       for (const transition of transitions) {
-        if (transition.program !== config.programId) continue;
-        if (!CREATE_MARKET_FUNCTIONS.has(transition.function)) continue;
+        if (!PROGRAM_SET.has(transition.program)) continue;
+        if (transition.function !== CREATE_FUNCTION) continue;
 
-        const isUsdcx = transition.function === 'init_market_stablecoin';
+        const tokenType = transition.program === config.programIdCx ? 'USDCX'
+          : transition.program === config.programIdSd ? 'USAD' : 'ALEO';
 
         // Extract market_id from the future output's finalize arguments
         for (const output of (transition.outputs || [])) {
@@ -123,7 +125,7 @@ async function scanBlock(blockHeight: number): Promise<Array<{
             const numOutcomes = parseInt(args[4]?.replace(/u\d+$/, '') || '2', 10);
 
             if (marketId && marketId.endsWith('field')) {
-              results.push({ marketId, questionHash, numOutcomes, category, isUsdcx, transactionId: txId });
+              results.push({ marketId, questionHash, numOutcomes, category, tokenType, transactionId: txId });
             }
           }
         }
@@ -186,11 +188,11 @@ export async function scanForNewMarkets(blocksToScan: number = 200): Promise<num
             question: pendingMeta?.question || `Market ${found.marketId.slice(0, 16)}...`,
             outcomes: pendingMeta?.outcomes || outcomes,
             isLightning: pendingMeta?.isLightning || false,
-            tokenType: found.isUsdcx ? 'USDCX' : 'ALEO',
+            tokenType: found.tokenType as 'ALEO' | 'USDCX' | 'USAD',
           });
 
           if (registered) {
-            console.log(`[Scanner] Discovered market ${found.marketId.slice(0, 20)}... (${found.isUsdcx ? 'USDCx' : 'ALEO'}) tx=${found.transactionId.slice(0, 15)}...`);
+            console.log(`[Scanner] Discovered market ${found.marketId.slice(0, 20)}... (${found.tokenType}) tx=${found.transactionId.slice(0, 15)}...`);
             newMarkets++;
           }
         }

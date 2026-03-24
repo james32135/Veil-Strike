@@ -1,0 +1,13 @@
+{
+    "program": "veil_strike_v6.aleo",
+    "version": "0.1.0",
+    "description": "Veil Strike v6 — Private prediction market with governance and lightning settlement",
+    "license": "MIT",
+    "dependencies": [
+        {
+            "name": "credits.aleo",
+            "location": "network",
+            "network": "testnet"
+        }
+    ]
+}

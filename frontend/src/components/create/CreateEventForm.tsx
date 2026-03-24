@@ -3,7 +3,7 @@ import { useTransaction } from '@/hooks/useTransaction';
 import { buildCreateMarketTx, buildCreateMarketUsdcxTx, generateNonce } from '@/utils/transactions';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { parseAleoInput } from '@/utils/format';
-import { CATEGORIES, API_BASE, ALEO_TESTNET_API, PROGRAM_ID } from '@/constants';
+import { CATEGORIES, API_BASE, ALEO_TESTNET_API, PROGRAM_ID, PROGRAM_ID_CX, PROGRAM_ID_SD, ALL_PROGRAM_IDS } from '@/constants';
 import { useWalletStore } from '@/stores/walletStore';
 import Button from '@/components/shared/Button';
 import Card from '@/components/shared/Card';
@@ -156,7 +156,10 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
         const transition = txData?.execution?.transitions?.find(
           (t: { program: string; function: string }) =>
             t.program === PROGRAM_ID &&
-            (t.function === 'init_market' || t.function === 'init_market_stablecoin')
+            t.function === 'open_market') || txData?.execution?.transitions?.find(
+          (t: { program: string; function: string }) =>
+            (t.program === PROGRAM_ID_CX || t.program === PROGRAM_ID_SD) &&
+            t.function === 'open_market'
         );
         if (!transition) continue;
 

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { useNotificationStore } from '@/stores/notificationStore';
-import { PROGRAM_ID } from '@/constants';
+import { PROGRAM_ID, PROGRAM_ID_CX, PROGRAM_ID_SD } from '@/constants';
 import type { AleoTransaction } from '@/types';
 
 export interface ShareRecord {
@@ -179,13 +179,18 @@ export function useTransaction() {
   }, []);
 
   /**
-   * Fetch all OutcomeShare records from the wallet for the veil_strike program.
+   * Fetch all OutcomeShare records from the wallet across all 3 programs.
    */
   const fetchShareRecords = useCallback(
     async (): Promise<ShareRecord[]> => {
       if (!connected) return [];
       try {
-        const records = await requestRecords(PROGRAM_ID, true);
+        const allRecords = await Promise.all([
+          requestRecords(PROGRAM_ID, true).catch(() => []),
+          requestRecords(PROGRAM_ID_CX, true).catch(() => []),
+          requestRecords(PROGRAM_ID_SD, true).catch(() => []),
+        ]);
+        const records = allRecords.flat();
         const shares: ShareRecord[] = [];
         for (const rec of records) {
           const r = rec as Record<string, unknown>;

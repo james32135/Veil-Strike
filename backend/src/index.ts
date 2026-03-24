@@ -14,6 +14,7 @@ import oracleRouter from './routes/oracle';
 import statsRouter from './routes/stats';
 import healthRouter from './routes/health';
 import lightningRouter from './routes/lightning';
+import governanceRouter from './routes/governance';
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use('/api/markets', marketsRouter);
 app.use('/api/oracle', oracleRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/lightning', lightningRouter);
+app.use('/api/governance', governanceRouter);
 
 // Initialize data
 async function initialize() {

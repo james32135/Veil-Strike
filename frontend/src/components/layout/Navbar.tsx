@@ -10,6 +10,7 @@ const navLinks = [
   { path: '/lightning', label: 'Lightning' },
   { path: '/portfolio', label: 'Portfolio' },
   { path: '/create', label: 'Create' },
+  { path: '/governance', label: 'Govern' },
 ];
 
 export default function Navbar() {

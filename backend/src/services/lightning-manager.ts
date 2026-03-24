@@ -1,6 +1,6 @@
 // Lightning Round Manager — creates per-round on-chain markets and settles them
 // Each 5-min round per asset gets its own on-chain market.
-// Flow: create market → users bet → round ends → settle_round → winners collect_winnings (1:1)
+// Flow: create market → users bet → round ends → flash_settle → winners harvest_winnings (1:1)
 
 import { config } from '../config';
 import { getCachedPrices } from './oracle';
@@ -129,7 +129,7 @@ export function registerLightningRound(
 }
 
 /**
- * Settle expired lightning rounds by calling settle_round on-chain.
+ * Settle expired lightning rounds by calling flash_settle on-chain.
  * Determines winner by comparing start vs current price.
  * Only settles ONE round at a time to avoid blocking the Node.js event loop.
  */

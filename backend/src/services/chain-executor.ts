@@ -15,6 +15,12 @@ async function getSDK() {
 const PRIVATE_KEY = process.env.RESOLVER_PRIVATE_KEY || process.env.PRIVATE_KEY || '';
 const PRIORITY_FEE = 10_000; // 0.01 ALEO
 
+function getProgramId(tokenType?: string): string {
+  if (tokenType === 'USDCX') return config.programIdCx;
+  if (tokenType === 'USAD') return config.programIdSd;
+  return config.programId;
+}
+
 let programManager: any = null;
 
 async function getProgramManager() {
@@ -67,23 +73,23 @@ initResolverAddress();
 /**
  * Execute seal_market on-chain — permissionless, anyone can call after deadline
  */
-export async function executeCloseMarket(marketId: string): Promise<string | null> {
+export async function executeCloseMarket(marketId: string, tokenType?: string): Promise<string | null> {
   try {
     const pm = await getProgramManager();
-    console.log(`[ChainExecutor] Sealing market ${marketId.slice(0, 20)}...`);
+    console.log(`[ChainExecutor] Locking market ${marketId.slice(0, 20)}...`);
 
     const txId = await pm.execute({
-      programName: config.programId,
-      functionName: 'seal_market',
+      programName: getProgramId(tokenType),
+      functionName: 'lock_market',
       inputs: [marketId],
       priorityFee: PRIORITY_FEE,
       privateFee: false,
     });
 
-    console.log(`[ChainExecutor] seal_market tx: ${txId}`);
+    console.log(`[ChainExecutor] lock_market tx: ${txId}`);
     return txId;
   } catch (err: any) {
-    console.error(`[ChainExecutor] seal_market failed:`, err?.message || err);
+    console.error(`[ChainExecutor] lock_market failed:`, err?.message || err);
     return null;
   }
 }
@@ -94,24 +100,25 @@ export async function executeCloseMarket(marketId: string): Promise<string | nul
  */
 export async function executeResolveMarket(
   marketId: string,
-  winningOutcome: number
+  winningOutcome: number,
+  tokenType?: string
 ): Promise<string | null> {
   try {
     const pm = await getProgramManager();
-    console.log(`[ChainExecutor] Judging market ${marketId.slice(0, 20)}... outcome=${winningOutcome}`);
+    console.log(`[ChainExecutor] Rendering verdict ${marketId.slice(0, 20)}... outcome=${winningOutcome}`);
 
     const txId = await pm.execute({
-      programName: config.programId,
-      functionName: 'judge_market',
+      programName: getProgramId(tokenType),
+      functionName: 'render_verdict',
       inputs: [marketId, `${winningOutcome}u8`],
       priorityFee: PRIORITY_FEE,
       privateFee: false,
     });
 
-    console.log(`[ChainExecutor] judge_market tx: ${txId}`);
+    console.log(`[ChainExecutor] render_verdict tx: ${txId}`);
     return txId;
   } catch (err: any) {
-    console.error(`[ChainExecutor] judge_market failed:`, err?.message || err);
+    console.error(`[ChainExecutor] render_verdict failed:`, err?.message || err);
     return null;
   }
 }
@@ -119,23 +126,23 @@ export async function executeResolveMarket(
 /**
  * Execute confirm_verdict on-chain — permissionless, after challenge window
  */
-export async function executeFinalizeResolution(marketId: string): Promise<string | null> {
+export async function executeFinalizeResolution(marketId: string, tokenType?: string): Promise<string | null> {
   try {
     const pm = await getProgramManager();
-    console.log(`[ChainExecutor] Confirming verdict for ${marketId.slice(0, 20)}...`);
+    console.log(`[ChainExecutor] Ratifying verdict for ${marketId.slice(0, 20)}...`);
 
     const txId = await pm.execute({
-      programName: config.programId,
-      functionName: 'confirm_verdict',
+      programName: getProgramId(tokenType),
+      functionName: 'ratify_verdict',
       inputs: [marketId],
       priorityFee: PRIORITY_FEE,
       privateFee: false,
     });
 
-    console.log(`[ChainExecutor] confirm_verdict tx: ${txId}`);
+    console.log(`[ChainExecutor] ratify_verdict tx: ${txId}`);
     return txId;
   } catch (err: any) {
-    console.error(`[ChainExecutor] confirm_verdict failed:`, err?.message || err);
+    console.error(`[ChainExecutor] ratify_verdict failed:`, err?.message || err);
     return null;
   }
 }
@@ -146,24 +153,25 @@ export async function executeFinalizeResolution(marketId: string): Promise<strin
  */
 export async function executeSettleRound(
   marketId: string,
-  winningOutcome: number
+  winningOutcome: number,
+  tokenType?: string
 ): Promise<string | null> {
   try {
     const pm = await getProgramManager();
-    console.log(`[ChainExecutor] Settling round ${marketId.slice(0, 20)}... outcome=${winningOutcome}`);
+    console.log(`[ChainExecutor] Flash settling ${marketId.slice(0, 20)}... outcome=${winningOutcome}`);
 
     const txId = await pm.execute({
-      programName: config.programId,
-      functionName: 'settle_round',
+      programName: getProgramId(tokenType),
+      functionName: 'flash_settle',
       inputs: [marketId, `${winningOutcome}u8`],
       priorityFee: PRIORITY_FEE,
       privateFee: false,
     });
 
-    console.log(`[ChainExecutor] settle_round tx: ${txId}`);
+    console.log(`[ChainExecutor] flash_settle tx: ${txId}`);
     return txId;
   } catch (err: any) {
-    console.error(`[ChainExecutor] settle_round failed:`, err?.message || err);
+    console.error(`[ChainExecutor] flash_settle failed:`, err?.message || err);
     return null;
   }
 }
@@ -187,7 +195,7 @@ export async function executeInitMarket(
 
     const txId = await pm.execute({
       programName: config.programId,
-      functionName: 'init_market',
+      functionName: 'open_market',
       inputs: [
         questionHash,
         `${category}u8`,
@@ -202,10 +210,10 @@ export async function executeInitMarket(
       privateFee: false,
     });
 
-    console.log(`[ChainExecutor] init_market tx: ${txId}`);
+    console.log(`[ChainExecutor] open_market tx: ${txId}`);
     return txId;
   } catch (err: any) {
-    console.error(`[ChainExecutor] init_market failed:`, err?.message || err);
+    console.error(`[ChainExecutor] open_market failed:`, err?.message || err);
     return null;
   }
 }
@@ -213,14 +221,15 @@ export async function executeInitMarket(
 /**
  * Fetch the market_resolutions mapping for a market to check challenge_deadline
  */
-export async function fetchResolution(marketId: string): Promise<{
+export async function fetchResolution(marketId: string, tokenType?: string): Promise<{
   winningOutcome: number;
   resolvedAt: number;
   challengeDeadline: number;
   finalized: boolean;
 } | null> {
   try {
-    const url = `${config.aleoEndpoint}/testnet/program/${config.programId}/mapping/market_resolutions/${marketId}`;
+    const pid = getProgramId(tokenType);
+    const url = `${config.aleoEndpoint}/testnet/program/${pid}/mapping/market_resolutions/${marketId}`;
     const res = await fetch(url);
     if (!res.ok) return null;
     let text = await res.text();

@@ -11,7 +11,7 @@ export interface MarketMeta {
   question: string;
   outcomes: string[];
   isLightning: boolean;
-  tokenType?: 'ALEO' | 'USDCX';
+  tokenType?: 'ALEO' | 'USDCX' | 'USAD';
 }
 
 // ── JSON persistence for dynamically discovered/registered markets ──
@@ -43,78 +43,9 @@ function saveDynamicRegistry(registry: Record<string, MarketMeta>): void {
 }
 
 // Registry of known market IDs with their off-chain metadata
-// Pre-populated with v5 on-chain markets; new markets registered via POST /api/markets/register
-const SEED_REGISTRY: Record<string, MarketMeta> = {
-  // ── v5 Event Markets (ALEO) ──
-  '338971154235088352538199839107551243512545519182096229221249781836667033567field': {
-    questionHash: '1001field',
-    question: 'Will Bitcoin reach $100K by end of 2026?',
-    outcomes: ['Yes', 'No'],
-    isLightning: false,
-  },
-  '8344369443958082297633908627114264945145845352501110640141528990903916036260field': {
-    questionHash: '1002field',
-    question: 'Will SpaceX land humans on Mars by 2027?',
-    outcomes: ['Yes', 'No'],
-    isLightning: false,
-  },
-  '759294365558660204377471741627354062283025499609695409173967931944802482271field': {
-    questionHash: '1003field',
-    question: 'Will US adopt a national CBDC by 2027?',
-    outcomes: ['Yes', 'No'],
-    isLightning: false,
-  },
-  '5269872960852394901927611205097204622043685423364840459970451889250394877402field': {
-    questionHash: '1004field',
-    question: 'Best Streaming Platform 2026',
-    outcomes: ['Netflix', 'Disney+', 'YouTube', 'Apple TV+'],
-    isLightning: false,
-  },
-  // ── v5 Lightning Markets (ALEO) — long deadline, per-round oracle ──
-  '4996210007700946181946925844129973971689300422125832342620831605415253333389field': {
-    questionHash: '6001field',
-    question: 'BTC Lightning Round',
-    outcomes: ['Up', 'Down'],
-    isLightning: true,
-    tokenType: 'ALEO',
-  },
-  '4634458192957872849621597187822568246583922089977590111134549454558548213015field': {
-    questionHash: '6002field',
-    question: 'ETH Lightning Round',
-    outcomes: ['Up', 'Down'],
-    isLightning: true,
-    tokenType: 'ALEO',
-  },
-  '4278173522866567246556560167948434723044021497780470115660873330900641551519field': {
-    questionHash: '6003field',
-    question: 'ALEO Lightning Round',
-    outcomes: ['Up', 'Down'],
-    isLightning: true,
-    tokenType: 'ALEO',
-  },
-  // ── v5 Lightning Markets (USDCx) — created from UI ──
-  '7938196380421720328369688973740169956611572353926951376953294488019916309577field': {
-    questionHash: '1336895475942990882398219986290815408080field',
-    question: 'BTC Lightning Round (USDCx)',
-    outcomes: ['Up', 'Down'],
-    isLightning: true,
-    tokenType: 'USDCX',
-  },
-  '3321527741194241633135372110060834449467054437108745164038636216333453029983field': {
-    questionHash: '1463335354965873435782304941165field',
-    question: 'ETH Lightning Round',
-    outcomes: ['Up', 'Down'],
-    isLightning: true,
-    tokenType: 'USDCX',
-  },
-  '2397481690584025289467842374561161223484661892740440096636621473186861951287field': {
-    questionHash: '50182095117564578706936158161field',
-    question: 'ALEO Lightning Round',
-    outcomes: ['Up', 'Down'],
-    isLightning: true,
-    tokenType: 'USDCX',
-  },
-};
+// v6: Seed registry is empty — all markets are discovered dynamically via scanner
+// or registered via POST /api/markets/register. Legacy v5 seeds removed.
+const SEED_REGISTRY: Record<string, MarketMeta> = {};
 
 // Merge seed + dynamic (file-persisted) registries
 // Seed entries take priority — they have curated question text & correct metadata
@@ -144,6 +75,7 @@ const CATEGORY_MAP: Record<number, string> = {
 const TOKEN_TYPE_MAP: Record<number, string> = {
   0: 'ALEO',
   1: 'USDCX',
+  2: 'USAD',
 };
 
 // Average block time ~15 seconds on testnet
@@ -163,9 +95,10 @@ function blockHeightToCreatedTimestamp(createdBlock: number, currentBlock: numbe
   return Date.now() - blocksSinceCreation * BLOCK_TIME_SECONDS * 1000;
 }
 
-async function fetchMapping(mappingName: string, key: string): Promise<string | null> {
+async function fetchMapping(mappingName: string, key: string, programId?: string): Promise<string | null> {
   try {
-    const url = `${config.aleoEndpoint}/testnet/program/${config.programId}/mapping/${mappingName}/${key}`;
+    const pid = programId || config.programId;
+    const url = `${config.aleoEndpoint}/testnet/program/${pid}/mapping/${mappingName}/${key}`;
     const res = await fetch(url);
     if (!res.ok) return null;
     const text = await res.text();
@@ -275,9 +208,13 @@ export async function fetchMarketsFromChain(): Promise<MarketInfo[]> {
 
   for (const [marketId, meta] of Object.entries(MARKET_REGISTRY)) {
     try {
+      // Determine which program to query based on token type
+      const pid = meta.tokenType === 'USDCX' ? config.programIdCx
+        : meta.tokenType === 'USAD' ? config.programIdSd : config.programId;
+
       const [marketRaw, poolRaw] = await Promise.all([
-        fetchMapping('markets', marketId),
-        fetchMapping('amm_pools', marketId),
+        fetchMapping('markets', marketId, pid),
+        fetchMapping('amm_pools', marketId, pid),
       ]);
 
       if (!marketRaw || !poolRaw) {
@@ -301,7 +238,7 @@ export async function fetchMarketsFromChain(): Promise<MarketInfo[]> {
       let resolvedOutcome: number | undefined;
       if (market.status === 3 || market.status === 5) {
         try {
-          const resRaw = await fetchMapping('market_resolutions', marketId);
+          const resRaw = await fetchMapping('market_resolutions', marketId, pid);
           if (resRaw) {
             const resFields = parseAleoStruct(resRaw);
             const wo = parseInt(parseAleoValue(resFields['winning_outcome'] || '0'), 10);

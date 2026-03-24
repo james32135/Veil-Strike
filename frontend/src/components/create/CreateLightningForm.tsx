@@ -3,7 +3,7 @@ import { useTransaction } from '@/hooks/useTransaction';
 import { buildCreateMarketTx, buildCreateMarketUsdcxTx, generateNonce } from '@/utils/transactions';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { parseAleoInput } from '@/utils/format';
-import { LIGHTNING_DURATIONS, API_BASE, ALEO_TESTNET_API, PROGRAM_ID } from '@/constants';
+import { LIGHTNING_DURATIONS, API_BASE, ALEO_TESTNET_API, PROGRAM_ID, PROGRAM_ID_CX, PROGRAM_ID_SD, ALL_PROGRAM_IDS } from '@/constants';
 import { useWalletStore } from '@/stores/walletStore';
 import Button from '@/components/shared/Button';
 import Card from '@/components/shared/Card';
@@ -40,7 +40,7 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
         if (!res.ok) continue;
         const txData = await res.json();
         const transition = txData?.execution?.transitions?.find(
-          (t: { program: string; function: string }) => t.program === PROGRAM_ID && (t.function === 'init_market' || t.function === 'init_market_stablecoin')
+          (t: { program: string; function: string }) => ALL_PROGRAM_IDS.includes(t.program as any) && t.function === 'open_market'
         );
         if (!transition?.outputs?.[0]?.value) continue;
         const marketId = transition.outputs[0].value as string;

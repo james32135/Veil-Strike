@@ -35,6 +35,9 @@ export default function MarketCard({ market, index = 0 }: MarketCardProps) {
           {market.tokenType === 'USDCX' && (
             <Badge variant="teal" size="sm">USDCx</Badge>
           )}
+          {market.tokenType === 'USAD' && (
+            <Badge variant="green" size="sm">USAD</Badge>
+          )}
           {market.outcomes.length > 2 && (
             <Badge variant="gray" size="sm">{market.outcomes.length} outcomes</Badge>
           )}

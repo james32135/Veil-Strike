@@ -1,0 +1,18 @@
+{
+    "program": "veil_strike_v6_sd.aleo",
+    "version": "0.1.0",
+    "description": "Veil Strike v6 SD — USAD stablecoin prediction market module",
+    "license": "MIT",
+    "dependencies": [
+        {
+            "name": "credits.aleo",
+            "location": "network",
+            "network": "testnet"
+        },
+        {
+            "name": "test_usad_stablecoin.aleo",
+            "location": "network",
+            "network": "testnet"
+        }
+    ]
+}

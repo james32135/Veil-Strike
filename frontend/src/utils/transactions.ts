@@ -1,5 +1,18 @@
-import { PROGRAM_ID, TRANSITIONS } from '@/constants';
+import { PROGRAM_ID, PROGRAM_ID_CX, PROGRAM_ID_SD, TRANSITIONS } from '@/constants';
+import type { TokenType } from '@/constants';
 import type { AleoTransaction } from '@/types';
+
+/**
+ * Get program ID for a given token type.
+ * ALEO → main, USDCX → cx, USAD → sd
+ */
+function getProgramId(tokenType: TokenType = 'ALEO'): string {
+  switch (tokenType) {
+    case 'USDCX': return PROGRAM_ID_CX;
+    case 'USAD': return PROGRAM_ID_SD;
+    default: return PROGRAM_ID;
+  }
+}
 
 /**
  * Build an Aleo transaction input object for Shield Wallet.
@@ -8,10 +21,11 @@ import type { AleoTransaction } from '@/types';
 function buildTransaction(
   functionName: string,
   inputs: string[],
-  fee: number = 500_000
+  fee: number = 500_000,
+  tokenType: TokenType = 'ALEO'
 ): AleoTransaction {
   return {
-    programId: PROGRAM_ID,
+    programId: getProgramId(tokenType),
     functionName,
     inputs,
     fee,
@@ -43,7 +57,7 @@ export function buildCreateMarketTx(
   ], 2_000_000);
 }
 
-export function buildBuySharesPrivateTx(
+export function buildBuySharesTx(
   marketId: string,
   outcome: number,
   amount: string,
@@ -52,9 +66,8 @@ export function buildBuySharesPrivateTx(
   nonce: string,
   creditsRecord: string
 ): AleoTransaction {
-  // Contract uses 1-based outcome indices (1-4)
   const outcomeOnChain = outcome + 1;
-  return buildTransaction(TRANSITIONS.BUY_SHARES_PRIVATE, [
+  return buildTransaction(TRANSITIONS.BUY_SHARES, [
     marketId,
     `${outcomeOnChain}u8`,
     amount,
@@ -68,26 +81,14 @@ export function buildBuySharesPrivateTx(
 export function buildSellSharesTx(
   sharesRecord: string,
   tokensDesired: string,
-  maxSharesUsed: string
+  maxSharesUsed: string,
+  tokenType: TokenType = 'ALEO'
 ): AleoTransaction {
-  // sell_shares(shares: OutcomeShare, tokens_desired: u128, max_shares_used: u128)
   return buildTransaction(TRANSITIONS.SELL_SHARES, [
     sharesRecord,
     tokensDesired,
     maxSharesUsed,
-  ], 1_000_000);
-}
-
-export function buildSellSharesUsdcxTx(
-  sharesRecord: string,
-  tokensDesired: string,
-  maxSharesUsed: string
-): AleoTransaction {
-  return buildTransaction(TRANSITIONS.SELL_SHARES_USDCX, [
-    sharesRecord,
-    tokensDesired,
-    maxSharesUsed,
-  ], 1_000_000);
+  ], 1_000_000, tokenType);
 }
 
 export function buildAddLiquidityTx(
@@ -106,9 +107,10 @@ export function buildAddLiquidityTx(
   ], 1_000_000);
 }
 
-// ========== USDCx Transactions (Privacy-first via private Token + MerkleProof) ==========
+// ========== Stablecoin Transactions (USDCx / USAD) ==========
 
-export function buildCreateMarketUsdcxTx(
+export function buildCreateMarketStableTx(
+  tokenType: 'USDCX' | 'USAD',
   questionHash: string,
   category: number,
   numOutcomes: number,
@@ -120,7 +122,7 @@ export function buildCreateMarketUsdcxTx(
   tokenRecord: string,
   proofs: string
 ): AleoTransaction {
-  return buildTransaction(TRANSITIONS.CREATE_MARKET_USDCX, [
+  return buildTransaction(TRANSITIONS.CREATE_MARKET, [
     questionHash,
     `${category}u8`,
     `${numOutcomes}u8`,
@@ -131,10 +133,11 @@ export function buildCreateMarketUsdcxTx(
     nonce,
     tokenRecord,
     proofs,
-  ], 2_000_000);
+  ], 2_000_000, tokenType);
 }
 
-export function buildBuySharesUsdcxTx(
+export function buildBuySharesStableTx(
+  tokenType: 'USDCX' | 'USAD',
   marketId: string,
   outcome: number,
   amount: string,
@@ -145,7 +148,7 @@ export function buildBuySharesUsdcxTx(
   proofs: string
 ): AleoTransaction {
   const outcomeOnChain = outcome + 1;
-  return buildTransaction(TRANSITIONS.BUY_SHARES_USDCX, [
+  return buildTransaction(TRANSITIONS.BUY_SHARES, [
     marketId,
     `${outcomeOnChain}u8`,
     amount,
@@ -154,10 +157,11 @@ export function buildBuySharesUsdcxTx(
     nonce,
     tokenRecord,
     proofs,
-  ], 1_000_000);
+  ], 1_000_000, tokenType);
 }
 
-export function buildAddLiquidityUsdcxTx(
+export function buildAddLiquidityStableTx(
+  tokenType: 'USDCX' | 'USAD',
   marketId: string,
   amount: string,
   expectedLpShares: string,
@@ -165,97 +169,128 @@ export function buildAddLiquidityUsdcxTx(
   tokenRecord: string,
   proofs: string
 ): AleoTransaction {
-  return buildTransaction(TRANSITIONS.ADD_LIQUIDITY_USDCX, [
+  return buildTransaction(TRANSITIONS.ADD_LIQUIDITY, [
     marketId,
     amount,
     expectedLpShares,
     nonce,
     tokenRecord,
     proofs,
-  ], 1_000_000);
+  ], 1_000_000, tokenType);
 }
 
-// ========== Market Lifecycle ==========
+// ========== Market Lifecycle (token-type-aware) ==========
 
-export function buildCloseMarketTx(marketId: string): AleoTransaction {
-  return buildTransaction(TRANSITIONS.CLOSE_MARKET, [marketId], 500_000);
+export function buildCloseMarketTx(marketId: string, tokenType: TokenType = 'ALEO'): AleoTransaction {
+  return buildTransaction(TRANSITIONS.CLOSE_MARKET, [marketId], 500_000, tokenType);
 }
 
-export function buildResolveMarketTx(marketId: string, winningOutcome: number): AleoTransaction {
-  return buildTransaction(TRANSITIONS.RESOLVE_MARKET, [marketId, `${winningOutcome}u8`], 500_000);
+export function buildResolveMarketTx(marketId: string, winningOutcome: number, tokenType: TokenType = 'ALEO'): AleoTransaction {
+  return buildTransaction(TRANSITIONS.RESOLVE_MARKET, [marketId, `${winningOutcome}u8`], 500_000, tokenType);
 }
 
-export function buildFinalizeResolutionTx(marketId: string): AleoTransaction {
-  return buildTransaction(TRANSITIONS.FINALIZE_RESOLUTION, [marketId], 500_000);
+export function buildFinalizeResolutionTx(marketId: string, tokenType: TokenType = 'ALEO'): AleoTransaction {
+  return buildTransaction(TRANSITIONS.FINALIZE_RESOLUTION, [marketId], 500_000, tokenType);
 }
 
-export function buildCancelMarketTx(marketId: string): AleoTransaction {
-  return buildTransaction(TRANSITIONS.CANCEL_MARKET, [marketId], 500_000);
+export function buildCancelMarketTx(marketId: string, tokenType: TokenType = 'ALEO'): AleoTransaction {
+  return buildTransaction(TRANSITIONS.CANCEL_MARKET, [marketId], 500_000, tokenType);
 }
 
-// ========== Dispute ==========
+// ========== Dispute (bond always in ALEO credits, but sent to correct program) ==========
 
 export function buildDisputeResolutionTx(
   marketId: string,
   proposedOutcome: number,
   nonce: string,
-  creditsRecord: string
+  creditsRecord: string,
+  tokenType: TokenType = 'ALEO'
 ): AleoTransaction {
   return buildTransaction(TRANSITIONS.DISPUTE, [
     marketId,
     `${proposedOutcome}u8`,
     nonce,
     creditsRecord,
-  ], 1_000_000);
+  ], 1_000_000, tokenType);
 }
 
-export function buildClaimDisputeBondTx(receiptRecord: string): AleoTransaction {
-  return buildTransaction(TRANSITIONS.CLAIM_DISPUTE_BOND, [receiptRecord], 500_000);
+export function buildClaimDisputeBondTx(receiptRecord: string, tokenType: TokenType = 'ALEO'): AleoTransaction {
+  return buildTransaction(TRANSITIONS.CLAIM_DISPUTE_BOND, [receiptRecord], 500_000, tokenType);
 }
 
-// ========== ALEO Redemption ==========
+// ========== Redemption (token-type-aware) ==========
 
-export function buildRedeemSharesTx(sharesRecord: string): AleoTransaction {
-  return buildTransaction(TRANSITIONS.REDEEM, [sharesRecord], 1_000_000);
+export function buildRedeemSharesTx(sharesRecord: string, tokenType: TokenType = 'ALEO'): AleoTransaction {
+  return buildTransaction(TRANSITIONS.REDEEM, [sharesRecord], 1_000_000, tokenType);
 }
 
-export function buildClaimRefundTx(sharesRecord: string): AleoTransaction {
-  return buildTransaction(TRANSITIONS.CLAIM_REFUND, [sharesRecord], 1_000_000);
+export function buildClaimRefundTx(sharesRecord: string, tokenType: TokenType = 'ALEO'): AleoTransaction {
+  return buildTransaction(TRANSITIONS.CLAIM_REFUND, [sharesRecord], 1_000_000, tokenType);
 }
 
-export function buildWithdrawLpResolvedTx(lpTokenRecord: string, minTokensOut: string): AleoTransaction {
-  return buildTransaction(TRANSITIONS.WITHDRAW_LP, [lpTokenRecord, minTokensOut], 1_000_000);
+export function buildWithdrawLpTx(lpTokenRecord: string, minTokensOut: string, tokenType: TokenType = 'ALEO'): AleoTransaction {
+  return buildTransaction(TRANSITIONS.WITHDRAW_LP, [lpTokenRecord, minTokensOut], 1_000_000, tokenType);
 }
 
-export function buildClaimLpRefundTx(lpTokenRecord: string, minTokensOut: string): AleoTransaction {
-  return buildTransaction(TRANSITIONS.CLAIM_LP_REFUND, [lpTokenRecord, minTokensOut], 1_000_000);
+export function buildWithdrawCreatorFeesTx(marketId: string, expectedAmount: string, tokenType: TokenType = 'ALEO'): AleoTransaction {
+  return buildTransaction(TRANSITIONS.WITHDRAW_CREATOR_FEES, [marketId, expectedAmount], 500_000, tokenType);
 }
 
-export function buildWithdrawCreatorFeesTx(marketId: string, expectedAmount: string): AleoTransaction {
-  return buildTransaction(TRANSITIONS.WITHDRAW_CREATOR_FEES, [marketId, expectedAmount], 500_000);
+// ========== Governance (main program only) ==========
+
+export function buildSubmitProposalTx(
+  actionType: number,
+  targetMarket: string,
+  amount: string,
+  recipient: string,
+  tokenType: number,
+  voteDeadline: string,
+  nonce: string
+): AleoTransaction {
+  return buildTransaction(TRANSITIONS.SUBMIT_PROPOSAL, [
+    `${actionType}u8`,
+    targetMarket,
+    `${amount}u128`,
+    recipient,
+    `${tokenType}u8`,
+    `${voteDeadline}u32`,
+    nonce,
+  ], 500_000);
 }
 
-// ========== USDCx Redemption ==========
-
-export function buildRedeemSharesUsdcxTx(sharesRecord: string): AleoTransaction {
-  return buildTransaction(TRANSITIONS.REDEEM_USDCX, [sharesRecord], 1_000_000);
+export function buildCastVoteTx(
+  proposalId: string,
+  support: boolean
+): AleoTransaction {
+  return buildTransaction(TRANSITIONS.CAST_VOTE, [
+    proposalId,
+    `${support}`,
+  ], 500_000);
 }
 
-export function buildClaimRefundUsdcxTx(sharesRecord: string): AleoTransaction {
-  return buildTransaction(TRANSITIONS.CLAIM_REFUND_USDCX, [sharesRecord], 1_000_000);
-}
-
-export function buildWithdrawLpResolvedUsdcxTx(lpTokenRecord: string, minTokensOut: string): AleoTransaction {
-  return buildTransaction(TRANSITIONS.WITHDRAW_LP_USDCX, [lpTokenRecord, minTokensOut], 1_000_000);
-}
-
-export function buildClaimLpRefundUsdcxTx(lpTokenRecord: string, minTokensOut: string): AleoTransaction {
-  return buildTransaction(TRANSITIONS.CLAIM_LP_REFUND_USDCX, [lpTokenRecord, minTokensOut], 1_000_000);
-}
-
-export function buildWithdrawFeesUsdcxTx(marketId: string, expectedAmount: string): AleoTransaction {
-  return buildTransaction(TRANSITIONS.WITHDRAW_FEES_USDCX, [marketId, expectedAmount], 500_000);
-}
+// ========== Legacy compat aliases ==========
+export const buildBuySharesPrivateTx = buildBuySharesTx;
+export const buildCreateMarketUsdcxTx = (
+  questionHash: string, category: number, numOutcomes: number,
+  deadline: string, resolutionDeadline: string, resolver: string,
+  initialLiquidity: string, nonce: string, tokenRecord: string, proofs: string
+) => buildCreateMarketStableTx('USDCX', questionHash, category, numOutcomes, deadline, resolutionDeadline, resolver, initialLiquidity, nonce, tokenRecord, proofs);
+export const buildBuySharesUsdcxTx = (
+  marketId: string, outcome: number, amount: string, expectedShares: string,
+  minShares: string, nonce: string, tokenRecord: string, proofs: string
+) => buildBuySharesStableTx('USDCX', marketId, outcome, amount, expectedShares, minShares, nonce, tokenRecord, proofs);
+export const buildSellSharesUsdcxTx = (sharesRecord: string, tokensDesired: string, maxSharesUsed: string) => buildSellSharesTx(sharesRecord, tokensDesired, maxSharesUsed, 'USDCX');
+export const buildAddLiquidityUsdcxTx = (
+  marketId: string, amount: string, expectedLpShares: string,
+  nonce: string, tokenRecord: string, proofs: string
+) => buildAddLiquidityStableTx('USDCX', marketId, amount, expectedLpShares, nonce, tokenRecord, proofs);
+export const buildRedeemSharesUsdcxTx = (sharesRecord: string) => buildRedeemSharesTx(sharesRecord, 'USDCX');
+export const buildClaimRefundUsdcxTx = (sharesRecord: string) => buildClaimRefundTx(sharesRecord, 'USDCX');
+export const buildWithdrawLpResolvedTx = (lpTokenRecord: string, minTokensOut: string) => buildWithdrawLpTx(lpTokenRecord, minTokensOut);
+export const buildWithdrawLpResolvedUsdcxTx = (lpTokenRecord: string, minTokensOut: string) => buildWithdrawLpTx(lpTokenRecord, minTokensOut, 'USDCX');
+export const buildClaimLpRefundTx = (lpTokenRecord: string, minTokensOut: string) => buildWithdrawLpTx(lpTokenRecord, minTokensOut);
+export const buildClaimLpRefundUsdcxTx = (lpTokenRecord: string, minTokensOut: string) => buildWithdrawLpTx(lpTokenRecord, minTokensOut, 'USDCX');
+export const buildWithdrawFeesUsdcxTx = (marketId: string, expectedAmount: string) => buildWithdrawCreatorFeesTx(marketId, expectedAmount, 'USDCX');
 
 /**
  * Generate a random nonce for transactions.

@@ -111,12 +111,12 @@ export async function autoResolveMarkets(): Promise<void> {
       if (market.status === 'active' && market.endTime < Date.now()) {
         pastDeadline++;
         if (pendingClose.has(id)) continue;
-        console.log(`[AutoResolver] Market ${id.slice(0, 20)}... is past deadline, sealing...`);
+        console.log(`[AutoResolver] Market ${id.slice(0, 20)}... is past deadline, locking...`);
         pendingClose.add(id);
 
-        const txId = await executeCloseMarket(id);
+        const txId = await executeCloseMarket(id, market.tokenType);
         if (txId) {
-          console.log(`[AutoResolver] seal_market submitted: ${txId}`);
+          console.log(`[AutoResolver] lock_market submitted: ${txId}`);
         } else {
           setCooldown(id);
         }
@@ -131,7 +131,9 @@ export async function autoResolveMarkets(): Promise<void> {
         if (pendingResolve.has(id)) continue;
 
         // We need to fetch the raw market from chain to get the resolver address
-        const rawUrl = `${config.aleoEndpoint}/testnet/program/${config.programId}/mapping/markets/${id}`;
+        const pid = market.tokenType === 'USDCX' ? config.programIdCx
+          : market.tokenType === 'USAD' ? config.programIdSd : config.programId;
+        const rawUrl = `${config.aleoEndpoint}/testnet/program/${pid}/mapping/markets/${id}`;
         const rawRes = await fetch(rawUrl);
         if (!rawRes.ok) continue;
         let rawText = await rawRes.text();
@@ -145,12 +147,12 @@ export async function autoResolveMarkets(): Promise<void> {
         // Determine winning outcome — event markets default to "Yes" (outcome 1)
         const winningOutcome = 1;
 
-        console.log(`[AutoResolver] Market ${id.slice(0, 20)}... closed, judging with outcome ${winningOutcome}...`);
+        console.log(`[AutoResolver] Market ${id.slice(0, 20)}... closed, rendering verdict with outcome ${winningOutcome}...`);
         pendingResolve.add(id);
 
-        const txId = await executeResolveMarket(id, winningOutcome);
+        const txId = await executeResolveMarket(id, winningOutcome, market.tokenType);
         if (txId) {
-          console.log(`[AutoResolver] judge_market submitted: ${txId}`);
+          console.log(`[AutoResolver] render_verdict submitted: ${txId}`);
         } else {
           setCooldown(id);
         }
@@ -164,7 +166,7 @@ export async function autoResolveMarkets(): Promise<void> {
       if (market.status === 'pending_resolution') {
         if (pendingFinalize.has(id)) continue;
 
-        const resolution = await fetchResolution(id);
+        const resolution = await fetchResolution(id, market.tokenType);
         if (!resolution || resolution.finalized) continue;
 
         if (currentBlock <= resolution.challengeDeadline) {
@@ -172,12 +174,12 @@ export async function autoResolveMarkets(): Promise<void> {
           continue;
         }
 
-        console.log(`[AutoResolver] Market ${id.slice(0, 20)}... past challenge window, confirming verdict...`);
+        console.log(`[AutoResolver] Market ${id.slice(0, 20)}... past challenge window, ratifying verdict...`);
         pendingFinalize.add(id);
 
-        const txId = await executeFinalizeResolution(id);
+        const txId = await executeFinalizeResolution(id, market.tokenType);
         if (txId) {
-          console.log(`[AutoResolver] confirm_verdict submitted: ${txId}`);
+          console.log(`[AutoResolver] ratify_verdict submitted: ${txId}`);
         } else {
           setCooldown(id);
         }

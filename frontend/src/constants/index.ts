@@ -2,9 +2,23 @@
 // Veil Strike — Application constants
 // ============================================================================
 
-export const PROGRAM_ID = 'veil_strike_v5.aleo';
+export const PROGRAM_ID = 'veil_strike_v6.aleo';
+export const PROGRAM_ID_CX = 'veil_strike_v6_cx.aleo';
+export const PROGRAM_ID_SD = 'veil_strike_v6_sd.aleo';
 
 export const ALEO_TESTNET_API = 'https://api.explorer.provable.com/v1/testnet';
+
+export type TokenType = 'ALEO' | 'USDCX' | 'USAD';
+
+export function getProgramIdForToken(tokenType: TokenType = 'ALEO'): string {
+  switch (tokenType) {
+    case 'USDCX': return PROGRAM_ID_CX;
+    case 'USAD': return PROGRAM_ID_SD;
+    default: return PROGRAM_ID;
+  }
+}
+
+export const ALL_PROGRAM_IDS = [PROGRAM_ID, PROGRAM_ID_CX, PROGRAM_ID_SD] as const;
 
 export const API_BASE = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api`
@@ -74,29 +88,21 @@ export const CHART_COLORS = {
 } as const;
 
 export const TRANSITIONS = {
-  CREATE_MARKET: 'init_market',
-  BUY_SHARES_PRIVATE: 'purchase_position',
-  SELL_SHARES: 'liquidate_position',
-  ADD_LIQUIDITY: 'provide_liquidity',
-  CLOSE_MARKET: 'seal_market',
-  RESOLVE_MARKET: 'judge_market',
-  FINALIZE_RESOLUTION: 'confirm_verdict',
-  CANCEL_MARKET: 'abort_market',
-  DISPUTE: 'challenge_verdict',
-  CLAIM_DISPUTE_BOND: 'reclaim_bond',
-  REDEEM: 'collect_winnings',
-  CLAIM_REFUND: 'collect_refund',
-  WITHDRAW_LP: 'exit_pool',
-  CLAIM_LP_REFUND: 'exit_pool_refund',
-  WITHDRAW_CREATOR_FEES: 'claim_creator_rewards',
-  CREATE_MARKET_USDCX: 'init_market_stablecoin',
-  BUY_SHARES_USDCX: 'purchase_position_stablecoin',
-  SELL_SHARES_USDCX: 'liquidate_position_stablecoin',
-  ADD_LIQUIDITY_USDCX: 'provide_liquidity_stablecoin',
-  REDEEM_USDCX: 'collect_winnings_stablecoin',
-  CLAIM_REFUND_USDCX: 'collect_refund_stablecoin',
-  WITHDRAW_LP_USDCX: 'exit_pool_stablecoin',
-  CLAIM_LP_REFUND_USDCX: 'exit_pool_refund_stablecoin',
-  WITHDRAW_FEES_USDCX: 'claim_rewards_stablecoin',
-  SETTLE_ROUND: 'settle_round',
+  CREATE_MARKET: 'open_market',
+  BUY_SHARES: 'acquire_shares',
+  SELL_SHARES: 'dispose_shares',
+  ADD_LIQUIDITY: 'fund_pool',
+  CLOSE_MARKET: 'lock_market',
+  RESOLVE_MARKET: 'render_verdict',
+  FINALIZE_RESOLUTION: 'ratify_verdict',
+  CANCEL_MARKET: 'void_market',
+  DISPUTE: 'contest_verdict',
+  CLAIM_DISPUTE_BOND: 'recover_bond',
+  REDEEM: 'harvest_winnings',
+  CLAIM_REFUND: 'harvest_refund',
+  WITHDRAW_LP: 'withdraw_pool',
+  WITHDRAW_CREATOR_FEES: 'harvest_fees',
+  SETTLE_ROUND: 'flash_settle',
+  SUBMIT_PROPOSAL: 'submit_proposal',
+  CAST_VOTE: 'cast_vote',
 } as const;

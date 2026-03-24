@@ -75,7 +75,7 @@ function parseU128(val: string): number {
 
 // ---- Component ----
 export default function Governance() {
-  const { status: txStatus, execute } = useTransaction();
+  const { status: txStatus, execute, fetchGovernanceReceipts, connected } = useTransaction();
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'proposals' | 'create'>('proposals');
@@ -127,6 +127,27 @@ export default function Governance() {
     fetchBlockHeight();
   }, [fetchProposals, fetchMarkets, fetchBlockHeight]);
 
+  // Auto-resolve proposal IDs from wallet GovernanceReceipt records.
+  // The wallet holds the real on-chain proposal_id (BHP256 hash of proposer+nonce).
+  useEffect(() => {
+    if (!connected) return;
+    const resolve = async () => {
+      const receiptIds = await fetchGovernanceReceipts();
+      if (receiptIds.length === 0) return;
+      try {
+        const res = await fetch(`${API_BASE}/governance/resolve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ proposalIds: receiptIds }),
+        });
+        const data = await res.json();
+        if (data.resolved > 0) fetchProposals();
+      } catch { /* ignore */ }
+    };
+    const timer = setTimeout(resolve, 1500);
+    return () => clearTimeout(timer);
+  }, [connected, fetchGovernanceReceipts, fetchProposals]);
+
   const handleSubmitProposal = async () => {
     if (!title.trim()) return;
     const nonce = `${BigInt(Math.floor(Math.random() * 2 ** 64))}field`;
@@ -175,6 +196,26 @@ export default function Governance() {
       setVoteDurationDays(7);
       setActiveTab('proposals');
       setTimeout(fetchProposals, 12000);
+
+      // Resolve the real on-chain proposal ID from wallet GovernanceReceipt records
+      const resolveNewProposal = async () => {
+        for (let attempt = 0; attempt < 10; attempt++) {
+          await new Promise(r => setTimeout(r, 5000));
+          const receiptIds = await fetchGovernanceReceipts();
+          if (receiptIds.length > 0) {
+            try {
+              await fetch(`${API_BASE}/governance/resolve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ proposalIds: receiptIds }),
+              });
+              fetchProposals();
+            } catch { /* ignore */ }
+            break;
+          }
+        }
+      };
+      resolveNewProposal();
     }
   };
 

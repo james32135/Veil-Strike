@@ -264,5 +264,34 @@ export function useTransaction() {
     [connected, requestRecords]
   );
 
-  return { status, txId, error, execute, reset, fetchCreditsRecord, fetchUsdcxRecord, fetchShareRecords, pollTransactionConfirmed };
+  /**
+   * Fetch GovernanceReceipt records from the wallet.
+   * Each receipt contains the real on-chain proposal_id (BHP256 hash).
+   */
+  const fetchGovernanceReceipts = useCallback(
+    async (): Promise<string[]> => {
+      if (!connected) return [];
+      try {
+        const records = await requestRecords(PROGRAM_ID, true);
+        if (!records || records.length === 0) return [];
+        const ids: string[] = [];
+        for (const rec of records) {
+          const r = rec as Record<string, unknown>;
+          if (r.spent) continue;
+          const recordName = r.recordName as string | undefined;
+          if (recordName !== 'GovernanceReceipt') continue;
+          const plaintext = (r.recordPlaintext ?? r.plaintext) as string | undefined;
+          if (!plaintext) continue;
+          const match = plaintext.match(/proposal_id:\s*([\d]+field)/);
+          if (match) ids.push(match[1]);
+        }
+        return ids;
+      } catch {
+        return [];
+      }
+    },
+    [connected, requestRecords]
+  );
+
+  return { status, txId, error, execute, reset, fetchCreditsRecord, fetchUsdcxRecord, fetchShareRecords, pollTransactionConfirmed, fetchGovernanceReceipts, connected };
 }

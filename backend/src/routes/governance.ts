@@ -208,4 +208,55 @@ router.post('/register', (req, res) => {
   res.json({ success: true, count: proposalRegistry.length });
 });
 
+// Resolve proposal on-chain IDs from wallet GovernanceReceipt records.
+// The frontend reads real proposal_ids (BHP256 hashes) from the wallet and sends them here.
+// We look each up on-chain, then match to unresolved registry entries by field comparison.
+router.post('/resolve', async (req, res) => {
+  const { proposalIds } = req.body;
+  if (!Array.isArray(proposalIds) || proposalIds.length === 0) {
+    res.json({ success: true, resolved: 0 });
+    return;
+  }
+
+  let updated = 0;
+  for (const pid of proposalIds) {
+    if (typeof pid !== 'string' || !pid.endsWith('field')) continue;
+    // Skip if already resolved to this ID
+    if (proposalRegistry.some(p => p.resolvedId === pid)) continue;
+
+    // Verify it exists on-chain
+    const raw = await fetchProposalFromChain(pid);
+    if (!raw) continue;
+    const chain = parseProposalStruct(typeof raw === 'string' ? raw : JSON.stringify(raw));
+    if (!chain) continue;
+
+    // Extract on-chain fields for matching
+    const chainActionType = parseInt((chain.action_type || '0').replace(/u\d+$/, ''), 10);
+    const chainTarget = chain.target_market || '0field';
+    const chainAmount = (chain.amount || '0').replace(/u\d+$/, '');
+    const chainTokenType = parseInt((chain.token_type || '0').replace(/u\d+$/, ''), 10);
+
+    // Find best matching unresolved proposal in registry
+    let bestMatch: ProposalMeta | null = null;
+    let bestScore = 0;
+    for (const meta of proposalRegistry) {
+      if (meta.resolvedId) continue;
+      let score = 0;
+      if (meta.actionType === chainActionType) score += 10;
+      if (meta.targetMarket === chainTarget) score += 5;
+      if (meta.amount === chainAmount) score += 5;
+      if (meta.tokenType === chainTokenType) score += 3;
+      if (score > bestScore) { bestScore = score; bestMatch = meta; }
+    }
+
+    if (bestMatch && bestScore >= 10) {
+      bestMatch.resolvedId = pid;
+      updated++;
+    }
+  }
+
+  if (updated > 0) persistRegistry();
+  res.json({ success: true, resolved: updated });
+});
+
 export default router;

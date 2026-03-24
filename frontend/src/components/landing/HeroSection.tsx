@@ -4,6 +4,11 @@ import { useRef, useCallback, useMemo } from 'react';
 import { ShieldIcon, BoltIcon } from '@/components/icons';
 import { useMarketStore } from '@/stores/marketStore';
 import { useTradeStore } from '@/stores/tradeStore';
+import { useOracleStore } from '@/stores/oracleStore';
+import { calculatePrices } from '@/utils/fpmm';
+import { formatAleo } from '@/utils/format';
+import { PRECISION } from '@/constants';
+import CryptoIcon from '@/components/shared/CryptoIcon';
 
 /* ─── ANIMATED TEXT (blur-in-up word by word) ─── */
 function AnimText({ children, delay = 0, className = '', gradient = false }: { children: string; delay?: number; className?: string; gradient?: boolean }) {
@@ -140,6 +145,7 @@ function SpotlightCard({
 export default function HeroSection() {
   const markets = useMarketStore((s) => s.markets);
   const trades = useTradeStore((s) => s.trades);
+  const oraclePrices = useOracleStore((s) => s.prices);
   const activeMarkets = markets.filter((m) => m.status === 'active').length;
   const totalVolume = markets.reduce((sum, m) => sum + (m.totalVolume || 0), 0);
   const totalLiquidity = markets.reduce((sum, m) => sum + (m.totalLiquidity || 0), 0);
@@ -239,51 +245,55 @@ export default function HeroSection() {
           className="mt-16 relative flex items-end justify-center gap-4 md:gap-5 max-w-4xl mx-auto"
           style={{ perspective: '1200px', height: '300px' }}
         >
-          {/* LEFT — Markets list */}
+          {/* LEFT — Top Markets (real data) */}
           <SpotlightCard className="p-5 w-[250px] hidden lg:block" floatDelay={0} rotation={-2}>
             <div className="flex items-center justify-between mb-4">
               <span className="text-[13px] font-heading font-semibold text-white">Markets</span>
-              <span className="text-[10px] text-teal font-mono cursor-pointer hover:underline">See All</span>
+              <Link to="/markets" className="text-[10px] text-teal font-mono cursor-pointer hover:underline">See All</Link>
             </div>
-            {[
-              { c: 'BTA', p: '$28,659.35', ch: '+3.2%', up: true },
-              { c: 'CHP', p: '$23,659.35', ch: '-2.4%', up: false },
-              { c: 'NXB', p: '$28,659.35', ch: '+2.2%', up: true },
-            ].map((r) => (
-              <div key={r.c} className="flex items-center justify-between py-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-teal/8 flex items-center justify-center border border-teal/10">
-                    <span className="text-[10px] font-mono font-bold text-teal">{r.c[0]}</span>
+            {markets.filter((m) => m.status === 'active').slice(0, 3).map((m) => {
+              const prices = calculatePrices(m.reserves);
+              const topProb = prices.length > 0 ? (prices[0] / PRECISION) * 100 : 50;
+              const questionLower = m.question.toLowerCase();
+              const icon = questionLower.includes('btc') || questionLower.includes('bitcoin') ? 'BTC'
+                : questionLower.includes('eth') || questionLower.includes('ethereum') ? 'ETH'
+                : questionLower.includes('aleo') ? 'ALEO' : null;
+              return (
+                <div key={m.id} className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div className="w-7 h-7 rounded-lg bg-teal/8 flex items-center justify-center border border-teal/10 flex-shrink-0">
+                      {icon ? <CryptoIcon symbol={icon} size={16} /> : <span className="text-[10px]">📊</span>}
+                    </div>
+                    <p className="text-[11px] font-medium text-white truncate">{m.question.length > 22 ? m.question.slice(0, 22) + '…' : m.question}</p>
                   </div>
-                  <div>
-                    <p className="text-[12px] font-medium text-white">{r.c}</p>
-                    <p className="text-[9px] text-smoke/25">Exchange</p>
+                  <div className="text-right flex-shrink-0 ml-2">
+                    <p className="text-[11px] font-mono text-white">{formatAleo(m.totalVolume)}</p>
+                    <p className="text-[10px] font-mono text-accent-green">{topProb.toFixed(1)}%</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-[11px] font-mono text-white">{r.p}</p>
-                  <p className={`text-[10px] font-mono ${r.up ? 'text-accent-green' : 'text-accent-red'}`}>{r.ch}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
+            {markets.filter((m) => m.status === 'active').length === 0 && (
+              <p className="text-[10px] text-smoke/30 text-center py-4">No active markets yet</p>
+            )}
           </SpotlightCard>
 
-          {/* CENTER — Balance dashboard */}
+          {/* CENTER — Protocol Stats dashboard (real data) */}
           <SpotlightCard className="p-6 w-[280px] md:w-[310px] z-10" floatDelay={0.5} rotation={0} glowIntensity={0.2}>
             <div className="flex items-center justify-between mb-2">
               <div className="w-6 h-6 rounded-lg bg-white/[0.04] border border-white/[0.06] flex items-center justify-center">
                 <span className="text-[10px] text-smoke/50">☰</span>
               </div>
               <div className="flex gap-0.5 bg-white/[0.03] rounded-full p-0.5 border border-white/[0.05]">
-                {['Home', 'Savings', 'Earn', 'NFT'].map((t, i) => (
+                {['Volume', 'Markets', 'TVL'].map((t, i) => (
                   <span key={t} className={`px-2 py-1 rounded-full text-[9px] font-medium ${i === 0 ? 'bg-gradient-to-r from-teal to-neon-red text-white shadow-glow-sm' : 'text-smoke/30'}`}>{t}</span>
                 ))}
               </div>
             </div>
 
             <div className="text-center my-5">
-              <p className="text-[2.5rem] font-mono font-bold text-white tracking-tight leading-none">$15,475</p>
-              <p className="text-[10px] text-smoke/30 mt-1.5 tracking-[0.25em] font-heading uppercase">Total Balance</p>
+              <p className="text-[2.5rem] font-mono font-bold text-white tracking-tight leading-none">{fmt(totalVolume)}</p>
+              <p className="text-[10px] text-smoke/30 mt-1.5 tracking-[0.25em] font-heading uppercase">Total Volume (ALEO)</p>
             </div>
 
             <div className="relative h-[70px] mb-3">
@@ -300,33 +310,33 @@ export default function HeroSection() {
             </div>
 
             <div className="flex items-center justify-between text-[10px]">
-              <span className="text-smoke/25">Total Balance</span>
-              <span className="text-accent-green font-mono">+$432.49 <span className="text-smoke/15">[+12%]</span></span>
+              <span className="text-smoke/25">{activeMarkets || markets.length} active markets</span>
+              <span className="text-accent-green font-mono">TVL {fmt(totalLiquidity)} <span className="text-smoke/15">ALEO</span></span>
             </div>
           </SpotlightCard>
 
-          {/* RIGHT — Exchange rates */}
+          {/* RIGHT — Live Oracle Prices (real data) */}
           <SpotlightCard className="p-5 w-[250px] hidden lg:block" floatDelay={1} rotation={2}>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[13px] font-heading font-semibold text-white">Crypto Exchange</span>
+              <span className="text-[13px] font-heading font-semibold text-white">Live Prices</span>
               <span className="text-smoke/20 cursor-pointer">⋮</span>
             </div>
             <div className="flex items-center gap-1.5 mb-4">
-              <span className="px-2.5 py-1 rounded-full text-[10px] bg-gradient-to-r from-teal to-neon-red text-white font-medium shadow-glow-sm">USD/ETH</span>
-              <span className="text-[9px] text-smoke/25">Outline · 24 hrs</span>
+              <span className="px-2.5 py-1 rounded-full text-[10px] bg-gradient-to-r from-teal to-neon-red text-white font-medium shadow-glow-sm">Oracle</span>
+              <span className="text-[9px] text-smoke/25">CoinGecko · Live</span>
             </div>
             {[
-              { c: 'BTA', p: '40.870', ch: '67443', up: true },
-              { c: 'NBX', p: '1230.365', ch: '90.343', up: false },
+              { symbol: 'BTC' as const, label: 'BTC', price: oraclePrices.btc },
+              { symbol: 'ETH' as const, label: 'ETH', price: oraclePrices.eth },
+              { symbol: 'ALEO' as const, label: 'ALEO', price: oraclePrices.aleo },
             ].map((r) => (
-              <div key={r.c} className="flex items-center justify-between p-2.5 bg-white/[0.02] rounded-xl mb-2 last:mb-0 border border-white/[0.03]">
+              <div key={r.label} className="flex items-center justify-between p-2.5 bg-white/[0.02] rounded-xl mb-2 last:mb-0 border border-white/[0.03]">
                 <div className="flex items-center gap-2">
-                  <span className={`text-[11px] ${r.up ? 'text-accent-green' : 'text-accent-red'}`}>{r.up ? '↗' : '↘'}</span>
-                  <span className="text-[12px] font-medium text-white">{r.c}</span>
+                  <CryptoIcon symbol={r.symbol} size={16} />
+                  <span className="text-[12px] font-medium text-white">{r.label}</span>
                 </div>
-                <div className="flex items-center gap-2 text-right">
-                  <span className="text-[11px] font-mono text-white">{r.p}</span>
-                  <span className="text-[9px] text-smoke/25 font-mono">{r.ch}</span>
+                <div className="text-right">
+                  <span className="text-[11px] font-mono text-white">${r.price >= 1000 ? r.price.toLocaleString(undefined, { maximumFractionDigits: 0 }) : r.price.toFixed(2)}</span>
                 </div>
               </div>
             ))}

@@ -9,6 +9,7 @@ import EmptyState from '@/components/shared/EmptyState';
 import { ShieldIcon } from '@/components/icons';
 import { motion } from 'framer-motion';
 import { API_BASE, PROGRAM_ID } from '@/constants';
+import { useMarketStore } from '@/stores/marketStore';
 
 // ---- Types ----
 interface ProposalChainData {
@@ -41,6 +42,31 @@ const ACTION_LABELS: Record<number, string> = {
   4: 'Market Override',
 };
 
+const ACTION_DESCRIPTIONS: Record<number, string> = {
+  0: 'A general protocol proposal — parameter changes, announcements, or community decisions.',
+  1: 'Approve an address as a trusted market resolver.',
+  2: 'Withdraw funds from the protocol treasury.',
+  3: 'Update the fee rate or fee parameters.',
+  4: 'Override or resolve a specific market.',
+};
+
+// Which fields are needed per action type
+const NEEDS_TARGET_MARKET = [1, 4];
+const NEEDS_RECIPIENT = [2];
+const NEEDS_AMOUNT = [2, 3];
+const NEEDS_TOKEN = [2, 3, 4];
+
+const VOTE_DURATION_OPTIONS = [
+  { label: '1 day',   days: 1 },
+  { label: '3 days',  days: 3 },
+  { label: '7 days',  days: 7 },
+  { label: '14 days', days: 14 },
+  { label: '30 days', days: 30 },
+];
+
+// ~3 seconds per Aleo block
+const BLOCKS_PER_DAY = Math.floor((24 * 60 * 60) / 3);
+
 function parseU128(val: string): number {
   return parseInt(val.replace('u128', '').replace('u32', ''), 10) || 0;
 }
@@ -52,15 +78,26 @@ export default function Governance() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'proposals' | 'create'>('proposals');
 
+  // Current Aleo block height
+  const [currentBlock, setCurrentBlock] = useState<number | null>(null);
+
+  // Markets from store for dropdown
+  const { markets, fetchMarkets } = useMarketStore();
+
   // Create form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [actionType, setActionType] = useState(0);
-  const [targetMarket, setTargetMarket] = useState('');
+  const [targetMarketId, setTargetMarketId] = useState('');
   const [amount, setAmount] = useState('');
   const [recipient, setRecipient] = useState('');
   const [tokenType, setTokenType] = useState(0);
-  const [voteDeadline, setVoteDeadline] = useState('');
+  const [voteDurationDays, setVoteDurationDays] = useState(7);
+
+  // Derived: computed deadline block
+  const computedDeadline = currentBlock != null
+    ? currentBlock + voteDurationDays * BLOCKS_PER_DAY
+    : null;
 
   const fetchProposals = useCallback(async () => {
     try {
@@ -71,49 +108,68 @@ export default function Governance() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchProposals(); }, [fetchProposals]);
+  // Fetch current Aleo block height
+  const fetchBlockHeight = useCallback(async () => {
+    try {
+      const res = await fetch('https://api.explorer.provable.com/v1/testnet/latest/height');
+      if (res.ok) {
+        const height = await res.json();
+        setCurrentBlock(typeof height === 'number' ? height : parseInt(height, 10));
+      }
+    } catch { /* ignore — form still works with fallback */ }
+  }, []);
+
+  useEffect(() => {
+    fetchProposals();
+    fetchMarkets();
+    fetchBlockHeight();
+  }, [fetchProposals, fetchMarkets, fetchBlockHeight]);
 
   const handleSubmitProposal = async () => {
     if (!title.trim()) return;
     const nonce = `${BigInt(Math.floor(Math.random() * 2 ** 64))}field`;
-    const deadlineVal = voteDeadline || '999999999';
+    const deadlineVal = computedDeadline
+      ? `${computedDeadline}`
+      : '999999999';
+
+    // Target market: use selected market id (already a field) or default 0field
+    const targetMarketField = targetMarketId || '0field';
 
     const tx = buildSubmitProposalTx(
       actionType,
-      targetMarket || '0field',
+      targetMarketField,
       amount || '0',
       recipient || 'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc',
-      tokenType,
+      NEEDS_TOKEN.includes(actionType) ? tokenType : 0,
       deadlineVal,
       nonce
     );
 
     const txId = await execute(tx);
     if (txId) {
-      // Register proposal metadata on backend
       try {
         await fetch(`${API_BASE}/governance/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            id: nonce, // proposal_id is hash of {signer, nonce}
+            id: nonce,
             title: title.trim(),
             description: description.trim(),
             actionType,
-            targetMarket: targetMarket || '0field',
+            targetMarket: targetMarketField,
             amount: amount || '0',
             recipient,
-            tokenType,
+            tokenType: NEEDS_TOKEN.includes(actionType) ? tokenType : 0,
           }),
         });
       } catch { /* ignore */ }
       setTitle('');
       setDescription('');
       setActionType(0);
-      setTargetMarket('');
+      setTargetMarketId('');
       setAmount('');
       setRecipient('');
-      setVoteDeadline('');
+      setVoteDurationDays(7);
       setActiveTab('proposals');
       setTimeout(fetchProposals, 8000);
     }
@@ -299,24 +355,28 @@ export default function Governance() {
       {activeTab === 'create' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <Card className="p-6 max-w-2xl">
-            <h3 className="text-sm font-heading font-semibold text-white mb-5">
+            <h3 className="text-sm font-heading font-semibold text-white mb-1">
               Submit New Proposal
             </h3>
+            <p className="text-xs text-gray-500 mb-5">Your wallet address will be recorded as the proposer. You automatically cast 1 vote for your own proposal.</p>
 
-            <div className="space-y-4">
+            <div className="space-y-5">
+
+              {/* Title */}
               <div>
                 <label className="block text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5">
-                  Title *
+                  Title <span className="text-orange-400">*</span>
                 </label>
                 <input
                   type="text"
                   value={title}
                   onChange={e => setTitle(e.target.value)}
-                  placeholder="e.g. Approve new resolver"
+                  placeholder="e.g. Approve new resolver for BTC markets"
                   className="w-full bg-dark-200 border border-dark-400/30 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-teal/40 transition-colors"
                 />
               </div>
 
+              {/* Description */}
               <div>
                 <label className="block text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5">
                   Description
@@ -324,99 +384,161 @@ export default function Governance() {
                 <textarea
                   value={description}
                   onChange={e => setDescription(e.target.value)}
-                  placeholder="Explain what this proposal does..."
+                  placeholder="Explain what this proposal does and why it should pass..."
                   rows={3}
                   className="w-full bg-dark-200 border border-dark-400/30 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-teal/40 transition-colors resize-none"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5">
-                    Action Type
-                  </label>
-                  <select
-                    value={actionType}
-                    onChange={e => setActionType(parseInt(e.target.value, 10))}
-                    className="w-full bg-dark-200 border border-dark-400/30 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-teal/40 transition-colors"
-                  >
-                    {Object.entries(ACTION_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5">
-                    Token Type
-                  </label>
-                  <select
-                    value={tokenType}
-                    onChange={e => setTokenType(parseInt(e.target.value, 10))}
-                    className="w-full bg-dark-200 border border-dark-400/30 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-teal/40 transition-colors"
-                  >
-                    <option value={0}>ALEO</option>
-                    <option value={1}>USDCx</option>
-                    <option value={2}>USAD</option>
-                  </select>
-                </div>
-              </div>
-
+              {/* Action Type */}
               <div>
                 <label className="block text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5">
-                  Target Market (field)
+                  Proposal Type
                 </label>
-                <input
-                  type="text"
-                  value={targetMarket}
-                  onChange={e => setTargetMarket(e.target.value)}
-                  placeholder="0field (leave empty for general proposals)"
-                  className="w-full bg-dark-200 border border-dark-400/30 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-teal/40 transition-colors"
-                />
+                <select
+                  value={actionType}
+                  onChange={e => { setActionType(parseInt(e.target.value, 10)); setTargetMarketId(''); setAmount(''); setRecipient(''); }}
+                  className="w-full bg-dark-200 border border-dark-400/30 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-teal/40 transition-colors mb-2"
+                >
+                  {Object.entries(ACTION_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-teal/70 bg-teal/5 border border-teal/10 rounded-lg px-3 py-2">
+                  {ACTION_DESCRIPTIONS[actionType]}
+                </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* Target Market — only for relevant action types */}
+              {NEEDS_TARGET_MARKET.includes(actionType) && (
                 <div>
                   <label className="block text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5">
-                    Amount
+                    Target Market
+                  </label>
+                  {markets.length > 0 ? (
+                    <select
+                      value={targetMarketId}
+                      onChange={e => setTargetMarketId(e.target.value)}
+                      className="w-full bg-dark-200 border border-dark-400/30 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-teal/40 transition-colors"
+                    >
+                      <option value="">— None / Not applicable —</option>
+                      {markets.map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.question.length > 60 ? m.question.slice(0, 60) + '…' : m.question}
+                          {m.tokenType ? ` [${m.tokenType}]` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={targetMarketId}
+                      onChange={e => setTargetMarketId(e.target.value)}
+                      placeholder="Loading markets… or paste market field ID"
+                      className="w-full bg-dark-200 border border-dark-400/30 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-teal/40 transition-colors"
+                    />
+                  )}
+                  <p className="text-[11px] text-gray-600 mt-1">Select the market this proposal applies to. Leave blank if not applicable.</p>
+                </div>
+              )}
+
+              {/* Amount + Token Type — only for relevant action types */}
+              {NEEDS_AMOUNT.includes(actionType) && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5">
+                      Amount
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={amount}
+                      onChange={e => setAmount(e.target.value)}
+                      placeholder="0"
+                      className="w-full bg-dark-200 border border-dark-400/30 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-teal/40 transition-colors"
+                    />
+                    <p className="text-[11px] text-gray-600 mt-1">In microcredits (1 ALEO = 1,000,000)</p>
+                  </div>
+                  {NEEDS_TOKEN.includes(actionType) && (
+                    <div>
+                      <label className="block text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5">
+                        Token
+                      </label>
+                      <select
+                        value={tokenType}
+                        onChange={e => setTokenType(parseInt(e.target.value, 10))}
+                        className="w-full bg-dark-200 border border-dark-400/30 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-teal/40 transition-colors"
+                      >
+                        <option value={0}>ALEO</option>
+                        <option value={1}>USDCx</option>
+                        <option value={2}>USAD</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Recipient — only for Treasury Withdrawal */}
+              {NEEDS_RECIPIENT.includes(actionType) && (
+                <div>
+                  <label className="block text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5">
+                    Recipient Address
                   </label>
                   <input
                     type="text"
-                    value={amount}
-                    onChange={e => setAmount(e.target.value)}
-                    placeholder="0"
+                    value={recipient}
+                    onChange={e => setRecipient(e.target.value)}
+                    placeholder="aleo1..."
                     className="w-full bg-dark-200 border border-dark-400/30 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-teal/40 transition-colors"
                   />
+                  <p className="text-[11px] text-gray-600 mt-1">The address that will receive the treasury withdrawal.</p>
                 </div>
+              )}
 
-                <div>
-                  <label className="block text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5">
-                    Vote Deadline (block height)
-                  </label>
-                  <input
-                    type="text"
-                    value={voteDeadline}
-                    onChange={e => setVoteDeadline(e.target.value)}
-                    placeholder="e.g. 16000000"
-                    className="w-full bg-dark-200 border border-dark-400/30 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-teal/40 transition-colors"
-                  />
-                </div>
-              </div>
-
+              {/* Vote Duration */}
               <div>
                 <label className="block text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5">
-                  Recipient Address
+                  Voting Period
                 </label>
-                <input
-                  type="text"
-                  value={recipient}
-                  onChange={e => setRecipient(e.target.value)}
-                  placeholder="aleo1..."
-                  className="w-full bg-dark-200 border border-dark-400/30 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-teal/40 transition-colors"
-                />
+                <div className="flex gap-2 flex-wrap">
+                  {VOTE_DURATION_OPTIONS.map(opt => (
+                    <button
+                      key={opt.days}
+                      type="button"
+                      onClick={() => setVoteDurationDays(opt.days)}
+                      className={`px-4 py-2 rounded-lg text-sm font-heading font-medium transition-all border ${
+                        voteDurationDays === opt.days
+                          ? 'bg-teal/15 border-teal/40 text-teal'
+                          : 'bg-dark-200 border-dark-400/30 text-gray-400 hover:text-white hover:border-dark-400/60'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Block height info */}
+                <div className="mt-3 px-3 py-2.5 rounded-lg bg-dark-200 border border-dark-400/20">
+                  {currentBlock != null ? (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Current block:</span>
+                      <span className="font-mono text-gray-300">{currentBlock.toLocaleString()}</span>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-600 italic">Fetching current block height…</div>
+                  )}
+                  {computedDeadline != null && (
+                    <div className="flex items-center justify-between text-xs mt-1">
+                      <span className="text-gray-500">Voting ends at block:</span>
+                      <span className="font-mono text-teal font-semibold">{computedDeadline.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-gray-600 mt-1.5">Aleo produces ~1 block every 3 seconds. Estimated deadline may shift slightly.</p>
+                </div>
               </div>
 
-              <div className="pt-2">
+              {/* Submit */}
+              <div className="pt-1">
                 <Button
                   variant="primary"
                   size="lg"
@@ -427,6 +549,7 @@ export default function Governance() {
                 >
                   Submit Proposal
                 </Button>
+                <p className="text-[11px] text-gray-600 text-center mt-2">This will prompt your Leo Wallet to sign and broadcast a transaction on Aleo Testnet.</p>
               </div>
             </div>
           </Card>

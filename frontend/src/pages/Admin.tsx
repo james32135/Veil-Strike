@@ -29,6 +29,13 @@ interface ConfirmState {
   label: string;
 }
 
+interface LightningOracleData {
+  result: 'up' | 'down' | null;
+  startPrice: number;
+  endPrice: number | null;
+  asset: string;
+}
+
 export default function Admin() {
   const { connected, address } = useWalletStore();
   const { status: txStatus, execute } = useTransaction();
@@ -36,19 +43,52 @@ export default function Admin() {
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  const [lightningResults, setLightningResults] = useState<Map<string, LightningOracleData>>(new Map());
+
+  const fetchLightningResults = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/lightning`);
+      const data = await res.json() as {
+        rounds?: Array<{
+          result: 'up' | 'down' | null;
+          startPrice: number;
+          endPrice: number | null;
+          asset: string;
+          markets?: Record<string, { marketId?: string }>;
+        }>;
+      };
+      const map = new Map<string, LightningOracleData>();
+      for (const round of data.rounds ?? []) {
+        for (const assignment of Object.values(round.markets ?? {})) {
+          if (assignment?.marketId) {
+            map.set(assignment.marketId, {
+              result: round.result,
+              startPrice: round.startPrice,
+              endPrice: round.endPrice,
+              asset: round.asset,
+            });
+          }
+        }
+      }
+      setLightningResults(map);
+    } catch {
+      // backend may be offline
+    }
+  }, []);
 
   useEffect(() => {
     if (markets.length === 0) {
       setLoading(true);
       fetchMarkets().finally(() => setLoading(false));
     }
-  }, [markets.length, fetchMarkets]);
+    void fetchLightningResults();
+  }, [markets.length, fetchMarkets, fetchLightningResults]);
 
   const handleRefresh = useCallback(async () => {
     setLoading(true);
-    await fetchMarkets();
+    await Promise.all([fetchMarkets(), fetchLightningResults()]);
     setLoading(false);
-  }, [fetchMarkets]);
+  }, [fetchMarkets, fetchLightningResults]);
 
   const isDeployer = connected && address === DEPLOYER;
 
@@ -147,6 +187,7 @@ export default function Admin() {
         {activeMarkets.map((market, i) => {
           const justResolved = resolvedIds.has(market.id);
           const tokenType = market.tokenType || 'ALEO';
+          const oracleData = market.isLightning ? lightningResults.get(market.id) : undefined;
 
           return (
             <motion.div
@@ -179,6 +220,27 @@ export default function Admin() {
                         Volume: {(market.totalVolume / 1_000_000).toFixed(2)} {tokenType}
                       </p>
                     )}
+
+                    {/* Oracle result indicator for lightning markets */}
+                    {market.isLightning && oracleData && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-smoke/40 text-xs">
+                          ${oracleData.startPrice.toLocaleString()} →{' '}
+                          {oracleData.endPrice !== null
+                            ? `$${oracleData.endPrice.toLocaleString()}`
+                            : 'pending...'}
+                        </span>
+                        {oracleData.result === 'up' && (
+                          <Badge variant="green">↑ Oracle: UP WINS</Badge>
+                        )}
+                        {oracleData.result === 'down' && (
+                          <Badge variant="red">↓ Oracle: DOWN WINS</Badge>
+                        )}
+                        {oracleData.result === null && (
+                          <Badge variant="warning">Awaiting oracle result</Badge>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Resolve buttons */}
@@ -191,17 +253,31 @@ export default function Admin() {
                           variant="primary"
                           size="sm"
                           disabled={isBusy}
+                          className={
+                            oracleData?.result === 'up'
+                              ? 'ring-2 ring-accent-green ring-offset-1 ring-offset-dark-100'
+                              : oracleData?.result === 'down'
+                              ? 'opacity-50'
+                              : ''
+                          }
                           onClick={() => setConfirm({ marketId: market.id, question: market.question, tokenType, winningOutcome: 1, label: 'UP / YES' })}
                         >
-                          Resolve UP ↑
+                          Resolve UP ↑{oracleData?.result === 'up' ? ' ✓' : ''}
                         </Button>
                         <Button
                           variant="danger"
                           size="sm"
                           disabled={isBusy}
+                          className={
+                            oracleData?.result === 'down'
+                              ? 'ring-2 ring-accent-red ring-offset-1 ring-offset-dark-100'
+                              : oracleData?.result === 'up'
+                              ? 'opacity-50'
+                              : ''
+                          }
                           onClick={() => setConfirm({ marketId: market.id, question: market.question, tokenType, winningOutcome: 2, label: 'DOWN / NO' })}
                         >
-                          Resolve DOWN ↓
+                          Resolve DOWN ↓{oracleData?.result === 'down' ? ' ✓' : ''}
                         </Button>
                       </>
                     )}
@@ -287,6 +363,34 @@ export default function Admin() {
                   {confirm.label}
                 </strong>
               </p>
+              {/* Oracle guidance in modal */}
+              {(() => {
+                const od = lightningResults.get(confirm.marketId);
+                if (!od) return null;
+                const matchesOracle =
+                  (confirm.winningOutcome === 1 && od.result === 'up') ||
+                  (confirm.winningOutcome === 2 && od.result === 'down');
+                const contradictsOracle =
+                  (confirm.winningOutcome === 1 && od.result === 'down') ||
+                  (confirm.winningOutcome === 2 && od.result === 'up');
+                return (
+                  <div className={`rounded-lg px-3 py-2 mb-3 text-xs flex items-center gap-2 ${
+                    matchesOracle
+                      ? 'bg-accent-green/10 border border-accent-green/20 text-accent-green'
+                      : contradictsOracle
+                      ? 'bg-accent-red/10 border border-accent-red/20 text-accent-red'
+                      : 'bg-white/5 border border-white/10 text-smoke/50'
+                  }`}>
+                    {matchesOracle && '✓ Oracle agrees: '}
+                    {contradictsOracle && '⚠️ Oracle disagrees: '}
+                    {!matchesOracle && !contradictsOracle && 'Oracle: '}
+                    ${od.startPrice.toLocaleString()} → {od.endPrice !== null ? `$${od.endPrice.toLocaleString()}` : 'pending'}
+                    {od.result && (
+                      <strong className="ml-1">({od.result.toUpperCase()} wins)</strong>
+                    )}
+                  </div>
+                );
+              })()}
               <p className="text-smoke/50 text-xs mb-6">
                 This calls <code className="text-orange/80">flash_settle</code> on-chain. Your wallet will open for approval. This is permanent and cannot be undone.
               </p>

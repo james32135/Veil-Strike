@@ -181,5 +181,15 @@
     ],
     "isLightning": true,
     "tokenType": "USAD"
+  },
+  "5215339848933502903566380367161928979509853243601603156277636815493407764587field": {
+    "questionHash": "48081297141958707664999505033field",
+    "question": "BTC Lightning Round",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "tokenType": "ALEO"
   }
 }

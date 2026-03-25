@@ -12,7 +12,7 @@ import { useMarketStore } from '@/stores/marketStore';
 import { useTransaction } from '@/hooks/useTransaction';
 import type { ShareRecord } from '@/hooks/useTransaction';
 import { buildSellSharesTx, buildRedeemSharesTx } from '@/utils/transactions';
-import { estimateSellTokensOut, calculateFees } from '@/utils/fpmm';
+import { estimateSellTokensOut } from '@/utils/fpmm';
 import { API_BASE } from '@/constants';
 
 // Asset matching terms for dynamic market detection
@@ -75,11 +75,14 @@ export default function LightningHistory({ }: LightningHistoryProps) {
 
     let tx;
     const tokenTypeStr = record.tokenType === 1 ? 'USDCX' : record.tokenType === 2 ? 'USAD' : undefined;
+
     if (isResolved) {
+      // Market resolved on-chain — redeem at full value via harvest_winnings (1:1)
       tx = tokenTypeStr
         ? buildRedeemSharesTx(record.plaintext, tokenTypeStr as 'USDCX' | 'USAD')
         : buildRedeemSharesTx(record.plaintext);
     } else {
+      // Not yet resolved — sell through AMM (partial value)
       const reserves = market?.reserves ?? [1_000_000, 1_000_000];
       const outcomeIdx = record.outcome - 1;
       const { tokensOut } = estimateSellTokensOut(reserves, outcomeIdx, record.quantity);
@@ -151,10 +154,9 @@ export default function LightningHistory({ }: LightningHistoryProps) {
               const outcomeLabel = record.outcome === 1 ? 'UP' : 'DOWN';
               const assetName = getAssetFromMarketId(record.marketId);
               const market = allMarkets.find((m) => m.id === record.marketId);
-              const reserves = market?.reserves ?? [1_000_000, 1_000_000];
-              const { tokensOut } = estimateSellTokensOut(reserves, record.outcome - 1, record.quantity);
               const isResolved = market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1;
-              const displayValue = isResolved ? record.quantity : calculateFees(tokensOut).amountAfterFee;
+              // For resolved markets, display 1:1 share redemption value
+              const displayValue = isResolved ? record.quantity : record.quantity;
               return (
                 <div
                   key={idx}

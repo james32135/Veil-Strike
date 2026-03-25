@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 
 export interface LightningBet {
   roundId: string;
+  marketId?: string; // Per-round on-chain market ID
   asset: 'BTC' | 'ETH' | 'ALEO';
   direction: 'up' | 'down';
   amount: number; // microcredits

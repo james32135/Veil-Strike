@@ -187,14 +187,15 @@ export async function executeInitMarket(
   resolutionDeadline: number,
   resolver: string,
   initialLiquidity: number,
-  nonce: string
+  nonce: string,
+  tokenType?: string
 ): Promise<string | null> {
   try {
     const pm = await getProgramManager();
     console.log(`[ChainExecutor] Creating lightning market hash=${questionHash.slice(0, 20)}...`);
 
     const txId = await pm.execute({
-      programName: config.programId,
+      programName: getProgramId(tokenType),
       functionName: 'open_market',
       inputs: [
         questionHash,

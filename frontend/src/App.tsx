@@ -14,6 +14,7 @@ import Terms from '@/pages/Terms';
 import RiskDisclosure from '@/pages/RiskDisclosure';
 import Privacy from '@/pages/Privacy';
 import FAQ from '@/pages/FAQ';
+import Admin from '@/pages/Admin';
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/risk" element={<RiskDisclosure />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/faq" element={<FAQ />} />
+          <Route path="/admin" element={<Admin />} />
         </Route>
       </Routes>
     </WalletProvider>

@@ -8,6 +8,8 @@ export const PROGRAM_ID_SD = 'veil_strike_v6_sd.aleo';
 
 export const ALEO_TESTNET_API = 'https://api.explorer.provable.com/v1/testnet';
 
+export const DEPLOYER = 'aleo19za49scmhufst9q8lhwka5hmkvzx5ersrue3gjwcs705542daursptmx0r';
+
 export type TokenType = 'ALEO' | 'USDCX' | 'USAD';
 
 export function getProgramIdForToken(tokenType: TokenType = 'ALEO'): string {

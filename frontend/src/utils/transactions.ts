@@ -197,6 +197,10 @@ export function buildCancelMarketTx(marketId: string, tokenType: TokenType = 'AL
   return buildTransaction(TRANSITIONS.CANCEL_MARKET, [marketId], 500_000, tokenType);
 }
 
+export function buildFlashSettleTx(marketId: string, winningOutcome: number, tokenType: TokenType = 'ALEO'): AleoTransaction {
+  return buildTransaction(TRANSITIONS.SETTLE_ROUND, [marketId, `${winningOutcome}u8`], 500_000, tokenType);
+}
+
 // ========== Dispute (bond always in ALEO credits, but sent to correct program) ==========
 
 export function buildDisputeResolutionTx(

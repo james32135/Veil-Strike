@@ -11,6 +11,7 @@ const navLinks = [
   { path: '/portfolio', label: 'Portfolio' },
   { path: '/create', label: 'Create' },
   { path: '/governance', label: 'Govern' },
+  { path: '/admin', label: 'Admin' },
 ];
 
 export default function Navbar() {

@@ -7,7 +7,7 @@ import CryptoIcon from '@/components/shared/CryptoIcon';
 import RefreshButton from '@/components/shared/RefreshButton';
 import { useTransaction } from '@/hooks/useTransaction';
 import type { ShareRecord } from '@/hooks/useTransaction';
-import { buildBuySharesPrivateTx, buildBuySharesStableTx, buildSellSharesTx, buildRedeemSharesTx, generateNonce } from '@/utils/transactions';
+import { buildBuySharesPrivateTx, buildBuySharesStableTx, buildRedeemSharesTx, buildSellSharesTx, generateNonce } from '@/utils/transactions';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { estimateBuySharesExact, estimateSellTokensOut, calculateFees } from '@/utils/fpmm';
 import { formatUSD, formatAleo } from '@/utils/format';
@@ -16,7 +16,7 @@ import { useTradeStore } from '@/stores/tradeStore';
 import { useLightningBetStore } from '@/stores/lightningBetStore';
 import { API_BASE } from '@/constants';
 
-// Asset matching terms for dynamic market detection
+// Asset matching terms for dynamic market detection (fallback when API doesn't return market assignments)
 const ASSET_TERMS: Record<string, string[]> = {
   BTC: ['BTC', 'BITCOIN'],
   ETH: ['ETH', 'ETHEREUM'],
@@ -28,8 +28,7 @@ function matchesAsset(question: string, asset: string): boolean {
   return (ASSET_TERMS[asset] || [asset]).some((term) => upper.includes(term));
 }
 
-/** Find the best lightning market for a given asset + token type from the store.
- *  When multiple matches exist, prefer smallest totalLiquidity (better payouts). */
+/** Fallback: find the best lightning market for a given asset+token from the store. */
 function findLightningMarket(
   markets: { id: string; tokenType?: string; isLightning: boolean; outcomes: string[]; question: string; totalLiquidity: number }[],
   asset: string,
@@ -41,6 +40,11 @@ function findLightningMarket(
 }
 
 type TokenType = 'aleo' | 'usdcx' | 'usad';
+
+interface MarketAssignment {
+  marketId: string;
+  onChainStatus: string;
+}
 
 interface LightningRound {
   id: string;
@@ -54,6 +58,7 @@ interface LightningRound {
   endPrice: number | null;
   status: 'open' | 'locked' | 'resolved';
   result: 'up' | 'down' | null;
+  markets?: Record<string, MarketAssignment>; // keyed by token lowercase: aleo, usdcx, usad
 }
 
 function useCountdownSeconds(targetTime: number) {
@@ -84,13 +89,25 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
   const allBets = useLightningBetStore((s) => s.bets);
   const roundBets = allBets.filter((b) => b.roundId === round.id);
 
-  // Dynamically find lightning markets for this asset from the store
-  const aleoMarket = findLightningMarket(allMarkets, round.asset, 'ALEO');
-  const usdcxMarket = findLightningMarket(allMarkets, round.asset, 'USDCX');
-  const usadMarket = findLightningMarket(allMarkets, round.asset, 'USAD');
-  const chainMarketId = tokenType === 'usdcx' ? usdcxMarket?.id : tokenType === 'usad' ? usadMarket?.id : aleoMarket?.id;
-  const hasUsdcxMarket = !!usdcxMarket;
-  const hasUsadMarket = !!usadMarket;
+  // Use per-round market IDs from the API, with fallback to store search
+  const aleoAssignment = round.markets?.aleo;
+  const usdcxAssignment = round.markets?.usdcx;
+  const usadAssignment = round.markets?.usad;
+
+  // Fallback: find from market store if API doesn't have assignments
+  const aleoFallback = !aleoAssignment ? findLightningMarket(allMarkets, round.asset, 'ALEO') : null;
+  const usdcxFallback = !usdcxAssignment ? findLightningMarket(allMarkets, round.asset, 'USDCX') : null;
+  const usadFallback = !usadAssignment ? findLightningMarket(allMarkets, round.asset, 'USAD') : null;
+
+  const getMarketId = (tok: TokenType): string | undefined => {
+    if (tok === 'usdcx') return usdcxAssignment?.marketId || usdcxFallback?.id;
+    if (tok === 'usad') return usadAssignment?.marketId || usadFallback?.id;
+    return aleoAssignment?.marketId || aleoFallback?.id;
+  };
+  const chainMarketId = getMarketId(tokenType);
+  const currentOnChainStatus = tokenType === 'usdcx' ? usdcxAssignment?.onChainStatus : tokenType === 'usad' ? usadAssignment?.onChainStatus : aleoAssignment?.onChainStatus;
+  const hasUsdcxMarket = !!(usdcxAssignment || usdcxFallback);
+  const hasUsadMarket = !!(usadAssignment || usadFallback);
   const hasStableMarket = hasUsdcxMarket || hasUsadMarket;
   const liveMarket = allMarkets.find((m) => m.id === chainMarketId);
   const liveReserves = liveMarket?.reserves ?? [1_000_000, 1_000_000];
@@ -100,12 +117,24 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
   const userBet = roundBets[0]; // Most recent bet for this round
 
   // Find claimable shares for this round's market + winning outcome
-  // Only allow claiming after round is resolved and result is known
+  // Only allow claiming after round is resolved and the on-chain market is settled
   const winningOutcomeOnChain = round.result === 'up' ? 1 : (round.result === 'down' ? 2 : 0);
-  const bothMarketIds = [aleoMarket?.id, usdcxMarket?.id, usadMarket?.id].filter(Boolean) as string[];
-  const claimableShares = round.status === 'resolved' && winningOutcomeOnChain > 0
+  const roundMarketIds = [
+    aleoAssignment?.marketId || aleoFallback?.id,
+    usdcxAssignment?.marketId || usdcxFallback?.id,
+    usadAssignment?.marketId || usadFallback?.id,
+  ].filter(Boolean) as string[];
+  const isOnChainSettled = currentOnChainStatus === 'settled';
+  const claimableShares = round.status === 'resolved' && winningOutcomeOnChain > 0 && isOnChainSettled
     ? shareRecords.filter(
-        (r) => bothMarketIds.includes(r.marketId) && r.outcome === winningOutcomeOnChain
+        (r) => roundMarketIds.includes(r.marketId) && r.outcome === winningOutcomeOnChain
+      )
+    : [];
+
+  // Winning shares available for AMM sell (always available, primary exit path)
+  const winningSharesForSell = round.status === 'resolved' && winningOutcomeOnChain > 0
+    ? shareRecords.filter(
+        (r) => roundMarketIds.includes(r.marketId) && r.outcome === winningOutcomeOnChain && !isOnChainSettled
       )
     : [];
 
@@ -113,21 +142,31 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
     setClaiming(true);
     try {
       const market = allMarkets.find((m) => m.id === record.marketId);
-      const isOnChainResolved = market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1;
+      const isResolved = market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1;
       const tokenTypeStr = record.tokenType === 1 ? 'USDCX' : record.tokenType === 2 ? 'USAD' : undefined;
 
-      let tx;
-      if (isOnChainResolved) {
-        // Market resolved on-chain — redeem at full value via harvest_winnings
-        tx = buildRedeemSharesTx(record.plaintext, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
-      } else {
-        // Market not yet resolved on-chain — sell through AMM
-        const reserves = market?.reserves ?? [1_000_000, 1_000_000];
-        const outcomeIdx = record.outcome - 1;
-        const { tokensOut } = estimateSellTokensOut(reserves, outcomeIdx, record.quantity);
-        if (tokensOut <= 0) return;
-        tx = buildSellSharesTx(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
+      if (!isResolved) {
+        console.log('Market not yet settled on-chain, cannot claim yet');
+        return;
       }
+
+      // Market resolved on-chain — redeem at full value via harvest_winnings (1:1)
+      const tx = buildRedeemSharesTx(record.plaintext, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
+      await execute(tx, onClaimed);
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  // Fallback: sell shares via AMM (partial value) when on-chain settlement is slow
+  const handleSellAMM = async (record: ShareRecord) => {
+    setClaiming(true);
+    try {
+      const tokenTypeStr = record.tokenType === 1 ? 'USDCX' : record.tokenType === 2 ? 'USAD' : undefined;
+      const outcomeIdx = record.outcome - 1;
+      const { tokensOut } = estimateSellTokensOut(liveReserves, outcomeIdx, record.quantity);
+      if (tokensOut <= 0) return;
+      const tx = buildSellSharesTx(record.plaintext, `${tokensOut}u128`, `${record.quantity}u128`, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
       await execute(tx, onClaimed);
     } finally {
       setClaiming(false);
@@ -170,8 +209,20 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
     const refreshChain = () => fetch(`${API_BASE}/markets/refresh`, { method: 'POST' }).then(() => fetchMarkets()).catch(() => fetchMarkets());
     const txId = await execute(tx, refreshChain);
     if (txId) {
+      // Notify backend that this round has a bet (triggers settlement scheduling)
+      const parts = round.id.split('-');
+      const roundTs = parts[1];
+      const tokenUpper = tokenType.toUpperCase();
+      const notifyRoundId = `${round.asset}-${tokenUpper}-${roundTs}`;
+      fetch(`${API_BASE}/lightning/notify-bet`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roundId: notifyRoundId }),
+      }).catch(() => {});
+
       addBet({
         roundId: round.id,
+        marketId: chainMarketId,
         asset: round.asset,
         direction,
         amount: amountMicro,
@@ -427,14 +478,11 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
             <div className="mt-2 space-y-1">
               {claimableShares.map((record, idx) => {
                 const tLabel = record.tokenType === 1 ? 'USDCx' : record.tokenType === 2 ? 'USAD' : 'ALEO';
-                const market = allMarkets.find((m) => m.id === record.marketId);
-                const reserves = market?.reserves ?? [1_000_000, 1_000_000];
-                const { tokensOut } = estimateSellTokensOut(reserves, record.outcome - 1, record.quantity);
-                const net = calculateFees(tokensOut).amountAfterFee;
+                // Resolved market = 1:1 redemption, show share quantity as payout
                 return (
                   <div key={idx} className="flex items-center justify-between">
                     <span className="text-xs text-accent-green/80">
-                      {formatAleo(record.quantity)} shares → ~{formatAleo(net)} {tLabel}
+                      {formatAleo(record.quantity)} shares → {formatAleo(record.quantity)} {tLabel}
                     </span>
                     <Button
                       variant="primary"
@@ -450,7 +498,51 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
               })}
             </div>
           )}
-          {userBet.won && claimableShares.length === 0 && (
+          {userBet.won && claimableShares.length === 0 && !isOnChainSettled && (
+            <div className="mt-1 space-y-2">
+              {winningSharesForSell.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-gray-400 font-heading">Choose how to collect:</p>
+                  {winningSharesForSell.map((record, idx) => {
+                    const tLabel = record.tokenType === 1 ? 'USDCx' : record.tokenType === 2 ? 'USAD' : 'ALEO';
+                    const outcomeIdx = record.outcome - 1;
+                    const { tokensOut } = estimateSellTokensOut(liveReserves, outcomeIdx, record.quantity);
+                    const afterFee = calculateFees(tokensOut).amountAfterFee;
+                    return (
+                      <div key={idx} className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-teal/80">
+                            Sell now: ~{formatAleo(afterFee)} {tLabel}
+                          </span>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleSellAMM(record)}
+                            loading={claiming || txStatus === 'proving' || txStatus === 'broadcasting'}
+                            className="!text-xs !py-1 !px-3"
+                          >
+                            💸 Sell Now
+                          </Button>
+                        </div>
+                        <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                          <span className="text-xs text-accent-green/70">
+                            Full claim: {formatAleo(record.quantity)} {tLabel}
+                          </span>
+                          <span className="text-[10px] text-gray-500 font-heading">⏳ Resolving soon</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {winningSharesForSell.length === 0 && (
+                <p className="text-xs text-amber-400/70">
+                  ⏳ Waiting for shares — check Portfolio to sell
+                </p>
+              )}
+            </div>
+          )}
+          {userBet.won && claimableShares.length === 0 && isOnChainSettled && (
             <p className="text-xs text-accent-green/80 mt-1">
               ✓ Shares already claimed or go to Portfolio to sell
             </p>

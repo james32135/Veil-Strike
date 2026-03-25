@@ -45,10 +45,12 @@ export default function Portfolio() {
 
     let tx;
     const tokenTypeStr = record.tokenType === 1 ? 'USDCX' : record.tokenType === 2 ? 'USAD' : undefined;
+
     if (isResolved) {
+      // Market resolved on-chain — redeem at full value via harvest_winnings (1:1)
       tx = buildRedeemSharesTx(record.plaintext, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
     } else {
-      // Active market: sell through AMM (subject to pricing + fees)
+      // Not yet resolved — sell through AMM (partial value, but user gets funds now)
       const reserves = market?.reserves ?? [1_000_000, 1_000_000];
       const outcomeIdx = record.outcome - 1;
       const { tokensOut } = estimateSellTokensOut(reserves, outcomeIdx, record.quantity);
@@ -185,7 +187,8 @@ export default function Portfolio() {
                 const isLightningWin = !isResolved && market?.isLightning && lightningBets.some(
                   (b) => b.won && b.direction === (record.outcome === 1 ? 'up' : 'down')
                 );
-                const isClaimable = isResolved || isLightningWin;
+                const isLightningSettling = isLightningWin && !isResolved;
+                const isClaimable = isResolved;
 
                 return (
                   <motion.div
@@ -224,7 +227,7 @@ export default function Portfolio() {
                           loading={txStatus === 'proving' || txStatus === 'broadcasting'}
                           className={`!text-xs !rounded-xl ${isClaimable ? '!bg-gradient-to-r !from-accent-green/20 !to-accent-green/10 !text-accent-green !border !border-accent-green/20 hover:!shadow-[0_0_16px_-4px_rgba(34,197,94,0.3)]' : ''}`}
                         >
-                          {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : isClaimable ? '💰 Claim' : 'Sell Shares'}
+                          {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : isClaimable ? '💰 Claim' : isLightningSettling ? 'Sell (AMM)' : 'Sell Shares'}
                         </Button>
                       </div>
                     </Card>

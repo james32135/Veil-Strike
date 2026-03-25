@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getLightningRounds } from '../services/oracle';
-import { getActiveLightningRounds, settleLightningRounds, getMarketAssignments, notifyBet, adminResolveMarket, getActiveMarkets } from '../services/lightning-manager';
+import { getActiveLightningRounds, settleLightningRounds, getMarketAssignments, notifyBet, adminResolveMarket, getActiveMarkets, adminCreateReplacement } from '../services/lightning-manager';
 
 const router = Router();
 
@@ -94,6 +94,27 @@ router.post('/admin/resolve', async (req, res) => {
     });
   } else {
     res.status(500).json({ status: 'error', message: result.error || 'Resolution failed' });
+  }
+});
+
+// POST /admin/create-replacement — Create a replacement lightning market after wallet-based resolve
+// Body: { marketId: string, tokenType?: 'ALEO'|'USDCX'|'USAD' }
+router.post('/admin/create-replacement', async (req, res) => {
+  const { marketId, tokenType } = req.body;
+
+  if (!marketId || typeof marketId !== 'string') {
+    res.status(400).json({ status: 'error', message: 'marketId required' });
+    return;
+  }
+
+  const validTokenTypes = ['ALEO', 'USDCX', 'USAD'];
+  const token = validTokenTypes.includes(tokenType) ? tokenType : 'ALEO';
+
+  const txId = await adminCreateReplacement(marketId, token);
+  if (txId) {
+    res.json({ status: 'ok', txId, message: 'Replacement market creating — rounds will resume after indexing.' });
+  } else {
+    res.json({ status: 'ok', txId: null, message: 'Replacement not created (no resolver key or asset not found). Create manually.' });
   }
 });
 

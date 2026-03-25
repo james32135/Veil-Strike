@@ -27,8 +27,9 @@ export default function Portfolio() {
   const [activeTab, setActiveTab] = useState<'shares' | 'trades' | 'lightning'>('shares');
 
   useEffect(() => {
-    if (markets.length === 0) fetchMarkets();
-  }, [markets.length, fetchMarkets]);
+    // Always refresh markets on mount to catch recent resolves (e.g. admin flash_settle)
+    fetchMarkets();
+  }, [fetchMarkets]);
 
   const loadShareRecords = useCallback(async () => {
     const records = await fetchShareRecords();
@@ -184,8 +185,9 @@ export default function Portfolio() {
                 const outcomeLabel = record.outcome === 1 ? 'UP / YES' : 'DOWN / NO';
 
                 // Detect lightning winning position — user won even if on-chain market not yet resolved
+                // Must match by marketId to avoid false positives from other markets
                 const isLightningWin = !isResolved && market?.isLightning && lightningBets.some(
-                  (b) => b.won && b.direction === (record.outcome === 1 ? 'up' : 'down')
+                  (b) => b.won && b.marketId === record.marketId && b.direction === (record.outcome === 1 ? 'up' : 'down')
                 );
                 const isLightningSettling = isLightningWin && !isResolved;
                 const isClaimable = isResolved;

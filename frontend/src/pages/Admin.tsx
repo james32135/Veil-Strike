@@ -53,8 +53,9 @@ export default function Admin() {
   const isDeployer = connected && address === DEPLOYER;
 
   // Show all active markets (lightning and non-lightning)
+  // Filter out locally-resolved markets so they move to the resolved section immediately
   const activeMarkets: AdminMarket[] = markets
-    .filter((m) => m.status === 'active' || m.status === 'closed')
+    .filter((m) => (m.status === 'active' || m.status === 'closed') && !resolvedIds.has(m.id))
     .map((m) => ({
       id: m.id,
       question: m.question,
@@ -65,13 +66,22 @@ export default function Admin() {
       reserves: m.reserves,
     }));
 
-  const resolvedMarkets = markets.filter((m) => m.status === 'resolved');
+  const resolvedMarkets = markets.filter((m) => m.status === 'resolved' || resolvedIds.has(m.id));
 
   const handleResolve = async (marketId: string, winningOutcome: number, tokenType: string) => {
     setConfirm(null);
+    const isLightning = markets.find((m) => m.id === marketId)?.isLightning;
     const tx = buildFlashSettleTx(marketId, winningOutcome, (tokenType || 'ALEO') as TokenType);
     const txId = await execute(tx, () => {
       setResolvedIds((prev) => new Set(prev).add(marketId));
+      // If lightning market, trigger backend to create a replacement market
+      if (isLightning) {
+        fetch(`${API_BASE}/lightning/admin/create-replacement`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marketId, tokenType: tokenType || 'ALEO' }),
+        }).catch(() => {});
+      }
       // Refresh markets after a delay to pick up new status
       setTimeout(handleRefresh, 10_000);
     });

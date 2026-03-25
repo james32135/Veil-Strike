@@ -399,6 +399,53 @@ async function createReplacementMarket(
 }
 
 /**
+ * Create a replacement lightning market for a given resolved marketId.
+ * Called by the admin route after wallet-based flash_settle.
+ * Determines asset from the market's question text in the registry.
+ */
+export async function adminCreateReplacement(
+  marketId: string,
+  tokenType: 'ALEO' | 'USDCX' | 'USAD' = 'ALEO',
+): Promise<string | null> {
+  // Determine asset from active rounds or market cache
+  let asset: 'BTC' | 'ETH' | 'ALEO' | null = null;
+
+  // Check active rounds first
+  for (const [, round] of activeRounds) {
+    if (round.marketId === marketId) {
+      asset = round.asset;
+      break;
+    }
+  }
+
+  // Fallback: check market cache
+  if (!asset) {
+    const markets = getCachedMarkets();
+    const market = markets.find((m) => m.id === marketId);
+    if (market) {
+      const q = market.question.toUpperCase();
+      if (q.includes('BTC') || q.includes('BITCOIN')) asset = 'BTC';
+      else if (q.includes('ETH') || q.includes('ETHEREUM')) asset = 'ETH';
+      else if (q.includes('ALEO')) asset = 'ALEO';
+    }
+  }
+
+  if (!asset) {
+    console.error(`[LightningMgr] Cannot determine asset for market ${marketId.slice(0, 20)}...`);
+    return null;
+  }
+
+  // Mark rounds using this market as on-chain resolved
+  for (const [, round] of activeRounds) {
+    if (round.marketId === marketId) {
+      round.onChainResolved = true;
+    }
+  }
+
+  return createReplacementMarket(asset, tokenType);
+}
+
+/**
  * Get all unique markets currently in use for admin dashboard.
  */
 export function getActiveMarkets(): Array<{

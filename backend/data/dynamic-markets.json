@@ -191,5 +191,25 @@
     ],
     "isLightning": true,
     "tokenType": "ALEO"
+  },
+  "762659868039838004017055953564678764266804081050570088661599110361700449548field": {
+    "questionHash": "42672309535286408912622305301282640672field",
+    "question": "BTC 24 Hours Strike Round",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "tokenType": "ALEO"
+  },
+  "4570849425022937286554126995135948492088410866112110499221723626808245859193field": {
+    "questionHash": "42672309535286408912622305301282640672field",
+    "question": "BTC 24 Hours Strike Round",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "tokenType": "ALEO"
   }
 }

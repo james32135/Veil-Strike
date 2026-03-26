@@ -7,7 +7,7 @@ import WalletButton from './WalletButton';
 const navLinks = [
   { path: '/', label: 'Home' },
   { path: '/markets', label: 'Markets' },
-  { path: '/lightning', label: 'Lightning' },
+  { path: '/rounds', label: 'Rounds' },
   { path: '/portfolio', label: 'Portfolio' },
   { path: '/create', label: 'Create' },
   { path: '/governance', label: 'Govern' },

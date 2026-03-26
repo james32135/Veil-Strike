@@ -9,7 +9,7 @@ export default function CreateMarket() {
 
   const tabs = [
     { id: 'event', label: 'Event Market' },
-    { id: 'lightning', label: '⚡ Lightning Market' },
+    { id: 'lightning', label: '⚡ Strike Round' },
   ];
 
   return (

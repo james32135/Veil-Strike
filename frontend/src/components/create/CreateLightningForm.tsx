@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTransaction } from '@/hooks/useTransaction';
 import { buildCreateMarketTx, buildCreateMarketStableTx, generateNonce } from '@/utils/transactions';
 import { registerMarketFromTx } from '@/utils/marketRegistration';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { parseAleoInput } from '@/utils/format';
-import { LIGHTNING_DURATIONS } from '@/constants';
+import { STRIKE_ROUND_DURATIONS, ALEO_TESTNET_API } from '@/constants';
 import { useWalletStore } from '@/stores/walletStore';
 import { useMarketStore } from '@/stores/marketStore';
 import Button from '@/components/shared/Button';
@@ -18,13 +18,26 @@ interface CreateLightningFormProps {
 
 export default function CreateLightningForm({ onSuccess }: CreateLightningFormProps) {
   const [asset, setAsset] = useState<'btc' | 'eth' | 'aleo'>('btc');
-  const [direction, setDirection] = useState<'up' | 'down'>('up');
-  const [duration, setDuration] = useState<typeof LIGHTNING_DURATIONS[number]>(LIGHTNING_DURATIONS[0]);
+  const [duration, setDuration] = useState<typeof STRIKE_ROUND_DURATIONS[number]>(STRIKE_ROUND_DURATIONS[0]);
   const [initialLiquidity, setInitialLiquidity] = useState('5');
   const [tokenType, setTokenType] = useState<'ALEO' | 'USDCX' | 'USAD'>('ALEO');
   const { status, execute, fetchUsdcxRecord } = useTransaction();
   const walletAddress = useWalletStore((s) => s.address);
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
+  const [currentBlock, setCurrentBlock] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchHeight = async () => {
+      try {
+        const res = await fetch(`${ALEO_TESTNET_API}/latest/height`);
+        if (res.ok) {
+          const h = await res.json();
+          setCurrentBlock(typeof h === 'number' ? h : parseInt(h, 10));
+        }
+      } catch { /* will retry on create */ }
+    };
+    fetchHeight();
+  }, []);
 
   const assetLabels: Record<string, string> = {
     btc: 'Bitcoin (BTC)',
@@ -38,12 +51,25 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
     const liquidityMicro = parseAleoInput(initialLiquidity);
     if (liquidityMicro < 1_000_000) return;
 
+    // Fetch latest block height if not already loaded
+    let block = currentBlock;
+    if (!block) {
+      try {
+        const res = await fetch(`${ALEO_TESTNET_API}/latest/height`);
+        if (res.ok) {
+          const h = await res.json();
+          block = typeof h === 'number' ? h : parseInt(h, 10);
+          setCurrentBlock(block);
+        }
+      } catch { /* fall through */ }
+    }
+    if (!block) return; // can't create without real block height
+
     const nonce = generateNonce();
-    const question = `${asset.toUpperCase()} Lightning Round`;
+    const question = `${asset.toUpperCase()} ${duration.label} Strike Round`;
     const questionHash = `${BigInt(Array.from(new TextEncoder().encode(question)).reduce((h, b) => h * 31n + BigInt(b), 0n)) % BigInt('0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001')}field`;
-    const currentBlock = Math.floor(Date.now() / 15000) + 15044000;
-    const deadline = `${currentBlock + 1_000_000}u32`;
-    const resolutionDeadline = `${currentBlock + 1_000_000 + 2880}u32`;
+    const deadline = `${block + duration.blocks}u32`;
+    const resolutionDeadline = `${block + duration.blocks + 2880}u32`;
     const resolver = walletAddress || '';
 
     let tx;
@@ -104,10 +130,10 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
       <Card className="p-4 border-amber-400/10">
         <div className="flex items-center gap-2 mb-2">
           <BoltIcon className="w-4 h-4 text-amber-400" />
-          <span className="text-xs text-amber-400 font-heading">Lightning Market</span>
+          <span className="text-xs text-amber-400 font-heading">Strike Round</span>
         </div>
         <p className="text-sm text-white font-heading">
-          Will {assetLabels[asset]} price go {direction} in the next {duration.label}?
+          Will {assetLabels[asset]} price go UP or DOWN in {duration.label}?
         </p>
       </Card>
 
@@ -139,7 +165,7 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
           Duration
         </label>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {LIGHTNING_DURATIONS.map((d) => (
+          {STRIKE_ROUND_DURATIONS.map((d) => (
             <button
               key={d.seconds}
               onClick={() => setDuration(d)}
@@ -152,39 +178,6 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
               {d.label}
             </button>
           ))}
-        </div>
-      </div>
-
-      {/* Direction */}
-      <div>
-        <label className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-1.5 block">
-          Direction
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setDirection('up')}
-            className={`py-4 rounded-xl border-2 text-center transition-all ${
-              direction === 'up'
-                ? 'border-accent-green bg-accent-green/10'
-                : 'border-dark-400/50 hover:border-dark-400'
-            }`}
-          >
-            <p className={`text-lg font-heading font-bold ${
-              direction === 'up' ? 'text-accent-green' : 'text-gray-500'
-            }`}>↑ UP</p>
-          </button>
-          <button
-            onClick={() => setDirection('down')}
-            className={`py-4 rounded-xl border-2 text-center transition-all ${
-              direction === 'down'
-                ? 'border-accent-red bg-accent-red/10'
-                : 'border-dark-400/50 hover:border-dark-400'
-            }`}
-          >
-            <p className={`text-lg font-heading font-bold ${
-              direction === 'down' ? 'text-accent-red' : 'text-gray-500'
-            }`}>↓ DOWN</p>
-          </button>
         </div>
       </div>
 
@@ -213,7 +206,7 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
       >
         {status === 'proving' ? 'Generating ZK Proof...' :
          status === 'broadcasting' ? 'Broadcasting...' :
-         '⚡ Create Lightning Market'}
+         '⚡ Create Strike Round'}
       </Button>
     </div>
   );

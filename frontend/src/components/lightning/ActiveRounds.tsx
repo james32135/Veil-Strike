@@ -12,54 +12,31 @@ import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { estimateBuySharesExact, estimateSellTokensOut, calculateFees } from '@/utils/fpmm';
 import { formatUSD, formatAleo } from '@/utils/format';
 import { useMarketStore } from '@/stores/marketStore';
+import { useOracleStore } from '@/stores/oracleStore';
 import { useTradeStore } from '@/stores/tradeStore';
 import { useLightningBetStore } from '@/stores/lightningBetStore';
 import { API_BASE } from '@/constants';
+import type { Market } from '@/types';
 
-// Asset matching terms for dynamic market detection (fallback when API doesn't return market assignments)
-const ASSET_TERMS: Record<string, string[]> = {
-  BTC: ['BTC', 'BITCOIN'],
-  ETH: ['ETH', 'ETHEREUM'],
-  ALEO: ['ALEO'],
-};
-
-function matchesAsset(question: string, asset: string): boolean {
+// Detect asset from market question text
+function detectAsset(question: string): 'BTC' | 'ETH' | 'ALEO' {
   const upper = question.toUpperCase();
-  return (ASSET_TERMS[asset] || [asset]).some((term) => upper.includes(term));
+  if (upper.includes('BTC') || upper.includes('BITCOIN')) return 'BTC';
+  if (upper.includes('ETH') || upper.includes('ETHEREUM')) return 'ETH';
+  return 'ALEO';
 }
 
-/** Fallback: find the best lightning market for a given asset+token from the store. */
-function findLightningMarket(
-  markets: { id: string; tokenType?: string; isLightning: boolean; outcomes: string[]; question: string; totalLiquidity: number }[],
-  asset: string,
-  token: 'ALEO' | 'USDCX' | 'USAD',
-) {
-  return markets
-    .filter((m) => m.isLightning && m.tokenType === token && m.outcomes.length === 2 && matchesAsset(m.question, asset))
-    .sort((a, b) => a.totalLiquidity - b.totalLiquidity)[0] ?? null;
+// Detect duration label from question text
+function detectDuration(question: string): string {
+  const q = question.toLowerCase();
+  if (q.includes('30 day')) return '30 Days';
+  if (q.includes('7 day')) return '7 Days';
+  if (q.includes('2 day') || q.includes('48')) return '2 Days';
+  if (q.includes('24 hour')) return '24 Hours';
+  return '';
 }
 
 type TokenType = 'aleo' | 'usdcx' | 'usad';
-
-interface MarketAssignment {
-  marketId: string;
-  onChainStatus: string;
-}
-
-interface LightningRound {
-  id: string;
-  asset: 'BTC' | 'ETH' | 'ALEO';
-  tokenType?: string;
-  startTime: number;
-  lockTime: number;
-  endTime: number;
-  startPrice: number;
-  lockPrice: number | null;
-  endPrice: number | null;
-  status: 'open' | 'locked' | 'resolved';
-  result: 'up' | 'down' | null;
-  markets?: Record<string, MarketAssignment>; // keyed by token lowercase: aleo, usdcx, usad
-}
 
 function useCountdownSeconds(targetTime: number) {
   const [seconds, setSeconds] = useState(0);
@@ -72,85 +49,59 @@ function useCountdownSeconds(targetTime: number) {
   return seconds;
 }
 
-function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; shareRecords: ShareRecord[]; onClaimed: () => void }) {
-  const secondsLeft = useCountdownSeconds(round.endTime);
-  const minutes = Math.floor(secondsLeft / 60);
+function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; shareRecords: ShareRecord[]; onClaimed: () => void }) {
+  const asset = detectAsset(market.question);
+  const durationLabel = detectDuration(market.question);
+  const secondsLeft = useCountdownSeconds(market.endTime);
+  const days = Math.floor(secondsLeft / 86400);
+  const hours = Math.floor((secondsLeft % 86400) / 3600);
+  const minutes = Math.floor((secondsLeft % 3600) / 60);
   const secs = secondsLeft % 60;
+  const countdownLabel = days > 0
+    ? `${days}d ${hours}h ${minutes}m`
+    : hours > 0
+      ? `${hours}h ${minutes}m ${secs.toString().padStart(2, '0')}s`
+      : `${minutes}:${secs.toString().padStart(2, '0')}`;
+
+  const isExpired = secondsLeft === 0 && market.status === 'active';
+  const isResolved = market.status === 'resolved';
+
   const { status: txStatus, execute, fetchCreditsRecord, fetchUsdcxRecord } = useTransaction();
   const [betAmount, setBetAmount] = useState('1');
-  const roundToken = (round.tokenType || 'ALEO').toLowerCase() as TokenType;
-  const [tokenType, setTokenType] = useState<TokenType>(roundToken);
+  const marketToken = (market.tokenType || 'ALEO').toLowerCase() as TokenType;
+  const [tokenType] = useState<TokenType>(marketToken);
   const [claiming, setClaiming] = useState(false);
 
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
-  const allMarkets = useMarketStore((s) => s.markets);
+  const oraclePrices = useOracleStore((s) => s.prices);
   const addTrade = useTradeStore((s) => s.addTrade);
   const addBet = useLightningBetStore((s) => s.addBet);
   const allBets = useLightningBetStore((s) => s.bets);
-  const roundBets = allBets.filter((b) => b.roundId === round.id);
+  const roundBets = allBets.filter((b) => b.marketId === market.id);
 
-  // Use per-round market IDs from the API, with fallback to store search
-  const aleoAssignment = round.markets?.aleo;
-  const usdcxAssignment = round.markets?.usdcx;
-  const usadAssignment = round.markets?.usad;
-
-  // Fallback: find from market store if API doesn't have assignments
-  const aleoFallback = !aleoAssignment ? findLightningMarket(allMarkets, round.asset, 'ALEO') : null;
-  const usdcxFallback = !usdcxAssignment ? findLightningMarket(allMarkets, round.asset, 'USDCX') : null;
-  const usadFallback = !usadAssignment ? findLightningMarket(allMarkets, round.asset, 'USAD') : null;
-
-  const getMarketId = (tok: TokenType): string | undefined => {
-    if (tok === 'usdcx') return usdcxAssignment?.marketId || usdcxFallback?.id;
-    if (tok === 'usad') return usadAssignment?.marketId || usadFallback?.id;
-    return aleoAssignment?.marketId || aleoFallback?.id;
-  };
-  const chainMarketId = getMarketId(tokenType);
-  const currentOnChainStatus = tokenType === 'usdcx' ? usdcxAssignment?.onChainStatus : tokenType === 'usad' ? usadAssignment?.onChainStatus : aleoAssignment?.onChainStatus;
-  const hasUsdcxMarket = !!(usdcxAssignment || usdcxFallback);
-  const hasUsadMarket = !!(usadAssignment || usadFallback);
-  const hasStableMarket = hasUsdcxMarket || hasUsadMarket;
-  const liveMarket = allMarkets.find((m) => m.id === chainMarketId);
-  const liveReserves = liveMarket?.reserves ?? [1_000_000, 1_000_000];
-
+  const liveReserves = market.reserves ?? [1_000_000, 1_000_000];
   const tokenLabel = tokenType === 'usdcx' ? 'USDCx' : tokenType === 'usad' ? 'USAD' : 'ALEO';
 
-  const userBet = roundBets[0]; // Most recent bet for this round
+  // Oracle price for the asset
+  const currentPrice = oraclePrices[asset.toLowerCase() as 'btc' | 'eth' | 'aleo'] || 0;
 
-  // Find claimable shares for this round's market + winning outcome
-  // Only allow claiming after round is resolved and the on-chain market is settled
-  const winningOutcomeOnChain = round.result === 'up' ? 1 : (round.result === 'down' ? 2 : 0);
-  const roundMarketIds = [
-    aleoAssignment?.marketId || aleoFallback?.id,
-    usdcxAssignment?.marketId || usdcxFallback?.id,
-    usadAssignment?.marketId || usadFallback?.id,
-  ].filter(Boolean) as string[];
-  const isOnChainSettled = currentOnChainStatus === 'settled';
-  const claimableShares = round.status === 'resolved' && winningOutcomeOnChain > 0 && isOnChainSettled
-    ? shareRecords.filter(
-        (r) => roundMarketIds.includes(r.marketId) && r.outcome === winningOutcomeOnChain
-      )
+  const userBet = roundBets[0];
+
+  // Claimable shares: market is resolved and user has winning shares
+  const winningOutcome = market.resolvedOutcome !== undefined ? market.resolvedOutcome + 1 : 0;
+  const claimableShares = isResolved && winningOutcome > 0
+    ? shareRecords.filter((r) => r.marketId === market.id && r.outcome === winningOutcome)
     : [];
 
-  // Winning shares available for AMM sell (always available, primary exit path)
-  const winningSharesForSell = round.status === 'resolved' && winningOutcomeOnChain > 0
-    ? shareRecords.filter(
-        (r) => roundMarketIds.includes(r.marketId) && r.outcome === winningOutcomeOnChain && !isOnChainSettled
-      )
+  // Shares available for AMM sell (when market is expired but not yet resolved on-chain)
+  const sellableShares = isExpired && !isResolved
+    ? shareRecords.filter((r) => r.marketId === market.id)
     : [];
 
   const handleClaim = async (record: ShareRecord) => {
     setClaiming(true);
     try {
-      const market = allMarkets.find((m) => m.id === record.marketId);
-      const isResolved = market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1;
       const tokenTypeStr = record.tokenType === 1 ? 'USDCX' : record.tokenType === 2 ? 'USAD' : undefined;
-
-      if (!isResolved) {
-        console.log('Market not yet settled on-chain, cannot claim yet');
-        return;
-      }
-
-      // Market resolved on-chain — redeem at full value via harvest_winnings (1:1)
       const tx = buildRedeemSharesTx(record.plaintext, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
       await execute(tx, onClaimed);
     } finally {
@@ -158,7 +109,6 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
     }
   };
 
-  // Fallback: sell shares via AMM (partial value) when on-chain settlement is slow
   const handleSellAMM = async (record: ShareRecord) => {
     setClaiming(true);
     try {
@@ -175,7 +125,7 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
 
   const handleBet = async (direction: 'up' | 'down') => {
     const amountMicro = Math.floor(parseFloat(betAmount) * 1_000_000);
-    if (amountMicro < 1000 || !chainMarketId) return;
+    if (amountMicro < 1000) return;
     const outcome = direction === 'up' ? 0 : 1;
     const exactShares = estimateBuySharesExact(liveReserves, outcome, amountMicro);
     if (exactShares <= 0n) return;
@@ -190,18 +140,15 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
       const proofs = await getUsdcxProofs(stableType);
       tx = buildBuySharesStableTx(
         stableType,
-        chainMarketId, outcome,
+        market.id, outcome,
         `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce,
         tokenRecord, proofs
       );
     } else {
-      // Fetch a credits record from the wallet for the 7th input
       const record = await fetchCreditsRecord(amountMicro);
-      if (!record) {
-        return; // notification handled inside fetchCreditsRecord or user has no records
-      }
+      if (!record) return;
       tx = buildBuySharesPrivateTx(
-        chainMarketId, outcome,
+        market.id, outcome,
         `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce,
         record
       );
@@ -209,31 +156,19 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
     const refreshChain = () => fetch(`${API_BASE}/markets/refresh`, { method: 'POST' }).then(() => fetchMarkets()).catch(() => fetchMarkets());
     const txId = await execute(tx, refreshChain);
     if (txId) {
-      // Notify backend that this round has a bet (triggers settlement scheduling)
-      const parts = round.id.split('-');
-      const roundTs = parts[1];
-      const tokenUpper = tokenType.toUpperCase();
-      const notifyRoundId = `${round.asset}-${tokenUpper}-${roundTs}`;
-      fetch(`${API_BASE}/lightning/notify-bet`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roundId: notifyRoundId }),
-      }).catch(() => {});
-
       addBet({
-        roundId: round.id,
-        marketId: chainMarketId,
-        asset: round.asset,
+        roundId: market.id,
+        marketId: market.id,
+        asset,
         direction,
         amount: amountMicro,
         shares: Number(exactShares),
         timestamp: Date.now(),
-        startPrice: round.startPrice,
+        startPrice: currentPrice,
         tokenType,
       });
-
       addTrade({
-        marketId: chainMarketId,
+        marketId: market.id,
         type: 'buy',
         outcome: direction === 'up' ? 'Up' : 'Down',
         amount: amountMicro,
@@ -245,29 +180,27 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
     }
   };
 
-  const priceChange = round.endPrice && round.startPrice
-    ? ((round.endPrice - round.startPrice) / round.startPrice) * 100
-    : null;
-
-  const assetColors = {
+  const assetColors: Record<string, string> = {
     BTC: 'text-amber-400',
     ETH: 'text-blue-400',
     ALEO: 'text-teal',
   };
 
+  const cardStatus = isResolved ? 'resolved' : isExpired ? 'expired' : 'active';
+
   return (
     <Card className="p-0 relative overflow-hidden group/card">
-      {/* Animated top accent bar */}
+      {/* Top accent bar */}
       <div className={`relative h-1 overflow-hidden ${
-        round.status === 'resolved'
-          ? round.result === 'up' ? 'bg-accent-green/30' : 'bg-accent-red/30'
+        isResolved
+          ? market.resolvedOutcome === 0 ? 'bg-accent-green/30' : 'bg-accent-red/30'
           : 'bg-gradient-to-r from-amber-400/20 via-amber-500/30 to-orange-500/20'
       }`}>
         <div className={`absolute inset-0 ${
-          round.status === 'resolved'
-            ? round.result === 'up' ? 'bg-accent-green' : 'bg-accent-red'
+          isResolved
+            ? market.resolvedOutcome === 0 ? 'bg-accent-green' : 'bg-accent-red'
             : 'bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500'
-        } ${round.status === 'open' ? 'animate-pulse' : ''}`} style={{ width: round.status === 'open' ? `${Math.max(10, (secondsLeft / 300) * 100)}%` : '100%' }} />
+        } ${cardStatus === 'active' ? 'animate-pulse' : ''}`} style={{ width: '100%' }} />
       </div>
 
       <div className="p-5">
@@ -276,284 +209,190 @@ function RoundCard({ round, shareRecords, onClaimed }: { round: LightningRound; 
           <div className="flex items-center gap-2.5">
             <div className="relative">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400/10 to-amber-600/5 border border-amber-400/15 flex items-center justify-center">
-                <CryptoIcon symbol={round.asset} size={20} />
+                <CryptoIcon symbol={asset} size={20} />
               </div>
               <BoltIcon className="w-3 h-3 text-amber-400 absolute -bottom-0.5 -right-0.5 drop-shadow-[0_0_4px_rgba(251,191,36,0.5)]" />
             </div>
             <div>
-              <span className={`text-sm font-heading font-bold ${assetColors[round.asset]}`}>
-                {round.asset}
+              <span className={`text-sm font-heading font-bold ${assetColors[asset]}`}>
+                {asset} {durationLabel && <span className="text-gray-500 font-normal text-xs ml-1">{durationLabel}</span>}
               </span>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <Badge variant={round.status === 'open' ? 'success' : round.status === 'locked' ? 'warning' : 'gray'} size="sm">
-                  {round.status === 'open' ? 'LIVE' : round.status === 'locked' ? 'LOCKED' : 'ENDED'}
+                <Badge variant={cardStatus === 'active' ? 'success' : cardStatus === 'expired' ? 'warning' : 'gray'} size="sm">
+                  {cardStatus === 'active' ? 'LIVE' : cardStatus === 'expired' ? 'AWAITING RESOLVE' : 'RESOLVED'}
                 </Badge>
+                {market.tokenType && market.tokenType !== 'ALEO' && (
+                  <Badge variant="gray" size="sm">{market.tokenType}</Badge>
+                )}
               </div>
             </div>
           </div>
-          {round.status !== 'resolved' && (
-            <div className={`px-3 py-1.5 rounded-xl border ${secondsLeft < 60 ? 'border-accent-red/20 bg-accent-red/5' : 'border-white/[0.06] bg-white/[0.02]'}`}>
-              <span className={`text-xs font-mono font-bold tabular-nums ${secondsLeft < 60 ? 'text-accent-red animate-pulse' : 'text-gray-300'}`}>
-                {minutes}:{secs.toString().padStart(2, '0')}
+          {cardStatus === 'active' && (
+            <div className={`px-3 py-1.5 rounded-xl border ${secondsLeft < 3600 ? 'border-accent-red/20 bg-accent-red/5' : 'border-white/[0.06] bg-white/[0.02]'}`}>
+              <span className={`text-xs font-mono font-bold tabular-nums ${secondsLeft < 3600 ? 'text-accent-red animate-pulse' : 'text-gray-300'}`}>
+                {countdownLabel}
               </span>
             </div>
           )}
         </div>
 
-        {/* Price Section */}
+        {/* Current Price */}
         <div className="grid grid-cols-1 gap-2 mb-4">
           <div className="px-3 py-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-            <div className="text-[10px] text-gray-500 uppercase tracking-wider font-heading mb-0.5">Start Price</div>
+            <div className="text-[10px] text-gray-500 uppercase tracking-wider font-heading mb-0.5">Current Price</div>
             <div className="text-lg font-mono font-bold text-white tabular-nums">
-              {round.asset === 'ALEO' ? `$${round.startPrice.toFixed(4)}` : formatUSD(round.startPrice)}
+              {asset === 'ALEO' ? `$${currentPrice.toFixed(4)}` : formatUSD(currentPrice)}
             </div>
           </div>
+        </div>
 
-          {round.status === 'resolved' && round.endPrice && (
-            <div className={`px-3 py-2.5 rounded-xl border ${
-              round.result === 'up' ? 'bg-accent-green/[0.04] border-accent-green/10' : 'bg-accent-red/[0.04] border-accent-red/10'
-            }`}>
-              <div className="text-[10px] text-gray-500 uppercase tracking-wider font-heading mb-0.5">End Price</div>
-              <div className={`text-lg font-mono font-bold tabular-nums ${
-                round.result === 'up' ? 'text-accent-green' : 'text-accent-red'
-              }`}>
-                {round.asset === 'ALEO' ? `$${round.endPrice.toFixed(4)}` : formatUSD(round.endPrice)}
-                <span className="text-xs ml-2 font-normal">
-                  ({priceChange !== null ? `${priceChange >= 0 ? '+' : ''}${priceChange.toFixed(3)}%` : ''})
-                </span>
+        {/* Pool info */}
+        <div className="flex items-center justify-between text-xs text-gray-500 mb-4 px-1">
+          <span>Pool: {formatAleo(market.totalLiquidity)} {tokenLabel}</span>
+          <span>Trades: {market.tradeCount}</span>
+        </div>
+
+        {/* Betting UI — only when active and user hasn't bet */}
+        {cardStatus === 'active' && !userBet && (
+          <>
+            <div className="mb-4">
+              <label className="text-[10px] text-gray-500 uppercase tracking-wider font-heading mb-1.5 block">Amount ({tokenLabel})</label>
+              <div className="flex gap-1.5">
+                {['1', '5', '10', '25'].map((val) => (
+                  <button
+                    key={val}
+                    onClick={() => setBetAmount(val)}
+                    className={`flex-1 py-2 text-xs font-mono font-medium rounded-xl border transition-all duration-300 ${
+                      betAmount === val
+                        ? 'border-teal/30 bg-teal/10 text-teal shadow-[0_0_10px_-4px_rgba(255,107,53,0.15)]'
+                        : 'border-white/[0.04] bg-white/[0.01] text-gray-500 hover:text-gray-300 hover:border-white/[0.08]'
+                    }`}
+                  >
+                    {val}
+                  </button>
+                ))}
               </div>
             </div>
-          )}
-        </div>
 
-      {round.status === 'open' && !userBet && (
-        <>
-          <div className="mb-4">
-            {/* Token Selector */}
-            {hasStableMarket && (
-            <div className="mb-3">
-              <label className="text-[10px] text-gray-500 uppercase tracking-wider font-heading mb-1.5 block">Token</label>
-              <div className="flex gap-1.5 p-1 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-                <button
-                  onClick={() => setTokenType('aleo')}
-                  className={`flex items-center justify-center gap-1.5 flex-1 py-1.5 text-xs font-medium rounded-lg transition-all duration-300 ${
-                    tokenType === 'aleo'
-                      ? 'bg-teal/15 text-teal border border-teal/20 shadow-[0_0_12px_-4px_rgba(255,107,53,0.2)]'
-                      : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02] border border-transparent'
-                  }`}
-                >
-                  <CryptoIcon symbol="ALEO" size={14} />ALEO
-                </button>
-                {hasUsdcxMarket && (
-                <button
-                  onClick={() => setTokenType('usdcx')}
-                  className={`flex items-center justify-center gap-1.5 flex-1 py-1.5 text-xs font-medium rounded-lg transition-all duration-300 ${
-                    tokenType === 'usdcx'
-                      ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20 shadow-[0_0_12px_-4px_rgba(59,130,246,0.2)]'
-                      : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02] border border-transparent'
-                  }`}
-                >
-                  <CryptoIcon symbol="USDCX" size={14} />USDCx
-                </button>
-                )}
-                {hasUsadMarket && (
-                <button
-                  onClick={() => setTokenType('usad')}
-                  className={`flex items-center justify-center gap-1.5 flex-1 py-1.5 text-xs font-medium rounded-lg transition-all duration-300 ${
-                    tokenType === 'usad'
-                      ? 'bg-purple-500/15 text-purple-400 border border-purple-500/20 shadow-[0_0_12px_-4px_rgba(168,85,247,0.2)]'
-                      : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02] border border-transparent'
-                  }`}
-                >
-                  <CryptoIcon symbol="USAD" size={14} />USAD
-                </button>
-                )}
-              </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                className="!bg-gradient-to-r !from-accent-green/20 !to-accent-green/10 !text-accent-green !border !border-accent-green/20 hover:!from-accent-green/30 hover:!to-accent-green/15 hover:!shadow-[0_0_20px_-4px_rgba(34,197,94,0.3)] !rounded-xl !transition-all !duration-300"
+                onClick={() => handleBet('up')}
+                loading={txStatus === 'proving' || txStatus === 'broadcasting'}
+              >
+                <ArrowUpIcon className="w-4 h-4 mr-1" />
+                {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : 'UP'}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                className="!bg-gradient-to-r !from-accent-red/20 !to-accent-red/10 !text-accent-red !border !border-accent-red/20 hover:!from-accent-red/30 hover:!to-accent-red/15 hover:!shadow-[0_0_20px_-4px_rgba(239,68,68,0.3)] !rounded-xl !transition-all !duration-300"
+                onClick={() => handleBet('down')}
+                loading={txStatus === 'proving' || txStatus === 'broadcasting'}
+              >
+                <ArrowDownIcon className="w-4 h-4 mr-1" />
+                {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : 'DOWN'}
+              </Button>
             </div>
-            )}
+          </>
+        )}
 
-            {/* Amount Chips */}
-            <label className="text-[10px] text-gray-500 uppercase tracking-wider font-heading mb-1.5 block">Amount ({tokenLabel})</label>
-            <div className="flex gap-1.5">
-              {['1', '5', '10', '25'].map((val) => (
-                <button
-                  key={val}
-                  onClick={() => setBetAmount(val)}
-                  className={`flex-1 py-2 text-xs font-mono font-medium rounded-xl border transition-all duration-300 ${
-                    betAmount === val
-                      ? 'border-teal/30 bg-teal/10 text-teal shadow-[0_0_10px_-4px_rgba(255,107,53,0.15)]'
-                      : 'border-white/[0.04] bg-white/[0.01] text-gray-500 hover:text-gray-300 hover:border-white/[0.08]'
-                  }`}
-                >
-                  {val}
-                </button>
-              ))}
+        {/* User's active bet */}
+        {userBet && !isResolved && (
+          <div className={`p-3.5 rounded-xl border backdrop-blur-sm ${
+            userBet.direction === 'up'
+              ? 'border-accent-green/20 bg-gradient-to-br from-accent-green/[0.06] to-accent-green/[0.02]'
+              : 'border-accent-red/20 bg-gradient-to-br from-accent-red/[0.06] to-accent-red/[0.02]'
+          }`}>
+            <div className="flex items-center justify-between text-xs mb-1.5">
+              <span className="text-gray-400 font-heading">Your Bet</span>
+              <Badge variant={userBet.direction === 'up' ? 'success' : 'danger'} size="sm">
+                {userBet.direction === 'up' ? '↑ UP' : '↓ DOWN'}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-500">Amount</span>
+              <span className="font-mono font-medium text-white">{formatAleo(userBet.amount)} {userBet.tokenType === 'usdcx' ? 'USDCx' : userBet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs mt-0.5">
+              <span className="text-gray-500">Potential Win</span>
+              <span className="font-mono text-teal">{(() => {
+                const out = userBet.direction === 'up' ? 0 : 1;
+                const { tokensOut } = estimateSellTokensOut(liveReserves, out, userBet.shares);
+                return formatAleo(calculateFees(tokensOut).amountAfterFee);
+              })()} {userBet.tokenType === 'usdcx' ? 'USDCx' : userBet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span>
             </div>
           </div>
+        )}
 
-          {/* UP / DOWN Buttons */}
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="primary"
-              size="sm"
-              className="!bg-gradient-to-r !from-accent-green/20 !to-accent-green/10 !text-accent-green !border !border-accent-green/20 hover:!from-accent-green/30 hover:!to-accent-green/15 hover:!shadow-[0_0_20px_-4px_rgba(34,197,94,0.3)] !rounded-xl !transition-all !duration-300"
-              onClick={() => handleBet('up')}
-              loading={txStatus === 'proving' || txStatus === 'broadcasting'}
-            >
-              <ArrowUpIcon className="w-4 h-4 mr-1" />
-              {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : 'UP'}
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              className="!bg-gradient-to-r !from-accent-red/20 !to-accent-red/10 !text-accent-red !border !border-accent-red/20 hover:!from-accent-red/30 hover:!to-accent-red/15 hover:!shadow-[0_0_20px_-4px_rgba(239,68,68,0.3)] !rounded-xl !transition-all !duration-300"
-              onClick={() => handleBet('down')}
-              loading={txStatus === 'proving' || txStatus === 'broadcasting'}
-            >
-              <ArrowDownIcon className="w-4 h-4 mr-1" />
-              {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : 'DOWN'}
-            </Button>
-          </div>
-        </>
-      )}
-
-      {/* Show user's active bet */}
-      {userBet && round.status !== 'resolved' && (
-        <div className={`p-3.5 rounded-xl border backdrop-blur-sm ${
-          userBet.direction === 'up'
-            ? 'border-accent-green/20 bg-gradient-to-br from-accent-green/[0.06] to-accent-green/[0.02]'
-            : 'border-accent-red/20 bg-gradient-to-br from-accent-red/[0.06] to-accent-red/[0.02]'
-        }`}>
-          <div className="flex items-center justify-between text-xs mb-1.5">
-            <span className="text-gray-400 font-heading">Your Bet</span>
-            <Badge variant={userBet.direction === 'up' ? 'success' : 'danger'} size="sm">
-              {userBet.direction === 'up' ? '↑ UP' : '↓ DOWN'}
-            </Badge>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-500">Amount</span>
-            <span className="font-mono font-medium text-white">{formatAleo(userBet.amount)} {userBet.tokenType === 'usdcx' ? 'USDCx' : userBet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span>
-          </div>
-          <div className="flex items-center justify-between text-xs mt-0.5">
-            <span className="text-gray-500">Potential Win</span>
-            <span className="font-mono text-teal">{(() => {
-              const outcome = userBet.direction === 'up' ? 0 : 1;
-              const { tokensOut } = estimateSellTokensOut(liveReserves, outcome, userBet.shares);
-              return formatAleo(calculateFees(tokensOut).amountAfterFee);
-            })()} {userBet.tokenType === 'usdcx' ? 'USDCx' : userBet.tokenType === 'usad' ? 'USAD' : 'ALEO'}</span>
-          </div>
-        </div>
-      )}
-
-      {round.status === 'resolved' && (
-        <div className={`text-center py-3 rounded-xl border ${
-          round.result === 'up'
-            ? 'bg-gradient-to-r from-accent-green/[0.06] to-accent-green/[0.03] border-accent-green/15 text-accent-green'
-            : 'bg-gradient-to-r from-accent-red/[0.06] to-accent-red/[0.03] border-accent-red/15 text-accent-red'
-        }`}>
-          <span className="text-sm font-heading font-bold">
-            {round.result === 'up' ? '↑ UP WINS' : '↓ DOWN WINS'}
-          </span>
-        </div>
-      )}
-
-      {/* Show user's result when round resolved */}
-      {userBet && round.status === 'resolved' && (
-        <div className={`mt-2 p-3.5 rounded-xl border ${
-          userBet.won
-            ? 'border-accent-green/20 bg-gradient-to-br from-accent-green/[0.06] to-accent-green/[0.02]'
-            : 'border-accent-red/20 bg-gradient-to-br from-accent-red/[0.06] to-accent-red/[0.02]'
-        }`}>
-          <div className="flex items-center justify-between">
-            <span className={`text-sm font-heading font-bold ${
-              userBet.won ? 'text-accent-green' : 'text-accent-red'
-            }`}>
-              {userBet.won ? '🎉 YOU WON!' : '😞 YOU LOST'}
-            </span>
-            <span className="text-xs font-mono text-gray-400">
-              Bet {userBet.direction.toUpperCase()} • {formatAleo(userBet.amount)} {userBet.tokenType === 'usdcx' ? 'USDCx' : userBet.tokenType === 'usad' ? 'USAD' : 'ALEO'}
+        {/* Resolved state */}
+        {isResolved && (
+          <div className={`text-center py-3 rounded-xl border ${
+            market.resolvedOutcome === 0
+              ? 'bg-gradient-to-r from-accent-green/[0.06] to-accent-green/[0.03] border-accent-green/15 text-accent-green'
+              : 'bg-gradient-to-r from-accent-red/[0.06] to-accent-red/[0.03] border-accent-red/15 text-accent-red'
+          }`}>
+            <span className="text-sm font-heading font-bold">
+              {market.resolvedOutcome === 0 ? '↑ UP WINS' : '↓ DOWN WINS'}
             </span>
           </div>
-          {userBet.won && claimableShares.length > 0 && (
-            <div className="mt-2 space-y-1">
-              {claimableShares.map((record, idx) => {
-                const tLabel = record.tokenType === 1 ? 'USDCx' : record.tokenType === 2 ? 'USAD' : 'ALEO';
-                // Resolved market = 1:1 redemption, show share quantity as payout
-                return (
-                  <div key={idx} className="flex items-center justify-between">
-                    <span className="text-xs text-accent-green/80">
-                      {formatAleo(record.quantity)} shares → {formatAleo(record.quantity)} {tLabel}
-                    </span>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => handleClaim(record)}
-                      loading={claiming || txStatus === 'proving' || txStatus === 'broadcasting'}
-                      className="!text-xs !py-1 !px-3 !bg-accent-green !text-black !border-accent-green hover:!bg-accent-green/80"
-                    >
-                      {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : '💰 Claim'}
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {userBet.won && claimableShares.length === 0 && !isOnChainSettled && (
-            <div className="mt-1 space-y-2">
-              {winningSharesForSell.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs text-gray-400 font-heading">Choose how to collect:</p>
-                  {winningSharesForSell.map((record, idx) => {
-                    const tLabel = record.tokenType === 1 ? 'USDCx' : record.tokenType === 2 ? 'USAD' : 'ALEO';
-                    const outcomeIdx = record.outcome - 1;
-                    const { tokensOut } = estimateSellTokensOut(liveReserves, outcomeIdx, record.quantity);
-                    const afterFee = calculateFees(tokensOut).amountAfterFee;
-                    return (
-                      <div key={idx} className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-teal/80">
-                            Sell now: ~{formatAleo(afterFee)} {tLabel}
-                          </span>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => handleSellAMM(record)}
-                            loading={claiming || txStatus === 'proving' || txStatus === 'broadcasting'}
-                            className="!text-xs !py-1 !px-3"
-                          >
-                            💸 Sell Now
-                          </Button>
-                        </div>
-                        <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/[0.04]">
-                          <span className="text-xs text-accent-green/70">
-                            Full claim: {formatAleo(record.quantity)} {tLabel}
-                          </span>
-                          <span className="text-[10px] text-gray-500 font-heading">⏳ Resolving soon</span>
-                        </div>
-                      </div>
-                    );
-                  })}
+        )}
+
+        {/* Claim section */}
+        {isResolved && claimableShares.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {claimableShares.map((record, idx) => {
+              const tLabel = record.tokenType === 1 ? 'USDCx' : record.tokenType === 2 ? 'USAD' : 'ALEO';
+              return (
+                <div key={idx} className="flex items-center justify-between">
+                  <span className="text-xs text-accent-green/80">
+                    {formatAleo(record.quantity)} shares → {formatAleo(record.quantity)} {tLabel}
+                  </span>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleClaim(record)}
+                    loading={claiming || txStatus === 'proving' || txStatus === 'broadcasting'}
+                    className="!text-xs !py-1 !px-3 !bg-accent-green !text-black !border-accent-green hover:!bg-accent-green/80"
+                  >
+                    {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : '💰 Claim'}
+                  </Button>
                 </div>
-              )}
-              {winningSharesForSell.length === 0 && (
-                <p className="text-xs text-amber-400/70">
-                  ⏳ Waiting for shares — check Portfolio to sell
-                </p>
-              )}
-            </div>
-          )}
-          {userBet.won && claimableShares.length === 0 && isOnChainSettled && (
-            <p className="text-xs text-accent-green/80 mt-1">
-              ✓ Shares already claimed or go to Portfolio to sell
-            </p>
-          )}
-          {!userBet.won && (
-            <p className="text-xs text-accent-red/60 mt-1">
-              Your {formatAleo(userBet.amount)} {userBet.tokenType === 'usdcx' ? 'USDCx' : userBet.tokenType === 'usad' ? 'USAD' : 'ALEO'} went to the liquidity pool
-            </p>
-          )}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+
+        {/* Expired but not resolved — sell via AMM */}
+        {isExpired && sellableShares.length > 0 && (
+          <div className="mt-2 space-y-1.5">
+            <p className="text-xs text-gray-400 font-heading">Sell shares via AMM:</p>
+            {sellableShares.map((record, idx) => {
+              const tLabel = record.tokenType === 1 ? 'USDCx' : record.tokenType === 2 ? 'USAD' : 'ALEO';
+              const outcomeIdx = record.outcome - 1;
+              const { tokensOut } = estimateSellTokensOut(liveReserves, outcomeIdx, record.quantity);
+              const afterFee = calculateFees(tokensOut).amountAfterFee;
+              return (
+                <div key={idx} className="flex items-center justify-between">
+                  <span className="text-xs text-teal/80">
+                    ~{formatAleo(afterFee)} {tLabel}
+                  </span>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleSellAMM(record)}
+                    loading={claiming || txStatus === 'proving' || txStatus === 'broadcasting'}
+                    className="!text-xs !py-1 !px-3"
+                  >
+                    💸 Sell Now
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </Card>
   );
@@ -564,7 +403,8 @@ interface ActiveRoundsProps {
 }
 
 export default function ActiveRounds({ }: ActiveRoundsProps) {
-  const [rounds, setRounds] = useState<LightningRound[]>([]);
+  const allMarkets = useMarketStore((s) => s.markets);
+  const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
   const [loading, setLoading] = useState(true);
   const { fetchShareRecords } = useTransaction();
   const [shareRecords, setShareRecords] = useState<ShareRecord[]>([]);
@@ -574,64 +414,59 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
     setShareRecords(records);
   }, [fetchShareRecords]);
 
-  const fetchRounds = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE}/lightning`);
-      if (res.ok) {
-        const data = await res.json();
-        setRounds(data.rounds || []);
-      }
-    } catch { /* ignore */ }
-    setLoading(false);
-  }, []);
-
   useEffect(() => {
-    fetchRounds();
+    fetchMarkets().then(() => setLoading(false));
     loadShareRecords();
-    const roundId = setInterval(fetchRounds, 10_000);
+    const marketId = setInterval(fetchMarkets, 30_000);
     const shareId = setInterval(loadShareRecords, 30_000);
-    return () => { clearInterval(roundId); clearInterval(shareId); };
-  }, [fetchRounds, loadShareRecords]);
+    return () => { clearInterval(marketId); clearInterval(shareId); };
+  }, [fetchMarkets, loadShareRecords]);
 
-  const activeRounds = rounds.filter((r) => r.status === 'open' || r.status === 'locked');
-  const recentResolved = rounds.filter((r) => r.status === 'resolved').slice(0, 3);
+  // Filter to only lightning/strike-round markets
+  const strikeMarkets = allMarkets.filter((m) => m.isLightning && m.question.toLowerCase().includes('strike round'));
+  const activeMarkets = strikeMarkets.filter((m) => m.status === 'active');
+  const resolvedMarkets = strikeMarkets.filter((m) => m.status === 'resolved').slice(0, 6);
 
   if (loading) {
     return <div className="text-center text-gray-500 py-8">Loading rounds...</div>;
   }
 
-  if (activeRounds.length === 0 && recentResolved.length === 0) {
+  if (activeMarkets.length === 0 && resolvedMarkets.length === 0) {
     return (
       <div className="text-center py-8">
         <BoltIcon className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-        <p className="text-gray-400">Waiting for next round...</p>
-        <p className="text-xs text-gray-600 mt-1">Rounds start every 5 minutes</p>
+        <p className="text-gray-400">No active Strike Rounds</p>
+        <p className="text-xs text-gray-600 mt-1">Create a Strike Round to get started</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex justify-end">
-        <RefreshButton onRefresh={async () => { await fetchRounds(); await loadShareRecords(); }} label="Refresh" />
+        <RefreshButton onRefresh={async () => { await fetchMarkets(); await loadShareRecords(); }} label="Refresh" />
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {activeRounds.map((round) => (
-          <RoundCard key={round.id} round={round} shareRecords={shareRecords} onClaimed={loadShareRecords} />
-        ))}
-      </div>
-      {/* Show recently resolved rounds that user bet on (for claim) */}
-      {recentResolved.some((r) => useLightningBetStore.getState().bets.some((b) => b.roundId === r.id && b.won)) && (
+
+      {/* Active Strike Rounds */}
+      {activeMarkets.length > 0 && (
         <div>
-          <h3 className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-2">
-            Claim Your Winnings
-          </h3>
+          <h3 className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-3">Active Rounds</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {recentResolved
-              .filter((r) => useLightningBetStore.getState().bets.some((b) => b.roundId === r.id && b.won))
-              .map((round) => (
-                <RoundCard key={round.id} round={round} shareRecords={shareRecords} onClaimed={loadShareRecords} />
-              ))}
+            {activeMarkets.map((market) => (
+              <StrikeRoundCard key={market.id} market={market} shareRecords={shareRecords} onClaimed={loadShareRecords} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Resolved */}
+      {resolvedMarkets.length > 0 && (
+        <div>
+          <h3 className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-3">Recently Resolved</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {resolvedMarkets.map((market) => (
+              <StrikeRoundCard key={market.id} market={market} shareRecords={shareRecords} onClaimed={loadShareRecords} />
+            ))}
           </div>
         </div>
       )}

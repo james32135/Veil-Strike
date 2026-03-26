@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTransaction } from '@/hooks/useTransaction';
 import { buildCreateMarketTx, buildCreateMarketStableTx, generateNonce } from '@/utils/transactions';
 import { registerMarketFromTx } from '@/utils/marketRegistration';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { parseAleoInput } from '@/utils/format';
-import { CATEGORIES } from '@/constants';
+import { CATEGORIES, ALEO_TESTNET_API } from '@/constants';
 import { useWalletStore } from '@/stores/walletStore';
 import { useMarketStore } from '@/stores/marketStore';
 import Button from '@/components/shared/Button';
@@ -26,6 +26,20 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
   const { status, execute, fetchUsdcxRecord } = useTransaction();
   const walletAddress = useWalletStore((s) => s.address);
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
+  const [currentBlock, setCurrentBlock] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchHeight = async () => {
+      try {
+        const res = await fetch(`${ALEO_TESTNET_API}/latest/height`);
+        if (res.ok) {
+          const h = await res.json();
+          setCurrentBlock(typeof h === 'number' ? h : parseInt(h, 10));
+        }
+      } catch { /* will retry on create */ }
+    };
+    fetchHeight();
+  }, []);
 
   const handleAddOutcome = () => {
     if (outcomes.length < 6) {
@@ -49,14 +63,29 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
     const liquidityMicro = parseAleoInput(initialLiquidity);
     if (!question || liquidityMicro < 1_000_000 || outcomes.some((o) => !o.trim())) return;
 
+    // Fetch latest block height if not already loaded
+    let block = currentBlock;
+    if (!block) {
+      try {
+        const res = await fetch(`${ALEO_TESTNET_API}/latest/height`);
+        if (res.ok) {
+          const h = await res.json();
+          block = typeof h === 'number' ? h : parseInt(h, 10);
+          setCurrentBlock(block);
+        }
+      } catch { /* fall through */ }
+    }
+    if (!block) return; // can't create without real block height
+
     const nonce = generateNonce();
-    const endTime = Date.now() + parseInt(durationDays) * 86_400_000;
+    const BLOCKS_PER_DAY = 5760; // 86400 seconds / 15 seconds per block
+    const durationBlocks = parseInt(durationDays) * BLOCKS_PER_DAY;
 
     const questionHash = `${BigInt(Array.from(new TextEncoder().encode(question)).reduce((h, b) => h * 31n + BigInt(b), 0n)) % BigInt('0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001')}field`;
     const categoryMap: Record<string, number> = { Crypto: 1, Sports: 3, Politics: 4, Science: 5, Entertainment: 6, Other: 7 };
     const catNum = categoryMap[category] || 7;
-    const blockDeadline = `${Math.floor(endTime / 15000) + 15044000}u32`;
-    const resolutionBlock = `${Math.floor(endTime / 15000) + 15044000 + 120960}u32`;
+    const blockDeadline = `${block + durationBlocks}u32`;
+    const resolutionBlock = `${block + durationBlocks + 120960}u32`;
     const resolver = walletAddress || '';
     const isStable = tokenType === 'USDCX' || tokenType === 'USAD';
     let tx;

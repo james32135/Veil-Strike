@@ -1,13 +1,12 @@
-// Lightning Round Manager — assigns per-round on-chain markets and tracks results.
-// Each 5-min round per asset+token reuses the persistent lightning market for that combo.
-// Resolution: AMM sell is the primary exit. Admin can manually flash_settle for batch 1:1 claims.
+// Strike Round Manager — tracks lightning/strike-round markets for admin resolution.
+// Markets are created with durations (24h, 48h, 7d, 30d). Admin manually resolves via flash_settle.
+// Oracle provides start price at creation and end price at resolution for UP/DOWN determination.
 
 import { getCachedPrices } from './oracle';
 import { registerMarket, getCachedMarkets, persistRegistry } from './indexer';
 import { dispatchSettle, dispatchCreateMarket } from './proof-dispatcher';
 import { getResolverAddress, fetchCurrentBlock } from './chain-executor';
 
-const ROUND_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 const ASSETS: ('BTC' | 'ETH' | 'ALEO')[] = ['BTC', 'ETH', 'ALEO'];
 const TOKEN_TYPES: ('ALEO' | 'USDCX' | 'USAD')[] = ['ALEO', 'USDCX', 'USAD'];
 
@@ -55,25 +54,12 @@ interface ActiveRound {
   endTime: number;
   startPrice: number;
   settled: boolean;
-  winningOutcome?: number; // 1 = UP, 2 = DOWN (off-chain result)
+  winningOutcome?: number; // 1 = UP, 2 = DOWN
   endPrice?: number;
-  onChainResolved?: boolean; // true only after admin manually flash_settles
+  onChainResolved?: boolean;
 }
 
-// key format: "BTC-ALEO-1747123400000"
 const activeRounds = new Map<string, ActiveRound>();
-const pendingSettle = new Set<string>();
-const settleTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-// Track rounds that have bets (only settle these to save gas)
-const roundsWithBets = new Set<string>();
-
-// Price snapshots for round start/end comparison
-const roundPriceSnapshots = new Map<number, { btc: number; eth: number; aleo: number }>();
-
-function getRoundStart(time: number): number {
-  return Math.floor(time / ROUND_DURATION_MS) * ROUND_DURATION_MS;
-}
 
 function getAssetPrice(asset: 'BTC' | 'ETH' | 'ALEO'): number {
   const prices = getCachedPrices();
@@ -81,148 +67,33 @@ function getAssetPrice(asset: 'BTC' | 'ETH' | 'ALEO'): number {
 }
 
 /**
- * Record price snapshot at the current round boundary.
+ * Register a strike round market for tracking.
+ * Called when a new strike round market is indexed from chain.
  */
-export function recordRoundPriceSnapshot(): void {
-  const now = Date.now();
-  const roundStart = getRoundStart(now);
-  if (!roundPriceSnapshots.has(roundStart)) {
-    const prices = getCachedPrices();
-    if (prices.btc > 0) {
-      roundPriceSnapshots.set(roundStart, { btc: prices.btc, eth: prices.eth, aleo: prices.aleo });
-    }
-  }
-  // Clean up old snapshots (keep last 2 hours)
-  const cutoff = now - 2 * 60 * 60 * 1000;
-  for (const [ts] of roundPriceSnapshots) {
-    if (ts < cutoff) roundPriceSnapshots.delete(ts);
-  }
+export function registerStrikeRound(marketId: string, asset: 'BTC' | 'ETH' | 'ALEO', tokenType: 'ALEO' | 'USDCX' | 'USAD', startPrice: number, endTime: number): void {
+  const key = `${asset}-${tokenType}-${marketId.slice(0, 16)}`;
+  if (activeRounds.has(key)) return;
+  activeRounds.set(key, {
+    marketId,
+    asset,
+    tokenType,
+    startTime: Date.now(),
+    endTime,
+    startPrice,
+    settled: false,
+  });
+  console.log(`[StrikeRoundMgr] Registered ${key} price=$${startPrice}`);
 }
 
 /**
- * Assign a persistent market to the current round for each asset+token combo.
- * Same market can serve multiple rounds — reuses existing lightning markets from cache.
- */
-export function assignRoundMarkets(): void {
-  const now = Date.now();
-  const currentRoundStart = getRoundStart(now);
-  // Assign for current round and next round
-  const starts = [currentRoundStart, currentRoundStart + ROUND_DURATION_MS];
-
-  for (const roundStart of starts) {
-    for (const token of TOKEN_TYPES) {
-      for (const asset of ASSETS) {
-        const key = `${asset}-${token}-${roundStart}`;
-        if (activeRounds.has(key)) continue;
-
-        const marketId = getSeedLightningId(asset, token);
-        if (!marketId) continue;
-
-        const price = getAssetPrice(asset);
-        if (price <= 0) continue;
-
-        const round: ActiveRound = {
-          marketId,
-          asset,
-          tokenType: token,
-          startTime: roundStart,
-          endTime: roundStart + ROUND_DURATION_MS,
-          startPrice: price,
-          settled: false,
-        };
-        activeRounds.set(key, round);
-
-        console.log(`[LightningMgr] Assigned ${key} market=${marketId.slice(0, 20)}... price=$${price}`);
-      }
-    }
-  }
-}
-
-/**
- * Schedule result determination for a round when it ends.
- * No longer auto-settles on-chain — just records the outcome.
- */
-function scheduleSettlement(key: string, endTime: number): void {
-  if (settleTimers.has(key)) return;
-  const delay = Math.max(0, endTime - Date.now() + 2000); // 2s buffer after round ends
-  const timer = setTimeout(() => {
-    settleTimers.delete(key);
-    resolveRoundResult(key);
-  }, delay);
-  settleTimers.set(key, timer);
-  console.log(`[LightningMgr] Scheduled result for ${key} in ${Math.round(delay / 1000)}s`);
-}
-
-/**
- * Notify that a user placed a bet on a round.
- * Triggers scheduling of settlement for that round.
- */
-export function notifyBet(roundId: string): void {
-  roundsWithBets.add(roundId);
-  const round = activeRounds.get(roundId);
-  if (round && !round.settled && !pendingSettle.has(roundId)) {
-    scheduleSettlement(roundId, round.endTime);
-  }
-}
-
-/**
- * Determine the result for a round (no on-chain settlement).
- * Users exit via AMM sell. Admin can batch-resolve later for 1:1 claims.
- */
-function resolveRoundResult(key: string): void {
-  const round = activeRounds.get(key);
-  if (!round || round.settled) return;
-  if (!roundsWithBets.has(key)) {
-    console.log(`[LightningMgr] Skipping ${key} — no bets placed`);
-    return;
-  }
-
-  const endPrice = getAssetPrice(round.asset);
-  if (endPrice <= 0) {
-    console.log(`[LightningMgr] No price for ${round.asset}, skipping result`);
-    return;
-  }
-
-  const winningOutcome = endPrice > round.startPrice ? 1 : 2;
-  round.settled = true;
-  round.winningOutcome = winningOutcome;
-  round.endPrice = endPrice;
-  console.log(`[LightningMgr] Round ${key}: start=$${round.startPrice} end=$${endPrice} winner=${winningOutcome === 1 ? 'UP' : 'DOWN'} (off-chain only)`);
-}
-
-/**
- * Cron-based round result resolution — determines winners for expired rounds.
- * No on-chain settlement: users sell via AMM, admin can manually resolve later.
- */
-export async function settleLightningRounds(): Promise<void> {
-  const now = Date.now();
-
-  for (const [key, round] of activeRounds) {
-    if (round.settled || now < round.endTime) continue;
-    if (!roundsWithBets.has(key)) continue;
-    resolveRoundResult(key);
-  }
-
-  // Clean up old rounds (keep last 2 hours)
-  const cutoff = now - 2 * 60 * 60 * 1000;
-  for (const [key, round] of activeRounds) {
-    if (round.settled && round.endTime < cutoff) {
-      activeRounds.delete(key);
-    }
-  }
-}
-
-/**
- * Get the market assignment for a specific oracle round ID.
- * Oracle round IDs are like "BTC-1747123400000" (no token).
- * Returns all token variants for that asset+time.
+ * Get the market assignment data for API responses.
  */
 export function getMarketAssignments(): Map<string, { marketId: string; tokenType: string; onChainStatus: string }> {
   const assignments = new Map<string, { marketId: string; tokenType: string; onChainStatus: string }>();
   for (const [key, round] of activeRounds) {
     let status = 'active';
     if (round.onChainResolved) status = 'settled';
-    else if (round.settled) status = 'resolved'; // off-chain result known, not yet on-chain
+    else if (round.settled) status = 'resolved';
     assignments.set(key, {
       marketId: round.marketId,
       tokenType: round.tokenType,
@@ -285,11 +156,35 @@ export function getActiveLightningRounds(): Array<{
 }
 
 /**
- * Initialize on startup — assign markets to current + next round.
- * Replaces initSeedLightningRounds.
+ * Initialize on startup — seed active rounds from existing lightning markets in cache.
  */
 export function initSeedLightningRounds(): void {
-  assignRoundMarkets();
+  const markets = getCachedMarkets();
+  for (const market of markets) {
+    if (!market.isLightning || market.status === 'resolved' || market.status === 'cancelled') continue;
+    const q = market.question.toUpperCase();
+    let asset: 'BTC' | 'ETH' | 'ALEO' | null = null;
+    if (q.includes('BTC') || q.includes('BITCOIN')) asset = 'BTC';
+    else if (q.includes('ETH') || q.includes('ETHEREUM')) asset = 'ETH';
+    else if (q.includes('ALEO')) asset = 'ALEO';
+    if (!asset) continue;
+
+    const token = (market.tokenType || 'ALEO') as 'ALEO' | 'USDCX' | 'USAD';
+    const key = `${asset}-${token}-${market.id.slice(0, 16)}`;
+    if (activeRounds.has(key)) continue;
+
+    const price = getAssetPrice(asset);
+    activeRounds.set(key, {
+      marketId: market.id,
+      asset,
+      tokenType: token,
+      startTime: market.createdAt || Date.now(),
+      endTime: market.endTime || Date.now() + 86400000,
+      startPrice: price > 0 ? price : 0,
+      settled: false,
+    });
+  }
+  console.log(`[StrikeRoundMgr] Seeded ${activeRounds.size} active rounds`);
 }
 
 /**
@@ -317,7 +212,7 @@ export async function adminResolveMarket(
     }
   }
 
-  console.log(`[LightningMgr] Admin resolving market=${marketId.slice(0, 20)}... outcome=${winningOutcome} token=${tokenType || 'ALEO'}`);
+  console.log(`[StrikeRoundMgr] Admin resolving market=${marketId.slice(0, 20)}... outcome=${winningOutcome} token=${tokenType || 'ALEO'}`);
 
   const txId = await dispatchSettle(marketId, winningOutcome, tokenType);
 
@@ -331,7 +226,7 @@ export async function adminResolveMarket(
       round.onChainResolved = true;
     }
   }
-  console.log(`[LightningMgr] Admin resolve success tx=${txId}`);
+  console.log(`[StrikeRoundMgr] Admin resolve success tx=${txId}`);
 
   // Auto-create replacement market in the background
   let replacementTxId: string | null = null;
@@ -356,7 +251,7 @@ async function createReplacementMarket(
     return null;
   }
 
-  const question = `${asset} Lightning Round`;
+  const question = `${asset} Strike Round`;
   // Same hash algorithm as frontend CreateLightningForm
   const questionHash = `${BigInt(Array.from(new TextEncoder().encode(question)).reduce((h, b) => h * 31n + BigInt(b), 0n)) % BigInt('0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001')}field`;
 
@@ -366,12 +261,12 @@ async function createReplacementMarket(
     return null;
   }
 
-  const deadline = currentBlock + 1_000_000; // Far future — lightning markets don't use deadline
+  const deadline = currentBlock + 1_000_000; // Far future — strike rounds resolved by admin
   const resolutionDeadline = deadline + 2880;
   const initialLiquidity = 5_000_000; // 5 ALEO/USDCX/USAD
   const nonce = `${BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER))}field`;
 
-  console.log(`[LightningMgr] Creating replacement ${asset}-${tokenType} market...`);
+  console.log(`[StrikeRoundMgr] Creating replacement ${asset}-${tokenType} market...`);
 
   const txId = await dispatchCreateMarket(
     questionHash, 1, 2,
@@ -381,7 +276,7 @@ async function createReplacementMarket(
   );
 
   if (txId) {
-    console.log(`[LightningMgr] Replacement market created tx=${txId}. Scanner will index it.`);
+    console.log(`[StrikeRoundMgr] Replacement market created tx=${txId}. Scanner will index it.`);
     // Pre-register metadata so scanner recognizes it as lightning
     registerMarket(txId, {
       questionHash,
@@ -392,7 +287,7 @@ async function createReplacementMarket(
     });
     persistRegistry();
   } else {
-    console.error(`[LightningMgr] Failed to create replacement ${asset}-${tokenType} market`);
+    console.error(`[StrikeRoundMgr] Failed to create replacement ${asset}-${tokenType} market`);
   }
 
   return txId;
@@ -431,7 +326,7 @@ export async function adminCreateReplacement(
   }
 
   if (!asset) {
-    console.error(`[LightningMgr] Cannot determine asset for market ${marketId.slice(0, 20)}...`);
+    console.error(`[StrikeRoundMgr] Cannot determine asset for market ${marketId.slice(0, 20)}...`);
     return null;
   }
 
@@ -453,23 +348,19 @@ export function getActiveMarkets(): Array<{
   asset: string;
   tokenType: string;
   roundCount: number;
-  betsCount: number;
   onChainResolved: boolean;
 }> {
-  const marketMap = new Map<string, { asset: string; tokenType: string; roundCount: number; betsCount: number; onChainResolved: boolean }>();
+  const marketMap = new Map<string, { asset: string; tokenType: string; roundCount: number; onChainResolved: boolean }>();
   for (const [key, round] of activeRounds) {
     const existing = marketMap.get(round.marketId);
-    const hasBets = roundsWithBets.has(key);
     if (existing) {
       existing.roundCount++;
-      if (hasBets) existing.betsCount++;
       if (round.onChainResolved) existing.onChainResolved = true;
     } else {
       marketMap.set(round.marketId, {
         asset: round.asset,
         tokenType: round.tokenType,
         roundCount: 1,
-        betsCount: hasBets ? 1 : 0,
         onChainResolved: round.onChainResolved ?? false,
       });
     }

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getLightningRounds } from '../services/oracle';
-import { getActiveLightningRounds, settleLightningRounds, getMarketAssignments, notifyBet, adminResolveMarket, getActiveMarkets, adminCreateReplacement } from '../services/lightning-manager';
+import { getActiveLightningRounds, getMarketAssignments, adminResolveMarket, getActiveMarkets, adminCreateReplacement } from '../services/lightning-manager';
 
 const router = Router();
 
@@ -38,27 +38,6 @@ router.get('/', (_req, res) => {
 router.get('/active', (_req, res) => {
   const activeRounds = getActiveLightningRounds();
   res.json({ activeRounds });
-});
-
-// POST /notify-bet — Frontend signals that a bet was placed on a round
-router.post('/notify-bet', (req, res) => {
-  const { roundId } = req.body;
-  if (!roundId || typeof roundId !== 'string') {
-    res.status(400).json({ status: 'error', message: 'roundId required' });
-    return;
-  }
-  notifyBet(roundId);
-  res.json({ status: 'ok' });
-});
-
-// POST /settle — Manual trigger for round result resolution (off-chain only, no on-chain tx)
-router.post('/settle', async (_req, res) => {
-  try {
-    await settleLightningRounds();
-    res.json({ status: 'ok', message: 'Round results resolved' });
-  } catch (err: any) {
-    res.status(500).json({ status: 'error', message: err?.message || 'Resolution failed' });
-  }
 });
 
 // GET /admin/markets — List active markets for admin dashboard

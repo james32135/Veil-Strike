@@ -62,11 +62,11 @@ export const TOKEN_TYPES: Record<number, string> = {
   2: 'USAD',
 };
 
-export const LIGHTNING_DURATIONS = [
-  { label: '5 Min', seconds: 300, blocks: 20 },
-  { label: '15 Min', seconds: 900, blocks: 60 },
-  { label: '1 Hour', seconds: 3600, blocks: 240 },
-  { label: '4 Hours', seconds: 14400, blocks: 960 },
+export const STRIKE_ROUND_DURATIONS = [
+  { label: '24 Hours', seconds: 86400, blocks: 5760 },
+  { label: '2 Days', seconds: 172800, blocks: 11520 },
+  { label: '7 Days', seconds: 604800, blocks: 40320 },
+  { label: '30 Days', seconds: 2592000, blocks: 172800 },
 ] as const;
 
 export const CATEGORIES: string[] = [

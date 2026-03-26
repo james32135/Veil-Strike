@@ -8,7 +8,7 @@ import { fetchMarketsFromChain, setCachedMarkets } from './services/indexer';
 import { resolveExpiredMarkets } from './services/resolver';
 import { scanForNewMarkets } from './services/scanner';
 import { autoResolveMarkets } from './services/auto-resolver';
-import { settleLightningRounds, recordRoundPriceSnapshot, initSeedLightningRounds, assignRoundMarkets } from './services/lightning-manager';
+import { initSeedLightningRounds } from './services/lightning-manager';
 import { warmupWorker } from './services/proof-dispatcher';
 import marketsRouter from './routes/markets';
 import oracleRouter from './routes/oracle';
@@ -58,7 +58,6 @@ async function initialize() {
 cron.schedule(`*/${config.oracleIntervalMinutes} * * * *`, async () => {
   await fetchOraclePrices();
   recordPriceSnapshot();
-  recordRoundPriceSnapshot();
 });
 
 cron.schedule(`*/${config.resolverIntervalMinutes} * * * *`, async () => {
@@ -76,8 +75,8 @@ cron.schedule('*/2 * * * *', async () => {
   }
 });
 
-// Scan blockchain for new create_market transactions every 3 minutes
-cron.schedule('*/3 * * * *', async () => {
+// Scan blockchain for new create_market transactions every 1 minute
+cron.schedule('*/1 * * * *', async () => {
   try {
     const found = await scanForNewMarkets(300);
     if (found > 0) {
@@ -96,16 +95,6 @@ cron.schedule('*/2 * * * *', async () => {
     await autoResolveMarkets();
   } catch (err) {
     console.error('[Cron] Auto-resolve failed:', err);
-  }
-});
-
-// Lightning round results — determine winners (no on-chain settlement, admin resolves manually)
-cron.schedule('*/1 * * * *', async () => {
-  try {
-    assignRoundMarkets(); // Assign markets to upcoming rounds
-    await settleLightningRounds(); // Determine winners for expired rounds
-  } catch (err) {
-    console.error('[Cron] Lightning resolve failed:', err);
   }
 });
 

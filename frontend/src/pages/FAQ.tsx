@@ -5,20 +5,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const faqs = [
   {
-    q: 'What is Veil Strike?',
-    a: 'Veil Strike is a privacy-preserving prediction market protocol on the Aleo blockchain. It uses zero-knowledge proofs to keep your trades private while enabling transparent market mechanics.',
-  },
-  {
-    q: 'How do prediction markets work?',
-    a: 'Prediction markets let you buy and sell outcome shares for real-world events. If you buy "Yes" shares and the event happens, you can redeem them at full value. Prices reflect the crowd\'s probability estimate for each outcome.',
-  },
-  {
     q: 'What tokens can I trade with?',
-    a: 'Veil Strike supports three tokens: ALEO (native credits), USDCx (USD-pegged stablecoin), and USAD (algorithmic stablecoin). Each runs on its own dedicated smart contract for optimal performance.',
+    a: 'Veil Strike v6 supports three tokens: ALEO (native Aleo credits), USDCx (USD-pegged stablecoin), and USAD (algorithmic stablecoin). Each token runs on its own dedicated Leo smart contract — veil_strike_v6.aleo, veil_strike_v6_cx.aleo, and veil_strike_v6_sd.aleo respectively.',
   },
   {
-    q: 'What are Lightning markets?',
-    a: 'Lightning markets are short-duration prediction rounds (5 min to 4 hours) based on real-time asset prices. They use oracle price feeds for automatic resolution — perfect for quick trading on market direction.',
+    q: 'What is Veil Strike?',
+    a: 'Veil Strike is a privacy-first prediction market protocol on the Aleo blockchain. Using zero-knowledge proofs, it keeps trader identities, position sizes, and payouts fully encrypted on-chain. Supports event prediction markets and Strike Rounds across 3 token types.',
+  },
+  {
+    q: 'How does governance work?',
+    a: 'Any user can submit governance proposals: approve resolvers, request treasury withdrawals, update fees, or override markets. Others vote for or against. Governance is live on-chain via submit_proposal and cast_vote transitions but is still evolving — more voting mechanisms, quorum rules, and timelock controls are planned.',
+  },
+  {
+    q: 'What are Strike Rounds?',
+    a: 'Strike Rounds are time-based prediction markets where you bet UP or DOWN on crypto prices (BTC, ETH, ALEO). Durations range from 24 hours to 30 days. The admin oracle compares the opening and closing prices — if price rose, UP wins; if it fell, DOWN wins. Your position and payout are fully private.',
   },
   {
     q: 'How is privacy maintained?',
@@ -29,28 +29,28 @@ const faqs = [
     a: 'Total trading fee is 2%: 0.5% protocol fee, 0.5% market creator fee, and 1.0% liquidity provider fee. Aleo network gas fees also apply to each transaction.',
   },
   {
+    q: 'Is this on mainnet?',
+    a: 'Veil Strike is currently deployed on Aleo testnet (Wave 4). All tokens are testnet tokens with no real-world value. Mainnet deployment is planned after governance and privacy improvements are finalized.',
+  },
+  {
     q: 'How do I provide liquidity?',
-    a: 'On any market detail page, use the "Add Liquidity" panel to deposit tokens. You receive LP tokens representing your share. Liquidity providers earn the 1% LP fee on all trades. You can withdraw anytime.',
+    a: 'On any market detail page, use the "Add Liquidity" panel to deposit tokens. You receive an encrypted LP token record representing your share. LPs earn the 1% LP fee on all trades. You can withdraw when the market resolves.',
   },
   {
     q: 'What happens if I disagree with a market resolution?',
-    a: 'You can file a dispute within the challenge window (approximately 12 hours). Disputes require a bond deposit. If the community agrees the resolution was wrong, you get your bond back and the market is re-resolved.',
-  },
-  {
-    q: 'How does governance work?',
-    a: 'Any user can submit governance proposals (approve resolvers, update fees, treasury withdrawals). Other users vote for or against. Proposals with sufficient votes can be executed to change protocol parameters.',
-  },
-  {
-    q: 'Is this on mainnet?',
-    a: 'Currently Veil Strike is deployed on Aleo testnet. All tokens are testnet tokens with no real-world value. This is a demonstration and competition entry for Aleo\'s developer program.',
-  },
-  {
-    q: 'How do I get started?',
-    a: 'Install the Shield wallet browser extension, connect to Aleo testnet, get testnet ALEO from the faucet, then navigate to Markets or Lightning to start trading.',
+    a: 'You can contest an event market resolution within the 12-hour challenge window using contest_verdict. A minimum 5 ALEO bond is required. If the market is re-resolved in your favor, you recover the bond. Strike Rounds resolved via flash_settle bypass the challenge window by design.',
   },
   {
     q: 'Can I create my own market?',
-    a: 'Yes! Go to the Create page, fill in your question, outcomes, deadline, and initial liquidity. The market will be created on-chain and appear in the Markets list once confirmed.',
+    a: 'Yes! Go to the Create page, fill in your question, outcomes, deadline, and initial liquidity. You can create event markets (any topic) or Strike Rounds. The market is created on-chain and appears in the list once confirmed by the indexer.',
+  },
+  {
+    q: 'How does admin resolution work?',
+    a: 'For Strike Rounds, the admin (resolver) calls flash_settle on-chain after the round expires, committing the winner (UP=1 or DOWN=2). For event markets, the resolver calls render_verdict then ratify_verdict after a 12-hour challenge window. The auto-bot (running on a VPS) monitors deadlines and settles expired rounds automatically.',
+  },
+  {
+    q: 'How do I get started?',
+    a: 'Install the Shield Wallet browser extension, connect to Aleo testnet, get testnet ALEO from the faucet, then navigate to Markets for event predictions or Rounds for Strike Rounds.',
   },
 ];
 

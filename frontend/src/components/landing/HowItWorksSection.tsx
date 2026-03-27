@@ -1,10 +1,10 @@
 import { motion } from 'framer-motion';
 
 const steps = [
-  { step: '01', title: 'Connect Wallet', description: 'Connect your Shield Wallet with one click. Delegated proving handles all ZK computations.' },
-  { step: '02', title: 'Choose a Market', description: 'Browse event predictions or lightning rounds. View real-time odds powered by FPMM.' },
-  { step: '03', title: 'Place Your Bet', description: 'Buy outcome shares privately. Your position is stored as an encrypted Aleo record.' },
-  { step: '04', title: 'Collect Winnings', description: 'Redeem winning shares for ALEO tokens. Payouts are sent to private records — fully anonymous.' },
+  { step: '01', title: 'Connect Wallet', description: 'Connect your Shield Wallet with one click. Delegated proving handles all ZK computations on-device.' },
+  { step: '02', title: 'Choose a Market', description: 'Browse event prediction markets or Strike Rounds (24h–30d). Real-time odds powered by FPMM AMM.' },
+  { step: '03', title: 'Place Your Bet', description: 'Buy outcome shares or pick UP/DOWN privately. Your position is an encrypted on-chain Aleo record — only you can see it.' },
+  { step: '04', title: 'Collect Winnings', description: 'Redeem winning shares for ALEO, USDCx, or USAD tokens. Payouts flow to private records — identity and amount fully hidden.' },
 ];
 
 export default function HowItWorksSection() {

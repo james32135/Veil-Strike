@@ -20,12 +20,18 @@ export default function Docs() {
           <div className="text-sm text-gray-400 space-y-3 leading-relaxed">
             <p>
               Veil Strike is a privacy-first prediction market protocol built on the Aleo blockchain.
-              It uses zero-knowledge proofs to protect trader identities while maintaining market integrity.
+              It uses zero-knowledge proofs to protect trader identities while maintaining transparent market mechanics.
             </p>
             <p>
-              Unlike traditional prediction markets (Polymarket, Augur), Veil Strike ensures that no one —
-              not even the protocol operators — can see who is trading, how much they hold, or their
+              Unlike traditional prediction markets (Polymarket, Augur), Veil Strike ensures that no one &mdash;
+              not even the protocol operators &mdash; can see who is trading, how much they hold, or their
               profit/loss history.
+            </p>
+            <p>
+              <span className="text-white font-medium">v6 Architecture:</span> Three independent Leo programs &mdash;
+              <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">veil_strike_v6.aleo</code> (ALEO + Governance),
+              <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">veil_strike_v6_cx.aleo</code> (USDCx), and
+              <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">veil_strike_v6_sd.aleo</code> (USAD). Total: 47 transitions across 3 deployed programs.
             </p>
           </div>
         </Card>

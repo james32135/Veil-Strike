@@ -14,20 +14,20 @@ export default function LightningSection() {
             <div>
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-5" style={{ background: 'rgba(255, 107, 53, 0.08)', border: '1px solid rgba(255, 107, 53, 0.15)' }}>
                 <BoltIcon className="w-4 h-4 text-teal" />
-                <span className="text-sm text-teal font-heading font-medium">Lightning Markets</span>
+                <span className="text-sm text-teal font-heading font-medium">Strike Rounds</span>
               </div>
 
               <h2 className="font-heading text-3xl md:text-4xl font-bold text-white mb-5">
-                Tools For Better{' '}
-                <span className="gradient-text">Cryptocurrency Trading</span>
+                Predict Crypto Prices,{' '}
+                <span className="gradient-text">Win Privately</span>
               </h2>
 
               <p className="text-smoke/60 leading-relaxed mb-8">
-                Smart platform designed to help you analyze markets and make informed decisions with complete privacy.
+                Strike Rounds let you bet UP or DOWN on BTC, ETH, and ALEO over 24h, 2-day, 7-day, or 30-day windows — resolved by live oracle price feeds with zero-knowledge privacy.
               </p>
 
-              <Link to="/lightning" className="btn-primary inline-flex items-center gap-2">
-                Get Started
+              <Link to="/rounds" className="btn-primary inline-flex items-center gap-2">
+                View Rounds
                 <motion.span animate={{ x: [0, 3, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>→</motion.span>
               </Link>
             </div>
@@ -41,8 +41,8 @@ export default function LightningSection() {
             >
               {/* Tab bar */}
               <div className="flex items-center gap-2 mb-4">
-                {['5M', '15M', '1H', '1Y', 'ALL'].map((t, i) => (
-                  <span key={t} className={`px-2.5 py-1 rounded-full text-[10px] font-mono ${i === 1 ? 'bg-teal text-white' : 'text-smoke/40'}`}>{t}</span>
+                {['24H', '2D', '7D', '30D'].map((t, i) => (
+                  <span key={t} className={`px-2.5 py-1 rounded-full text-[10px] font-mono ${i === 0 ? 'bg-teal text-white' : 'text-smoke/40'}`}>{t}</span>
                 ))}
               </div>
 

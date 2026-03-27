@@ -5,22 +5,22 @@ const features = [
   {
     icon: <ShieldIcon className="w-7 h-7" />,
     title: 'Private by Default',
-    description: 'Every bet, position, and payout is protected by zero-knowledge proofs. No one sees your trades on-chain.',
+    description: 'Every bet, position, and payout is protected by zero-knowledge proofs. No one sees your trades, identity, or winnings on-chain.',
   },
   {
     icon: <BoltIcon className="w-7 h-7" />,
-    title: 'Lightning Markets',
-    description: '5-minute price prediction rounds with live oracle feeds. Fast, exciting, and completely private.',
+    title: 'Strike Rounds',
+    description: 'Price prediction markets with 24h, 2-day, 7-day, and 30-day durations on BTC, ETH, and ALEO — resolved by oracle price comparison.',
   },
   {
     icon: <LockIcon className="w-7 h-7" />,
     title: 'FPMM Pricing',
-    description: 'Fixed Product Market Maker ensures fair pricing with deep liquidity. No order books, no front-running.',
+    description: 'Fixed Product Market Maker ensures fair, manipulation-resistant pricing with deep liquidity. No order books, no front-running.',
   },
   {
     icon: <ZKProofIcon className="w-7 h-7" />,
-    title: 'Multi-Token Support',
-    description: 'Trade with both ALEO and USDCx stablecoin. Full privacy across multiple token types.',
+    title: 'Triple Token Support',
+    description: 'Trade with ALEO, USDCx, or USAD stablecoin — each with its own dedicated smart contract for full privacy and optimal performance.',
   },
 ];
 
@@ -39,7 +39,7 @@ export default function FeaturesSection() {
             For <span className="gradient-text">Smarter Crypto Trading</span>
           </h2>
           <p className="text-smoke/60 max-w-xl mx-auto">
-            AI-optimized prediction markets with human-grade decision-making
+            Privacy-native prediction markets built on Aleo's zero-knowledge blockchain.
           </p>
         </motion.div>
 

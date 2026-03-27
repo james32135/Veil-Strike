@@ -4,14 +4,14 @@
 
 ### Privacy-First Prediction Markets on Aleo
 
-[![Aleo](https://img.shields.io/badge/Aleo-Testnet-00D4B8?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiPjwvc3ZnPg==)](https://testnet.aleoscan.io)
+[![Aleo](https://img.shields.io/badge/Aleo-Testnet-00D4B8?style=for-the-badge)](https://testnet.aleoscan.io)
 [![Leo](https://img.shields.io/badge/Leo-Smart%20Contract-E2B33E?style=for-the-badge)](https://leo-lang.org)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org)
 
 **Trade outcomes. Stay private. Win on-chain.**
 
-[Live App](https://veil-strike.netlify.app) · [Explorer](https://testnet.aleoscan.io/program?id=veil_strike_v4.aleo) · [API](https://veil-strike-api.onrender.com/api/health)
+[🌐 Live App](https://veil-strike.netlify.app) · [🔍 Explorer](https://testnet.aleoscan.io/program?id=veil_strike_v6.aleo) · [⚡ API](https://veil-strike-api.onrender.com/api/health)
 
 </div>
 
@@ -19,252 +19,339 @@
 
 ## What is Veil Strike?
 
-Veil Strike is a **zero-knowledge prediction market protocol** built on **Aleo**. Users bet on real-world outcomes — crypto prices, sports, politics, science — with **full privacy** powered by ZK proofs. The protocol uses a **Fixed Product Market Maker (FPMM)** with complete-set minting, supports **dual tokens** (ALEO + USDCx stablecoin), features **lightning-fast 5-minute rounds** resolved by on-chain oracles, and includes a **4-hour dispute resolution window** to prevent fraud.
+Veil Strike is a **zero-knowledge prediction market protocol** built on **Aleo**. Users bet on real-world outcomes — crypto prices, sports, politics, science — with **full privacy** powered by ZK proofs. The protocol uses a **Fixed Product Market Maker (FPMM)**, supports three tokens (ALEO, USDCx, USAD), features **Strike Rounds** with 24h–30d durations resolved by admin oracle, and includes a 12-hour dispute window to prevent fraud.
 
 Every trade generates a zero-knowledge proof. Your identity, position size, and payout are encrypted on-chain — only you can decrypt them.
-
----
-
-## Key Features
-
-| Feature | Description |
-|---------|-------------|
-| 🔒 **ZK Privacy** | Positions, payouts, and trader identities are encrypted via Aleo's ZK proofs |
-| ⚡ **Lightning Markets** | 5-min to 4-hour price rounds on BTC, ETH, ALEO with live oracle feeds |
-| 💰 **Dual Token** | Trade with ALEO (fully private) or USDCx stablecoin (private payouts) |
-| 📊 **FPMM AMM** | Automated market maker with dynamic pricing and complete-set minting |
-| 🏛️ **Dispute System** | 4-hour challenge window with 5 ALEO bond to dispute false resolutions |
-| 🎯 **Multi-Outcome** | Support for 2, 3, or 4 outcome markets (Yes/No, multi-choice) |
-| 💧 **LP Rewards** | 1% LP fee on every trade, proportional withdrawal from resolved markets |
-| 📈 **Live Oracles** | Multi-source price feeds: CoinGecko → Binance → CoinCap → CryptoCompare |
 
 ---
 
 ## Architecture
 
 ```
-┌────────────────┐     ┌────────────────┐     ┌──────────────────────┐
-│    Frontend    │────►│    Backend     │────►│   Aleo Blockchain    │
-│  React + Vite  │     │  Express + TS  │     │                      │
-│  Tailwind CSS  │     │  Oracle Feeds  │     │  veil_strike_v4.aleo │
-│  Shield Wallet │     │  Cron Indexer  │     │  24 transitions      │
-│  Zustand       │     │  Resolver      │     │  2,000+ lines Leo    │
-└────────────────┘     └────────────────┘     │  9 mappings          │
-                                              │  4 record types      │
-                                              └──────────────────────┘
+┌─────────────────────────────────────────────────────────────── ┐
+│                     Veil Strike v6 Protocol                     │
+│                                                                  │
+│  ┌──────────────────┐  ┌─────────────────┐  ┌────────────────┐ │
+│  │ veil_strike_v6   │  │veil_strike_v6_cx│  │veil_strike_v6_sd││
+│  │  ALEO + Govern.  │  │     USDCx       │  │      USAD      │ │
+│  │  17 transitions  │  │  15 transitions │  │ 15 transitions │ │
+│  │   919,704 vars   │  │ 1,095,849 vars  │  │ 1,095,373 vars │ │
+│  └──────────────────┘  └─────────────────┘  └────────────────┘ │
+│              Total: 47 transitions · 3,110,926 variables        │
+└─────────────────────────────────────────────────────────────────┘
+          ▼                        ▼
+┌──────────────────┐     ┌──────────────────────────────────────┐
+│  React + Vite    │────▶│         Express Backend               │
+│  TypeScript      │     │  Oracle · Indexer · Resolver · Bot   │
+│  Tailwind CSS    │     │  7-source price feeds (fallback chain)│
+│  Zustand stores  │     │  Auto-bot: settle expired rounds      │
+│  14 pages        │     │  Persistent prove-worker thread       │
+│  Shield Wallet   │     └──────────────────────────────────────┘
+└──────────────────┘
 ```
 
 ---
 
-## Smart Contract
+## Smart Contracts
 
-**Program:** `veil_strike_v4.aleo` — Deployed on Aleo Testnet
+Three independent Leo programs deployed on Aleo Testnet — split to stay under the 2.1M variable limit.
 
-### 24 Transitions
+### Program IDs
 
-#### Trading (8)
-| Transition | Token | Privacy |
-|-----------|-------|---------|
-| `create_market` | ALEO | Private credits input |
-| `buy_shares_private` | ALEO | **Fully private** (private in, private out) |
-| `sell_shares` | ALEO | Private shares → private credits |
-| `add_liquidity` | ALEO | Private credits → private LP token |
-| `create_market_usdcx` | USDCx | Public input (compliance token) |
-| `buy_shares_usdcx` | USDCx | Public input → private shares |
-| `sell_shares_usdcx` | USDCx | Private shares → **private USDCx payout** |
-| `add_liquidity_usdcx` | USDCx | Public input → private LP token |
+| Program | Token | Transitions | Deploy TX |
+|---------|-------|-------------|-----------|
+| `veil_strike_v6.aleo` | ALEO + Governance | 17 | `at1459u3ehmatrnk8huk5wj4dtfw668fml6kga62rkw0m4wpnfrxvqs79ey84` |
+| `veil_strike_v6_cx.aleo` | USDCx | 15 | `at1g4py5xd8htpnalkm07axnahp5gyxj57jgm5cj9dqfxeeqckdzs8qpguzw9` |
+| `veil_strike_v6_sd.aleo` | USAD | 15 | `at1yupukl8wynnu748u95scnqztqk33nwema3lxy7dfw7jm694cucyshswksx` |
 
-#### Lifecycle (4)
-`close_market` · `resolve_market` · `finalize_resolution` · `cancel_market`
+### Transitions Overview
 
-#### Disputes (2)
-`dispute_resolution` (5 ALEO bond) · `claim_dispute_bond`
+#### veil_strike_v6.aleo — ALEO Market + Governance (17)
 
-#### ALEO Redemption (5)
-`redeem_shares` · `claim_refund` · `withdraw_lp_resolved` · `claim_lp_refund` · `withdraw_creator_fees`
+| # | Transition | Description |
+|---|-----------|-------------|
+| 1 | `open_market` | Create ALEO prediction market with initial liquidity |
+| 2 | `acquire_shares` | Buy outcome shares (private credits in, private shares out) |
+| 3 | `dispose_shares` | Sell shares back to AMM (private shares in, private credits out) |
+| 4 | `fund_pool` | Add liquidity to AMM pool (returns encrypted LP token) |
+| 5 | `lock_market` | Close market after trading deadline |
+| 6 | `render_verdict` | Submit initial resolution with winning outcome |
+| 7 | `ratify_verdict` | Finalize after 12-hour challenge window |
+| 8 | `void_market` | Cancel market (creator or emergency) |
+| 9 | `flash_settle` | **Strike Rounds** — instant resolver-only settlement (no challenge) |
+| 10 | `contest_verdict` | Dispute resolution with 5 ALEO bond |
+| 11 | `recover_bond` | Reclaim dispute bond after finalization |
+| 12 | `harvest_winnings` | Redeem winning shares for ALEO |
+| 13 | `harvest_refund` | Claim refund from cancelled market |
+| 14 | `withdraw_pool` | Remove LP liquidity (after resolution) |
+| 15 | `harvest_fees` | Withdraw accumulated creator fees |
+| 16 | `submit_proposal` | Create on-chain governance proposal |
+| 17 | `cast_vote` | Vote on governance proposal |
 
-#### USDCx Redemption (5) — All payouts private via `transfer_public_to_private`
-`redeem_shares_usdcx` · `claim_refund_usdcx` · `withdraw_lp_resolved_usdcx` · `claim_lp_refund_usdcx` · `withdraw_fees_usdcx`
+#### veil_strike_v6_cx.aleo (USDCx) · veil_strike_v6_sd.aleo (USAD) — 15 each
+Same market flow as the main program but handling USDCx and USAD respectively. Missing: `flash_settle`, `submit_proposal`, `cast_vote` (governance lives in main program only).
 
-### Fee Structure
+### Key Constants
+
+| Constant | Value |
+|----------|-------|
+| Protocol fee | 0.5% |
+| Creator fee | 0.5% |
+| LP fee | 1.0% |
+| Total fee | 2.0% |
+| Challenge window | 2,880 blocks (~12 hours) |
+| Min trade | 0.01 ALEO |
+| Min liquidity | 1 ALEO |
+| Min dispute bond | 5 ALEO |
+
+### Privacy Model
+
+| What | Privacy |
+|------|---------|
+| Trader identity | 🟢 Private — ZK-encrypted via `transfer_private_to_public` |
+| Position sizes | 🟢 Private — `OutcomeShare` encrypted record |
+| LP positions | 🟢 Private — `LPToken` encrypted record |
+| ALEO payouts | 🟢 Private — `transfer_public_to_private` output |
+| Dispute bonds | 🟢 Private — `DisputeBondReceipt` encrypted record |
+| Market state | 🔴 Public — required for fair AMM pricing |
+| Winning outcome | 🔴 Public — revealed at finalization |
+| USDCx deposits | 🟡 Public — compliance token limitation (payout is private) |
+
+---
+
+## User Flows
+
+### Event Prediction Market Flow
+
+```
+1. Admin/User: open_market(question_hash, category, num_outcomes, deadline, resolver, liquidity, nonce)
+   → Returns: market_id (field), LPToken (private record)
+
+2. User: acquire_shares(market_id, outcome, amount_in, expected_shares, share_nonce, credits_record)
+   → Returns: OutcomeShare (private record) — no one sees what you bet or how much
+
+3. [Market deadline passes]
+
+4. Resolver: lock_market(market_id)
+5. Resolver: render_verdict(market_id, winning_outcome)
+   → Sets 12-hour challenge window
+
+6. Anyone: contest_verdict(market_id, proposed_outcome, dispute_nonce, credits_record)
+   → Bond of 5 ALEO locked in DisputeBondReceipt
+
+7. [12 hours pass with no valid dispute OR dispute resolved]
+
+8. Anyone: ratify_verdict(market_id)
+   → Market finalized, winners can claim
+
+9. Winner: harvest_winnings(outcome_share, expected_payout)
+   → Receives private ALEO credits (1:1 for winning outcome)
+
+10. LP: withdraw_pool(lp_token, expected_amount)
+    → Receives private ALEO credits (pro-rata + LP fees)
+```
+
+### Strike Round Flow (admin-resolved)
+
+```
+1. Admin/Bot: open_market(question="BTC Strike Round", num_outcomes=2, deadline=far_future, resolver=admin)
+   → Creates market with UP(1) / DOWN(2) outcomes. Records start price from oracle.
+
+2. User: acquire_shares(market_id, outcome=1or2, amount, ...)
+   → Encrypted OutcomeShare record (UP or DOWN position)
+
+3. [Round duration passes: 24h / 2d / 7d / 30d]
+
+4. Bot: calls POST /api/lightning/admin/resolve
+   Backend: compares oracle end_price vs start_price
+   Backend: calls flash_settle(market_id, winner) on-chain
+   → No challenge window. Instant finalization.
+
+5. Backend: auto-creates replacement market (same question, new nonce)
+   → Round continues without interruption
+
+6. Winner: harvest_winnings(outcome_share, expected_payout)
+   → Receives private ALEO, USDCx, or USAD credits
+```
+
+### Governance Flow
+
+```
+1. User: submit_proposal(action_type, target_market, amount, recipient, token_type, deadline, nonce)
+   → Returns: GovernanceReceipt (private record proving vote weight)
+
+2. Others: cast_vote(proposal_id, support=true/false)
+   → Returns: GovernanceReceipt per voter
+
+3. [Deadline passes, quorum reached]
+
+4. Protocol executes approved action (resolver approval, fee update, treasury withdrawal)
+```
+
+**Action Types:**
+- `0` General proposal
+- `1` Approve resolver address
+- `2` Treasury withdrawal
+- `3` Fee update
+- `4` Market override
+
+> ⚠️ Governance is live on-chain but still evolving. Quorum requirements, timelock, and execution logic will be improved in future waves.
+
+---
+
+## Admin Resolution
+
+The resolver address (`aleo19za49scmhufst9q8lhwka5hmkvzx5ersrue3gjwcs705542daursptmx0r`) is the only address authorized to call `flash_settle` and `render_verdict`.
+
+### Manual (Admin UI at `/admin`)
+1. Go to `/admin`, select a market, choose outcome
+2. Click Resolve → calls `POST /api/lightning/admin/resolve`
+3. Backend dispatches `flash_settle` via the persistent prove-worker thread
+4. Worker generates ZK proof and broadcasts to Aleo testnet
+5. Replacement market auto-created for Strike Rounds
+
+### Automatic (Bot)
+The `bot/veil-strike-bot.mjs` runs on a VPS and every 60 seconds:
+1. Fetches all active rounds from `GET /api/lightning/active`
+2. Fetches live oracle prices from `GET /api/oracle`
+3. For any round past `endTime`: compares oracle price vs start price → settles UP(1) or DOWN(2)
+4. For any asset-token combo with no active round: creates a new one
+5. Managed by `bot/bot-manager.mjs` — restarts on crash with exponential backoff
+
+---
+
+## Frontend Pages
+
+| Route | Page | Description |
+|-------|------|-------------|
+| `/` | Landing | Hero, features, architecture, how-it-works, comparison |
+| `/markets` | Markets | Browse all prediction markets with filters |
+| `/markets/:id` | Market Detail | Chart, trade panel, buy/sell/LP |
+| `/rounds` | Strike Rounds | 24h–30d price rounds with live oracle feed |
+| `/portfolio` | Portfolio | Your encrypted positions, history, PnL |
+| `/create` | Create | Create event market or Strike Round |
+| `/governance` | Governance | On-chain proposals and voting |
+| `/leaderboard` | Leaderboard | Top traders |
+| `/pools` | Pools | LP overview |
+| `/stats` | Stats | Protocol analytics |
+| `/admin` | Admin | Resolver dashboard (flash_settle) |
+| `/docs` | Docs | In-app documentation |
+| `/faq` | FAQ | Frequently asked questions |
+| `/privacy` | Privacy Policy | |
+
+---
+
+## Backend Services
+
+| Service | File | Description |
+|---------|------|-------------|
+| Oracle | `services/oracle.ts` | 7-source price fallback: CoinGecko → OKX → KuCoin → Gate.io → Binance → CoinCap → CryptoCompare |
+| Indexer | `services/indexer.ts` | Fetches market state from Aleo mapping API |
+| Scanner | `services/scanner.ts` | Scans chain for new market_ids every minute |
+| Resolver | `services/resolver.ts` | Auto-resolves expired event markets |
+| Auto-Resolver | `services/auto-resolver.ts` | Watches pending_resolution → ratify_verdict |
+| Lightning Mgr | `services/lightning-manager.ts` | Tracks active Strike Rounds, auto-creates replacements |
+| Proof Dispatcher | `services/proof-dispatcher.ts` | Persistent worker thread for ZK proof generation |
+| Chain Executor | `services/chain-executor.ts` | Aleo SDK transaction execution |
+
+### API Routes
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/health` | Health check |
+| GET | `/api/markets` | All cached markets |
+| GET | `/api/markets/:id` | Single market |
+| POST | `/api/markets/register` | Register market metadata |
+| GET | `/api/oracle` | Live prices (BTC, ETH, ALEO) |
+| POST | `/api/oracle/refresh` | Force price refresh |
+| GET | `/api/lightning/active` | Active strike rounds |
+| POST | `/api/lightning/admin/resolve` | Settle a market (flash_settle) |
+| POST | `/api/lightning/admin/create-round` | Create new strike round |
+| POST | `/api/lightning/admin/create-replacement` | Replace resolved round |
+| GET | `/api/governance` | All governance proposals |
+| GET | `/api/stats` | Protocol stats |
+
+---
+
+## Development
+
+```bash
+# Backend
+cd backend
+cp .env.example .env   # set RESOLVER_PRIVATE_KEY
+npm install
+npm run dev            # port 3001
+
+# Frontend
+cd frontend
+npm install
+npm run dev            # port 5173
+
+# Bot (optional — auto-settles rounds)
+node bot/veil-strike-bot.mjs
+
+# Build all
+bash scripts/build.sh
+```
+
+### Required ENV (backend/.env)
+```
+PORT=3001
+ALEO_ENDPOINT=https://api.explorer.provable.com/v1
+CORS_ORIGIN=http://localhost:5173
+RESOLVER_PRIVATE_KEY=APrivateKey1...
+```
+
+---
+
+## Fee Structure
+
 | Fee | Rate | Recipient |
 |-----|------|-----------|
-| Protocol | 0.5% | Protocol treasury |
-| Creator | 0.5% | Market creator |
-| LP | 1.0% | Liquidity providers |
+| Protocol | 0.5% | Protocol treasury (`program_credits` mapping) |
+| Creator | 0.5% | Market creator address |
+| LP | 1.0% | Liquidity providers (pro-rata on withdrawal) |
 | **Total** | **2.0%** | |
 
 ---
 
-## Privacy Model
-
-| Layer | ALEO | USDCx |
-|-------|------|-------|
-| **Deposit (buy)** | ✅ Private (credits record) | ⚠️ Public (compliance token) |
-| **Position (shares)** | ✅ Private (encrypted record) | ✅ Private (encrypted record) |
-| **Payout (sell/redeem)** | ✅ Private (credits record) | ✅ Private (v3 upgrade) |
-
-> **Next Wave:** USDCx buy-side will become fully private via `transfer_private_to_public` with MerkleProof from the compliance authority.
-
----
-
-## Live Markets (12)
-
-### Prediction Markets (ALEO)
-- 🔮 Bitcoin reach $200K by 2026?
-- 🔮 Ethereum surpass 1M TPS by Q4 2026?
-- 🎬 AI-generated film wins Oscar by 2027?
-- ⚽ FIFA World Cup 2026 Winner (4 outcomes)
-- 🚀 SpaceX land humans on Mars by 2026?
-- 📉 Fed rate below 3% by mid-2026?
-
-### Lightning Markets
-- ⚡ BTC Up/Down (ALEO + USDCx)
-- ⚡ ETH Up/Down (ALEO + USDCx)
-- ⚡ ALEO Up/Down (ALEO + USDCx)
-
----
-
-## Tech Stack
-
-### Frontend
-| Package | Version |
-|---------|---------|
-| React | 18.3.1 |
-| Vite | 6.0.5 |
-| TypeScript | 5.7.2 |
-| Tailwind CSS | 3.4.16 |
-| Zustand | 5.0.2 |
-| Framer Motion | 11.15.0 |
-| Shield Wallet | 0.3.0-alpha.3 |
-
-### Backend
-| Package | Version |
-|---------|---------|
-| Express | 4.18.2 |
-| TypeScript | 5.3.3 |
-| node-cron | 3.0.3 |
-
-### Design
-- **Fonts:** Bodoni Moda (headings) · Inter (body) · Source Code Pro (mono)
-- **Accent:** Gold `#E2B33E`
-- **Theme:** Dark glass-morphism with teal/gold accents
-
----
-
-## Project Structure
+## Contracts Directory
 
 ```
-VEIL-STRIKE/
-├── contract/
-│   └── veil_strike_v2/
-│       └── src/main.leo          # 2,000+ lines, 24 transitions
-├── frontend/
-│   └── src/
-│       ├── pages/                # 10 route pages
-│       ├── components/           # 75+ React components
-│       ├── stores/               # 7 Zustand stores
-│       ├── hooks/                # 3 custom hooks
-│       ├── utils/                # FPMM math, transactions, formatting
-│       └── constants/            # Program ID, transitions, config
-├── backend/
-│   └── src/
-│       ├── routes/               # 5 API route modules
-│       └── services/             # Indexer, Oracle, Resolver
-├── docs/                         # API, Architecture, Privacy, Deployment
-└── scripts/                      # Build, deploy, seed automation
+contract/
+├── veil_strike_v6/        ← ALEO + Governance (17 transitions)
+│   └── src/main.leo
+├── veil_strike_v6_cx/     ← USDCx (15 transitions)
+│   └── src/main.leo
+└── veil_strike_v6_sd/     ← USAD (15 transitions)
+    └── src/main.leo
 ```
 
 ---
 
-## Quick Start
+## Status & Roadmap
 
-### Prerequisites
-- Node.js 18+
-- [Leo](https://developer.aleo.org/leo/) (for contract compilation)
-- [Shield Wallet](https://shieldwallet.io/) browser extension
+**Deployed & Working:**
+- ✅ 3 Leo programs deployed on Aleo Testnet (47 transitions)
+- ✅ Event prediction markets (2–4 outcomes, any category)
+- ✅ Strike Rounds — 24h / 2-day / 7-day / 30-day durations
+- ✅ FPMM AMM with complete-set minting
+- ✅ Dispute system (contest_verdict + recover_bond)
+- ✅ On-chain governance (submit_proposal + cast_vote)
+- ✅ Full backend with oracle, indexer, scanner, resolver, auto-bot
+- ✅ React frontend (14 pages, all working)
+- ✅ Portfolio with encrypted position tracking
 
-### Development
-
-```bash
-# Clone
-git clone https://github.com/james32135/Veil-Strike.git
-cd Veil-Strike
-
-# Backend
-cd backend
-npm install
-npm run dev    # http://localhost:3001
-
-# Frontend (new terminal)
-cd frontend
-npm install
-npm run dev    # http://localhost:5173
-
-# Contract (optional — already deployed)
-cd contract/veil_strike_v2
-leo build
-```
-
-### Environment Variables
-
-**Frontend** (`frontend/.env`)
-```
-VITE_API_URL=http://localhost:3001
-VITE_PROGRAM_ID=veil_strike_v4.aleo
-VITE_NETWORK=testnet
-```
-
-**Backend** (`backend/.env`)
-```
-PORT=3001
-CORS_ORIGIN=http://localhost:5173
-```
-
----
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/health` | Health check |
-| `GET` | `/api/markets` | All markets |
-| `GET` | `/api/markets/:id` | Single market |
-| `POST` | `/api/markets/refresh` | Force chain refresh |
-| `GET` | `/api/oracle` | BTC/ETH/ALEO prices |
-| `GET` | `/api/lightning` | Active lightning rounds |
-| `GET` | `/api/stats` | Protocol statistics |
-
----
-
-## Deployment
-
-| Service | Platform | URL |
-|---------|----------|-----|
-| Frontend | Netlify | `https://veil-strike.netlify.app` |
-| Backend | Render | `https://veil-strike-api.onrender.com` |
-| Contract | Aleo Testnet | `veil_strike_v4.aleo` |
-
----
-
-## Roadmap
-
-- [x] FPMM prediction markets with ZK privacy
-- [x] Dual-token support (ALEO + USDCx)
-- [x] Lightning markets with oracle price feeds
-- [x] On-chain dispute resolution
-- [x] USDCx private payouts (v3)
-- [ ] Full USDCx privacy (private buy via MerkleProof)
-- [ ] Mainnet deployment
-- [ ] Mobile-optimized UI
-- [ ] Additional token support (USAD)
+**In Progress / Planned:**
+- 🔄 Governance: quorum rules, timelock, stronger execution guards
+- 🔄 Bot: production VPS deployment with PM2
+- 🔄 Full UI/UX redesign
+- 🔄 Stronger privacy: full USDCx/USAD deposit privacy via compliance proofs
+- 🔄 Mainnet deployment
 
 ---
 
 <div align="center">
-
-**Built with ❤️ on Aleo**
-
-*Zero-knowledge proofs • Privacy by default • On-chain fairness*
-
+  Built for <strong>Aleo Developer Program — Wave 4</strong><br/>
+  <sub>All tokens are testnet tokens with no real-world value.</sub>
 </div>

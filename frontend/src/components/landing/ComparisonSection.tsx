@@ -5,7 +5,7 @@ const comparisons = [
   { feature: 'Identity Hidden', veilStrike: 'Yes', polymarket: 'No', azuro: 'Pseudo' },
   { feature: 'Position Privacy', veilStrike: 'Encrypted Records', polymarket: 'On-chain', azuro: 'On-chain' },
   { feature: 'Front-Running', veilStrike: 'Impossible', polymarket: 'Possible', azuro: 'Possible' },
-  { feature: 'Lightning Rounds', veilStrike: 'Yes', polymarket: 'No', azuro: 'No' },
+  { feature: 'Strike Rounds (24h–30d)', veilStrike: 'Yes', polymarket: 'No', azuro: 'No' },
   { feature: 'Private Payouts', veilStrike: 'Yes', polymarket: 'No', azuro: 'No' },
   { feature: 'On-Chain FPMM', veilStrike: 'Yes', polymarket: 'No', azuro: 'Yes' },
 ];

@@ -22,7 +22,7 @@ Veil Strike is a **zero-knowledge prediction market protocol** on **Aleo**. Ever
 - 🏛️ **On-chain Governance** — propose, vote, and execute protocol changes
 - 🎯 **Multi-outcome markets** — 2, 3, or 4 outcomes per market
 - 💰 **Triple token support** — ALEO, USDCx, USAD
-- 🤖 **Auto-bot** — VPS bot monitors round deadlines and settles via oracle price comparison
+- ⚖️ **Admin resolution** — oracle shows start vs end price, admin calls `flash_settle` via wallet
 
 ---
 
@@ -68,7 +68,7 @@ Backend   →  Express + Node.js
                ├── 7-source oracle fallback (CoinGecko → OKX → Binance → CoinCap → ...)
                ├── Auto-indexer + chain scanner (new market detection every 60s)
                ├── Persistent proof-worker (Aleo SDK, key-cached for fast re-runs)
-               └── Auto-bot (settles expired Strike Rounds, creates replacements)
+               └── Lightning Manager (tracks rounds, auto-creates replacement after admin resolve)
 Contracts →  3 Leo programs on Aleo Testnet (47 transitions)
 ```
 
@@ -82,12 +82,13 @@ Contracts →  3 Leo programs on Aleo Testnet (47 transitions)
 
 ## ⚡ Strike Rounds — Full Flow
 
-1. Admin creates `BTC Strike Round` via `open_market`. Oracle records start price.
+1. Admin creates `BTC Strike Round` via `open_market`. Oracle records start price at that moment.
 2. User bets UP or DOWN → private `OutcomeShare` record on-chain.
-3. Round expires (24h / 2d / 7d / 30d). Bot compares oracle price.
-4. Bot calls `flash_settle(market_id, winner)` → instant on-chain resolution, no dispute window.
-5. Backend auto-creates replacement round — rounds never stop.
-6. Winner calls `harvest_winnings` → receives private credits 1:1.
+3. Round expires (24h / 2d / 7d / 30d).
+4. Admin visits `/admin` — sees oracle startPrice vs endPrice for each live round.
+5. Admin reads price direction and calls `flash_settle(market_id, winner)` via wallet. Instant. No dispute window.
+6. Backend auto-creates a replacement round. Scanner indexes it. New round starts.
+7. Winner calls `harvest_winnings` → receives private credits 1:1.
 
 ---
 
@@ -103,7 +104,7 @@ On-chain via `submit_proposal` + `cast_vote`. Supported: approve resolvers, trea
 - 🆕 USAD stablecoin — 3rd token with own program
 - 🆕 On-chain governance (`submit_proposal` + `cast_vote` with `GovernanceReceipt`)
 - 🆕 Strike Rounds redesigned: 24h / 2d / 7d / 30d (removed 5-min lightning)
-- 🆕 Auto-bot: monitors deadlines, calls `flash_settle`, creates replacements
+- 🆕 Admin panel showing oracle startPrice vs endPrice for each round before resolution
 - 🆕 7-source oracle fallback chain (CoinGecko → OKX → Binance → CoinCap → ...)
 - 🆕 Admin panel with `flash_settle` UI
 - 🆕 Portfolio PnL visualization + history
@@ -112,7 +113,6 @@ On-chain via `submit_proposal` + `cast_vote`. Supported: approve resolvers, trea
 ---
 
 > 🔮 **Roadmap:** Stronger USDCx/USAD deposit privacy · Governance quorum + timelock · Mainnet deployment
-- Community resolver network
 
 ---
 

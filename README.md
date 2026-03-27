@@ -42,9 +42,9 @@ Every trade generates a zero-knowledge proof. Your identity, position size, and 
           ▼                        ▼
 ┌──────────────────┐     ┌──────────────────────────────────────┐
 │  React + Vite    │────▶│         Express Backend               │
-│  TypeScript      │     │  Oracle · Indexer · Resolver · Bot   │
+│  TypeScript      │     │  Oracle · Indexer · Auto-Resolver    │
 │  Tailwind CSS    │     │  7-source price feeds (fallback chain)│
-│  Zustand stores  │     │  Auto-bot: settle expired rounds      │
+│  Zustand stores  │     │  Scanner · Lightning Manager          │
 │  14 pages        │     │  Persistent prove-worker thread       │
 │  Shield Wallet   │     └──────────────────────────────────────┘
 └──────────────────┘
@@ -154,21 +154,23 @@ Same market flow as the main program but handling USDCx and USAD respectively. M
 ### Strike Round Flow (admin-resolved)
 
 ```
-1. Admin/Bot: open_market(question="BTC Strike Round", num_outcomes=2, deadline=far_future, resolver=admin)
-   → Creates market with UP(1) / DOWN(2) outcomes. Records start price from oracle.
+1. Admin: open_market(question="BTC Strike Round", num_outcomes=2, deadline=far_future, resolver=admin)
+   → Creates market with UP(1) / DOWN(2) outcomes. Oracle records start price at this moment.
 
 2. User: acquire_shares(market_id, outcome=1or2, amount, ...)
    → Encrypted OutcomeShare record (UP or DOWN position)
 
 3. [Round duration passes: 24h / 2d / 7d / 30d]
 
-4. Bot: calls POST /api/lightning/admin/resolve
-   Backend: compares oracle end_price vs start_price
-   Backend: calls flash_settle(market_id, winner) on-chain
+4. Admin: visits /admin page
+   → Sees each Strike Round with oracle startPrice vs endPrice (live comparison)
+   → Decides UP(1) or DOWN(2) based on price direction
+   → Clicks Resolve — wallet signs flash_settle(market_id, winning_outcome)
    → No challenge window. Instant finalization.
 
-5. Backend: auto-creates replacement market (same question, new nonce)
-   → Round continues without interruption
+5. After wallet confirm: frontend calls POST /api/lightning/admin/create-replacement
+   → Backend creates replacement market on-chain (same question, new nonce)
+   → New round starts immediately after indexing
 
 6. Winner: harvest_winnings(outcome_share, expected_payout)
    → Receives private ALEO, USDCx, or USAD credits
@@ -203,20 +205,23 @@ Same market flow as the main program but handling USDCx and USAD respectively. M
 
 The resolver address (`aleo19za49scmhufst9q8lhwka5hmkvzx5ersrue3gjwcs705542daursptmx0r`) is the only address authorized to call `flash_settle` and `render_verdict`.
 
-### Manual (Admin UI at `/admin`)
-1. Go to `/admin`, select a market, choose outcome
-2. Click Resolve → calls `POST /api/lightning/admin/resolve`
-3. Backend dispatches `flash_settle` via the persistent prove-worker thread
-4. Worker generates ZK proof and broadcasts to Aleo testnet
-5. Replacement market auto-created for Strike Rounds
+### Admin Panel — Strike Rounds (`/admin`)
+1. Admin visits `/admin` — only accessible to the deployer wallet address
+2. Each Strike Round shows oracle data: `startPrice` (at creation) vs live `endPrice`
+3. Admin decides outcome based on price direction (UP = outcome 1, DOWN = outcome 2)
+4. Admin clicks Resolve → Shield Wallet signs `flash_settle(market_id, winning_outcome)` directly
+5. No backend dispatch — the wallet executes the ZK proof on the client side
+6. After confirm: frontend calls `POST /api/lightning/admin/create-replacement`
+   → Backend auto-creates a replacement round on-chain
+   → Scanner indexes it → new round appears within ~1 minute
 
-### Automatic (Bot)
-The `bot/veil-strike-bot.mjs` runs on a VPS and every 60 seconds:
-1. Fetches all active rounds from `GET /api/lightning/active`
-2. Fetches live oracle prices from `GET /api/oracle`
-3. For any round past `endTime`: compares oracle price vs start price → settles UP(1) or DOWN(2)
-4. For any asset-token combo with no active round: creates a new one
-5. Managed by `bot/bot-manager.mjs` — restarts on crash with exponential backoff
+### Backend Auto-Resolver — Event Markets Only
+The `services/auto-resolver.ts` cron runs every 2 minutes and handles event market lifecycle:
+- Stage 1 (past deadline): calls `close_market` automatically
+- Stage 2 (closed): calls `render_verdict` (resolver must be set in market)
+- Stage 3 (past 2,880-block window): calls `ratify_verdict` automatically
+
+> Note: This auto-resolver is for **event markets only**. Strike Rounds use `flash_settle` which is always manual admin action via wallet.
 
 ---
 
@@ -248,8 +253,8 @@ The `bot/veil-strike-bot.mjs` runs on a VPS and every 60 seconds:
 | Oracle | `services/oracle.ts` | 7-source price fallback: CoinGecko → OKX → KuCoin → Gate.io → Binance → CoinCap → CryptoCompare |
 | Indexer | `services/indexer.ts` | Fetches market state from Aleo mapping API |
 | Scanner | `services/scanner.ts` | Scans chain for new market_ids every minute |
-| Resolver | `services/resolver.ts` | Auto-resolves expired event markets |
-| Auto-Resolver | `services/auto-resolver.ts` | Watches pending_resolution → ratify_verdict |
+| Resolver | `services/resolver.ts` | Re-fetches market cache after on-chain resolution |
+| Auto-Resolver | `services/auto-resolver.ts` | Cron: auto-closes + resolves + finalizes event markets |
 | Lightning Mgr | `services/lightning-manager.ts` | Tracks active Strike Rounds, auto-creates replacements |
 | Proof Dispatcher | `services/proof-dispatcher.ts` | Persistent worker thread for ZK proof generation |
 | Chain Executor | `services/chain-executor.ts` | Aleo SDK transaction execution |
@@ -286,9 +291,6 @@ npm run dev            # port 3001
 cd frontend
 npm install
 npm run dev            # port 5173
-
-# Bot (optional — auto-settles rounds)
-node bot/veil-strike-bot.mjs
 
 # Build all
 bash scripts/build.sh
@@ -338,13 +340,13 @@ contract/
 - ✅ FPMM AMM with complete-set minting
 - ✅ Dispute system (contest_verdict + recover_bond)
 - ✅ On-chain governance (submit_proposal + cast_vote)
-- ✅ Full backend with oracle, indexer, scanner, resolver, auto-bot
+- ✅ Full backend with oracle, indexer, scanner, auto-resolver, lightning manager
 - ✅ React frontend (14 pages, all working)
 - ✅ Portfolio with encrypted position tracking
 
 **In Progress / Planned:**
 - 🔄 Governance: quorum rules, timelock, stronger execution guards
-- 🔄 Bot: production VPS deployment with PM2
+- 🔄 Admin UX: streamline resolution flow
 - 🔄 Full UI/UX redesign
 - 🔄 Stronger privacy: full USDCx/USAD deposit privacy via compliance proofs
 - 🔄 Mainnet deployment

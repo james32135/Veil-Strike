@@ -155,7 +155,7 @@ Same market flow as the main program but handling USDCx and USAD respectively. M
 
 ```
 1. Admin: open_market(question="BTC Strike Round", num_outcomes=2, deadline=far_future, resolver=admin)
-   → Creates market with UP(1) / DOWN(2) outcomes. Oracle records start price at this moment.
+   → Creates market with UP(1) / DOWN(2) outcomes. Oracle records the start price at this moment.
 
 2. User: acquire_shares(market_id, outcome=1or2, amount, ...)
    → Encrypted OutcomeShare record (UP or DOWN position)
@@ -163,17 +163,17 @@ Same market flow as the main program but handling USDCx and USAD respectively. M
 3. [Round duration passes: 24h / 2d / 7d / 30d]
 
 4. Admin: visits /admin page
-   → Sees each Strike Round with oracle startPrice vs endPrice (live comparison)
-   → Decides UP(1) or DOWN(2) based on price direction
-   → Clicks Resolve — wallet signs flash_settle(market_id, winning_outcome)
-   → No challenge window. Instant finalization.
+   → Sees oracle startPrice (at creation) vs live endPrice for each round
+   → Reads price direction (up or down) and chooses outcome
+   → Wallet signs flash_settle(market_id, winning_outcome) — 1=UP, 2=DOWN
+   → No challenge window. Instant on-chain finalization.
 
-5. After wallet confirm: frontend calls POST /api/lightning/admin/create-replacement
-   → Backend creates replacement market on-chain (same question, new nonce)
-   → New round starts immediately after indexing
+5. Admin: visits /create page
+   → Creates the next Strike Round manually (same question, new nonce, new start price)
+   → Scanner indexes it and the round appears in /rounds
 
 6. Winner: harvest_winnings(outcome_share, expected_payout)
-   → Receives private ALEO, USDCx, or USAD credits
+   → Receives private ALEO, USDCx, or USAD credits (1:1)
 ```
 
 ### Governance Flow
@@ -207,21 +207,19 @@ The resolver address (`aleo19za49scmhufst9q8lhwka5hmkvzx5ersrue3gjwcs705542daurs
 
 ### Admin Panel — Strike Rounds (`/admin`)
 1. Admin visits `/admin` — only accessible to the deployer wallet address
-2. Each Strike Round shows oracle data: `startPrice` (at creation) vs live `endPrice`
-3. Admin decides outcome based on price direction (UP = outcome 1, DOWN = outcome 2)
-4. Admin clicks Resolve → Shield Wallet signs `flash_settle(market_id, winning_outcome)` directly
-5. No backend dispatch — the wallet executes the ZK proof on the client side
-6. After confirm: frontend calls `POST /api/lightning/admin/create-replacement`
-   → Backend auto-creates a replacement round on-chain
-   → Scanner indexes it → new round appears within ~1 minute
+2. Each Strike Round shows oracle data: `startPrice` (recorded at creation) vs live `endPrice`
+3. Admin reads price direction and picks outcome: UP (1) or DOWN (2)
+4. Admin clicks Resolve → Shield Wallet signs `flash_settle(market_id, winning_outcome)` directly on the client
+5. No backend involvement — the wallet generates the ZK proof and broadcasts the transaction
+6. After the market is finalized, admin visits `/create` and opens the next Strike Round manually
 
 ### Backend Auto-Resolver — Event Markets Only
 The `services/auto-resolver.ts` cron runs every 2 minutes and handles event market lifecycle:
-- Stage 1 (past deadline): calls `close_market` automatically
-- Stage 2 (closed): calls `render_verdict` (resolver must be set in market)
-- Stage 3 (past 2,880-block window): calls `ratify_verdict` automatically
+- Stage 1 (past deadline): calls `close_market` automatically (uses backend `RESOLVER_PRIVATE_KEY`)
+- Stage 2 (closed): calls `render_verdict` automatically
+- Stage 3 (past 2,880-block challenge window): calls `ratify_verdict` automatically
 
-> Note: This auto-resolver is for **event markets only**. Strike Rounds use `flash_settle` which is always manual admin action via wallet.
+> Strike Rounds use `flash_settle` which is exclusively a manual admin wallet action. The backend has no role in Strike Round resolution or replacement creation.
 
 ---
 

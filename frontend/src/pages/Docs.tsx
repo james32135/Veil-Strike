@@ -98,17 +98,20 @@ export default function Docs() {
         <Card className="p-6">
           <div className="flex items-center gap-3 mb-4">
             <BoltIcon className="w-6 h-6 text-amber-400" />
-            <h2 className="text-lg font-heading font-bold text-white">Lightning Markets</h2>
+            <h2 className="text-lg font-heading font-bold text-white">Strike Rounds</h2>
           </div>
           <div className="text-sm text-gray-400 space-y-3 leading-relaxed">
             <p>
-              Lightning markets are fast-resolving prediction markets (5 minutes to 1 hour) that track
-              real-world asset prices via an on-chain oracle.
+              Strike Rounds are price prediction markets (24h, 2-day, 7-day, or 30-day durations)
+              where users bet UP or DOWN on BTC, ETH, or ALEO prices.
             </p>
             <p>
-              The oracle service fetches prices from CoinGecko and provides real-time data.
-              Lightning markets auto-resolve when their duration expires based on the
-              oracle price vs the strike price.
+              The oracle records the start price when the market opens. When the round expires,
+              the admin views the oracle price comparison on the Admin page and calls
+              <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs mx-1">flash_settle</code>
+              directly from their wallet, committing the winning outcome on-chain instantly
+              with no challenge window. After resolving, the admin creates the next round
+              manually.
             </p>
           </div>
         </Card>

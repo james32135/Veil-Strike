@@ -85,9 +85,9 @@ Contracts →  3 Leo programs on Aleo Testnet (47 transitions)
 1. Admin creates `BTC Strike Round` via `open_market`. Oracle records start price at that moment.
 2. User bets UP or DOWN → private `OutcomeShare` record on-chain.
 3. Round expires (24h / 2d / 7d / 30d).
-4. Admin visits `/admin` — sees oracle startPrice vs endPrice for each live round.
+4. Admin visits `/admin` — sees oracle startPrice (at creation) vs live endPrice for each round.
 5. Admin reads price direction and calls `flash_settle(market_id, winner)` via wallet. Instant. No dispute window.
-6. Backend auto-creates a replacement round. Scanner indexes it. New round starts.
+6. Admin visits `/create` and opens the next Strike Round manually (new nonce, fresh start price).
 7. Winner calls `harvest_winnings` → receives private credits 1:1.
 
 ---
@@ -104,9 +104,8 @@ On-chain via `submit_proposal` + `cast_vote`. Supported: approve resolvers, trea
 - 🆕 USAD stablecoin — 3rd token with own program
 - 🆕 On-chain governance (`submit_proposal` + `cast_vote` with `GovernanceReceipt`)
 - 🆕 Strike Rounds redesigned: 24h / 2d / 7d / 30d (removed 5-min lightning)
-- 🆕 Admin panel showing oracle startPrice vs endPrice for each round before resolution
+- 🆕 Admin panel: oracle startPrice vs endPrice comparison, resolve via wallet with `flash_settle`
 - 🆕 7-source oracle fallback chain (CoinGecko → OKX → Binance → CoinCap → ...)
-- 🆕 Admin panel with `flash_settle` UI
 - 🆕 Portfolio PnL visualization + history
 - 🆕 Full UI/UX redesign (glassmorphism, 3D cards, animated landing)
 

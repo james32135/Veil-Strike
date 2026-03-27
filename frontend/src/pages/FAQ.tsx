@@ -46,7 +46,7 @@ const faqs = [
   },
   {
     q: 'How does admin resolution work?',
-    a: 'For Strike Rounds, the admin (resolver) calls flash_settle on-chain after the round expires, committing the winner (UP=1 or DOWN=2). For event markets, the resolver calls render_verdict then ratify_verdict after a 12-hour challenge window. The auto-bot (running on a VPS) monitors deadlines and settles expired rounds automatically.',
+    a: 'For Strike Rounds, the admin visits the Admin page, sees the oracle start price vs the current price for each round, then calls flash_settle directly from their wallet — choosing UP (outcome 1) or DOWN (outcome 2). After resolving, the admin creates the next round manually on the Create page. For event markets, the resolver calls render_verdict then ratify_verdict after a 12-hour challenge window.',
   },
   {
     q: 'How do I get started?',

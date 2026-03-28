@@ -85,11 +85,12 @@ Contracts →  3 Leo programs on Aleo Testnet (47 transitions)
 
 1. **Round Bot** creates 3 concurrent markets via delegated proving (~30s each): BTC/ALEO, ETH/ALEO, ALEO/ALEO.
 2. User bets UP or DOWN → private `OutcomeShare` record on-chain.
-3. Round timer expires (15 minutes).
+   - 40-second cooldown between bets prevents UTXO reuse errors across markets.
+3. Round timer expires (15 minutes). UI shows "Settling..." with progress info.
 4. Bot compares oracle start vs end price → `flash_settle` via delegated proving for ALL markets (including empty ones — ensures clean on-chain state).
 5. Bot creates the next round automatically (new nonce, fresh start price).
 6. Winner calls `harvest_winnings` → receives private credits 1:1.
-7. **Smart Recovery**: On restart, live rounds are kept; expired/transient slots reset to idle. Max 3 settle retries before skipping.
+7. **Smart Recovery**: On restart, the bot adopts existing active rounds instead of creating duplicates. Expired/transient slots reset to idle. Max 3 settle retries before skipping.
 
 > Admin can still override any round manually via `/admin` + wallet `flash_settle`.
 
@@ -108,7 +109,11 @@ On-chain via `submit_proposal` + `cast_vote`. Supported: approve resolvers, trea
 - 🆕 On-chain governance (`submit_proposal` + `cast_vote` with `GovernanceReceipt`)
 - 🆕 Strike Rounds redesigned: 15-minute auto-resolved cycles with 3 concurrent slots (BTC, ETH, ALEO)
 - 🆕 All rounds settled on-chain via `flash_settle` (no virtual reset)
-- 🆕 Smart recovery: bot detects live rounds on restart and keeps them running
+- 🆕 Smart recovery: bot adopts existing active rounds on restart, prevents duplicates
+- 🆕 Bet cooldown (40s) — prevents UTXO reuse errors when betting across multiple markets
+- 🆕 Settling UX — clear "Settling..." status with time estimate when rounds expire
+- 🆕 Portfolio win/loss states — proper Won/Lost/Claimable display for resolved markets
+- 🆕 Friendly error messages for common wallet issues (spent records, insufficient balance)
 - 🆕 Admin panel: oracle startPrice vs endPrice comparison, resolve via wallet with `flash_settle`
 - 🆕 7-source oracle fallback chain (CoinGecko → OKX → Binance → CoinCap → ...)
 - 🆕 Portfolio PnL visualization + history

@@ -467,10 +467,27 @@ Each `flash_settle` takes ~15-30s of DPS proving time. With `useFeeMaster: true`
 
 - Filters: `allMarkets.filter(m => m.isLightning && m.question.toLowerCase().includes('strike round'))`
 - State display:
-  - `secondsLeft > 0` → countdown timer
-  - `secondsLeft === 0 && status === 'active'` → "AWAITING RESOLVE"
-  - `status === 'resolved'` → shows outcome (UP/DOWN)
+  - `secondsLeft > 0` → countdown timer + bet buttons (UP/DOWN)
+  - `secondsLeft === 0 && status === 'active'` → "SETTLING..." badge + info message:
+    *"The bot is resolving all 3 rounds and creating new ones. Results appear in ~5 min."*
+  - `status === 'resolved'` → shows outcome (UP/DOWN WINS) + claim button for winners
 - Auto-refreshes markets and share records every 30 seconds
+
+### Bet Cooldown (`frontend/src/stores/betCooldownStore.ts`)
+
+Aleo uses a UTXO model — each credits record can only be consumed once. If a user bets on BTC and immediately tries to bet on ETH, the same credits record may be used before the first transaction confirms, causing an "input ID already exists in the ledger" rejection.
+
+**Solution**: A 40-second global cooldown after each successful bet. The cooldown overlays the bet buttons with a countdown timer and a message: *"Wait for your previous bet to confirm on-chain."*
+
+```
+betCooldownStore.ts
+├── cooldownUntil: number     // timestamp when cooldown ends
+├── startCooldown()           // sets cooldown to now + 40s
+├── getRemainingSeconds()     // seconds left (0 if not on cooldown)
+└── isOnCooldown()            // boolean helper
+```
+
+The cooldown is **global across all markets** — one bet on BTC blocks all other bets until the record is consumed on-chain (~30s block confirmation).
 
 ### Bet Resolution in Rounds.tsx
 
@@ -598,22 +615,42 @@ This prevents two problems:
 
 ## Startup Cleanup
 
-### `clearAllLightningFlags()`
+### `clearStaleLightningFlags()`
 
-Called at bot startup. Sets `isLightning = false` on ALL existing markets in the registry. This prevents orphaned Strike Round markets from previous bot runs from appearing on the Rounds page.
+Called at bot startup. Only clears `isLightning` on markets that are **resolved/cancelled** or whose `botEndTime` is more than 60 minutes in the past (truly orphaned). This prevents wiping flags on active markets that are still tradable.
 
 ```typescript
-export function clearAllLightningFlags(): number {
+export function clearStaleLightningFlags(): number {
+  const now = Date.now();
+  const STALE_THRESHOLD = 60 * 60 * 1000; // 60 min
   let count = 0;
-  for (const meta of Object.values(MARKET_REGISTRY)) {
-    if (meta.isLightning) { meta.isLightning = false; count++; }
+  for (const [id, meta] of Object.entries(MARKET_REGISTRY)) {
+    if (!meta.isLightning) continue;
+    const cached = marketsCache.find((m) => m.id === id);
+    if (cached && (cached.status === 'resolved' || cached.status === 'cancelled')) {
+      meta.isLightning = false; count++; continue;
+    }
+    if (meta.botEndTime && meta.botEndTime < now - STALE_THRESHOLD) {
+      meta.isLightning = false; count++;
+    }
   }
   if (count > 0) persistRegistry();
   return count;
 }
 ```
 
-The bot then creates fresh markets, which get registered with `isLightning: true` and a new `botEndTime`.
+> **IMPORTANT**: Previous versions used `clearAllLightningFlags()` which wiped ALL flags indiscriminately. This caused active rounds to be orphaned on redeploy. The current approach only clears resolved/stale markets.
+
+### Market Adoption on Restart
+
+After clearing stale flags, the bot scans the market cache for active lightning markets matching each slot. If found (same asset, same tokenType, still has time remaining), the bot **adopts** the existing market instead of creating a duplicate.
+
+### Auto-Resolver Safety Guards
+
+The auto-resolver skips lightning markets via three checks:
+1. `if (market.isLightning) continue;` — flag-based check
+2. `if (market.question.includes('Strike Round')) continue;` — question-text fallback
+3. `if (lifespan > 0 && lifespan < 3h) continue;` — short-lived markets (likely bot-created rounds whose metadata was lost on redeploy)
 
 ### `deletePendingMeta()`
 
@@ -858,11 +895,20 @@ The DPS tx response ID is `at1...`, but the market's on-chain ID is a `field` va
 ### 7. Scanner + Pending Meta Race Condition
 Without `deletePendingMeta`, the scanner can tag old markets (same questionHash pattern) as new lightning markets. Always clean up pending meta after direct registration.
 
-### 8. `clearAllLightningFlags()` at Startup
-Previous bot runs leave orphaned `isLightning: true` entries in the registry. Clearing them on startup prevents stale markets from polluting the Rounds page.
+### 8. `clearStaleLightningFlags()` at Startup
+Previous versions used `clearAllLightningFlags()` which wiped ALL markets — including active live rounds. This caused:
+- Active rounds orphaned (no `isLightning` flag → disappeared from Rounds page)
+- Scanner re-discovered old markets without pending meta → generic question text
+- Auto-resolver tried `lock_market` on those orphaned markets (expensive, failed)
+- Nonce conflicts between auto-resolver and round bot's `flash_settle`
+
+**Fix**: `clearStaleLightningFlags()` only clears resolved/cancelled/stale (>60 min past). Bot adopts existing active lightning markets on startup.
 
 ### 9. Auto-Resolver Must Skip Lightning Markets
-The auto-resolver tries to `lock_market` expired markets, which crashes for lightning markets (wrong flow). The guard `if (market.isLightning) continue;` prevents this.
+The auto-resolver tries to `lock_market` expired markets, which crashes for lightning markets (wrong flow). Three safety guards:
+1. `if (market.isLightning) continue;` — flag-based
+2. `if (market.question.includes('Strike Round')) continue;` — question-text fallback
+3. Short-lifespan filter (`<3h`) — catches bot-created rounds whose metadata was lost on redeploy
 
 ### 10. Cron Frequency Matters
 Polling 30+ markets every 1-2 minutes generates 60+ API calls per cycle. Reduced to 5-min refresh / 2-min scan to avoid rate limits.
@@ -875,3 +921,9 @@ If `flash_settle` fails repeatedly (market already resolved, DPS timeout, etc.),
 
 ### 14. Zustand `set()` + `useEffect` = Infinite Loop
 Calling a zustand action that uses `set()` inside a `useEffect` that depends on the store's state creates an infinite render loop. Even if no data changes, `.map()` creates a new array reference → triggers re-render → effect re-runs → `set()` again. Fix: (1) guard with an early-return check (`hasStale`), (2) move the call to a separate mount-only `useEffect`.
+
+### 15. UTXO Bet Cooldown Is Essential
+Aleo's UTXO model means each credits record can only be consumed once. If a user bets on BTC and immediately bets on ETH, the wallet may reuse the same record → "input ID already exists in the ledger" rejection. A 40-second global cooldown between bets prevents this by waiting for the previous transaction to confirm on-chain.
+
+### 16. Never Wipe Active Lightning Flags on Redeploy
+The old `clearAllLightningFlags()` approach caused a cascade: active rounds orphaned → scanner re-discovered them without metadata → auto-resolver tried expensive `lock_market` → nonce conflicts with the bot → settlement stuck. Use `clearStaleLightningFlags()` (only resolved/cancelled/stale) and adopt existing active markets on startup.

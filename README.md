@@ -160,11 +160,14 @@ Same market flow as the main program but handling USDCx and USAD respectively. M
 
 2. User: acquire_shares(market_id, outcome=1or2, amount, ...)
    → Encrypted OutcomeShare record (UP or DOWN position)
+   → 40-second cooldown before next bet (prevents UTXO reuse errors)
 
 3. [15-minute round timer expires]
+   → Frontend shows "Settling..." with progress info
 
 4. Round Bot: compare oracle start vs end price → flash_settle via delegated proving
    → ALL markets settled on-chain (including empty ones — ensures clean state)
+   → Settlement takes ~5 min (3 settles + 3 creates, each ~20-50s DPS)
 
 5. Round Bot: creates next round automatically (open_market with new nonce + start price)
    → Scanner indexes it and the new round appears in /rounds
@@ -211,7 +214,7 @@ The `services/round-bot.ts` automates the full Strike Round lifecycle using **de
 3. Bot compares oracle start vs end price → `flash_settle` via delegated proving (~30s)
 4. ALL markets are settled on-chain, including empty ones (ensures clean state)
 5. Bot immediately creates the next round
-6. Smart recovery on restart: live rounds are kept; expired/transient slots reset to idle
+6. Smart recovery on restart: bot adopts existing active rounds (prevents duplicates); expired/transient slots reset to idle
 7. Settle retry limit: max 3 failures before skipping round and moving on
 
 ### Manual Override (`/admin`)
@@ -351,7 +354,11 @@ contract/
 - ✅ On-chain governance (submit_proposal + cast_vote)
 - ✅ Full backend with oracle, indexer, scanner, auto-resolver, lightning manager
 - ✅ React frontend (14 pages, all working)
-- ✅ Portfolio with encrypted position tracking
+- ✅ Portfolio with encrypted position tracking + proper win/loss/claimable states
+- ✅ Bet cooldown (40s) — prevents UTXO reuse errors across markets
+- ✅ Settling UX — "Settling..." status with time estimate when rounds expire
+- ✅ Smart restart recovery — bot adopts active rounds, prevents duplicates
+- ✅ Friendly error messages for wallet issues (spent records, insufficient balance)
 
 **In Progress / Planned:**
 - 🔄 Governance: quorum rules, timelock, stronger execution guards

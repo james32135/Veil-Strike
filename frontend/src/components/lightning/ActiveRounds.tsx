@@ -15,6 +15,7 @@ import { useMarketStore } from '@/stores/marketStore';
 import { useOracleStore } from '@/stores/oracleStore';
 import { useTradeStore } from '@/stores/tradeStore';
 import { useLightningBetStore } from '@/stores/lightningBetStore';
+import { useBetCooldownStore } from '@/stores/betCooldownStore';
 import { API_BASE } from '@/constants';
 import type { Market } from '@/types';
 
@@ -78,6 +79,17 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
   const addBet = useLightningBetStore((s) => s.addBet);
   const allBets = useLightningBetStore((s) => s.bets);
   const roundBets = allBets.filter((b) => b.marketId === market.id);
+
+  // Bet cooldown — prevents UTXO reuse errors when betting rapidly across markets
+  const { isOnCooldown, getRemainingSeconds, startCooldown } = useBetCooldownStore();
+  const [cooldownTick, setCooldownTick] = useState(0);
+  useEffect(() => {
+    if (!isOnCooldown()) return;
+    const id = setInterval(() => setCooldownTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [isOnCooldown, cooldownTick]);
+  const cooldownLeft = getRemainingSeconds();
+  const onCooldown = cooldownLeft > 0;
 
   const liveReserves = market.reserves ?? [1_000_000, 1_000_000];
   const tokenLabel = tokenType === 'usdcx' ? 'USDCx' : tokenType === 'usad' ? 'USAD' : 'ALEO';
@@ -156,6 +168,7 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
     const refreshChain = () => fetch(`${API_BASE}/markets/refresh`, { method: 'POST' }).then(() => fetchMarkets()).catch(() => fetchMarkets());
     const txId = await execute(tx, refreshChain);
     if (txId) {
+      startCooldown(); // prevent rapid bets causing UTXO reuse errors
       addBet({
         roundId: market.id,
         marketId: market.id,
@@ -219,7 +232,7 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
               </span>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <Badge variant={cardStatus === 'active' ? 'success' : cardStatus === 'expired' ? 'warning' : 'gray'} size="sm">
-                  {cardStatus === 'active' ? 'LIVE' : cardStatus === 'expired' ? 'AWAITING RESOLVE' : 'RESOLVED'}
+                  {cardStatus === 'active' ? 'LIVE' : cardStatus === 'expired' ? 'SETTLING...' : 'RESOLVED'}
                 </Badge>
                 {market.tokenType && market.tokenType !== 'ALEO' && (
                   <Badge variant="gray" size="sm">{market.tokenType}</Badge>
@@ -255,47 +268,57 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
         {/* Betting UI — only when active and user hasn't bet */}
         {cardStatus === 'active' && !userBet && (
           <>
-            <div className="mb-4">
-              <label className="text-[10px] text-gray-500 uppercase tracking-wider font-heading mb-1.5 block">Amount ({tokenLabel})</label>
-              <div className="flex gap-1.5">
-                {['1', '5', '10', '25'].map((val) => (
-                  <button
-                    key={val}
-                    onClick={() => setBetAmount(val)}
-                    className={`flex-1 py-2 text-xs font-mono font-medium rounded-xl border transition-all duration-300 ${
-                      betAmount === val
-                        ? 'border-teal/30 bg-teal/10 text-teal shadow-[0_0_10px_-4px_rgba(255,107,53,0.15)]'
-                        : 'border-white/[0.04] bg-white/[0.01] text-gray-500 hover:text-gray-300 hover:border-white/[0.08]'
-                    }`}
-                  >
-                    {val}
-                  </button>
-                ))}
+            {onCooldown ? (
+              <div className="text-center py-4 rounded-xl border border-amber-400/15 bg-amber-400/[0.04]">
+                <div className="text-xs text-amber-400/80 font-heading mb-1">Transaction Cooldown</div>
+                <div className="text-2xl font-mono font-bold text-amber-400 tabular-nums">{cooldownLeft}s</div>
+                <p className="text-[10px] text-gray-500 mt-1">Wait for your previous bet to confirm on-chain</p>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <label className="text-[10px] text-gray-500 uppercase tracking-wider font-heading mb-1.5 block">Amount ({tokenLabel})</label>
+                  <div className="flex gap-1.5">
+                    {['1', '5', '10', '25'].map((val) => (
+                      <button
+                        key={val}
+                        onClick={() => setBetAmount(val)}
+                        className={`flex-1 py-2 text-xs font-mono font-medium rounded-xl border transition-all duration-300 ${
+                          betAmount === val
+                            ? 'border-teal/30 bg-teal/10 text-teal shadow-[0_0_10px_-4px_rgba(255,107,53,0.15)]'
+                            : 'border-white/[0.04] bg-white/[0.01] text-gray-500 hover:text-gray-300 hover:border-white/[0.08]'
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                variant="primary"
-                size="sm"
-                className="!bg-gradient-to-r !from-accent-green/20 !to-accent-green/10 !text-accent-green !border !border-accent-green/20 hover:!from-accent-green/30 hover:!to-accent-green/15 hover:!shadow-[0_0_20px_-4px_rgba(34,197,94,0.3)] !rounded-xl !transition-all !duration-300"
-                onClick={() => handleBet('up')}
-                loading={txStatus === 'proving' || txStatus === 'broadcasting'}
-              >
-                <ArrowUpIcon className="w-4 h-4 mr-1" />
-                {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : 'UP'}
-              </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                className="!bg-gradient-to-r !from-accent-red/20 !to-accent-red/10 !text-accent-red !border !border-accent-red/20 hover:!from-accent-red/30 hover:!to-accent-red/15 hover:!shadow-[0_0_20px_-4px_rgba(239,68,68,0.3)] !rounded-xl !transition-all !duration-300"
-                onClick={() => handleBet('down')}
-                loading={txStatus === 'proving' || txStatus === 'broadcasting'}
-              >
-                <ArrowDownIcon className="w-4 h-4 mr-1" />
-                {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : 'DOWN'}
-              </Button>
-            </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="!bg-gradient-to-r !from-accent-green/20 !to-accent-green/10 !text-accent-green !border !border-accent-green/20 hover:!from-accent-green/30 hover:!to-accent-green/15 hover:!shadow-[0_0_20px_-4px_rgba(34,197,94,0.3)] !rounded-xl !transition-all !duration-300"
+                    onClick={() => handleBet('up')}
+                    loading={txStatus === 'proving' || txStatus === 'broadcasting'}
+                  >
+                    <ArrowUpIcon className="w-4 h-4 mr-1" />
+                    {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : 'UP'}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    className="!bg-gradient-to-r !from-accent-red/20 !to-accent-red/10 !text-accent-red !border !border-accent-red/20 hover:!from-accent-red/30 hover:!to-accent-red/15 hover:!shadow-[0_0_20px_-4px_rgba(239,68,68,0.3)] !rounded-xl !transition-all !duration-300"
+                    onClick={() => handleBet('down')}
+                    loading={txStatus === 'proving' || txStatus === 'broadcasting'}
+                  >
+                    <ArrowDownIcon className="w-4 h-4 mr-1" />
+                    {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : 'DOWN'}
+                  </Button>
+                </div>
+              </>
+            )}
           </>
         )}
 
@@ -362,6 +385,20 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Settling info — when round expired but not yet resolved on-chain */}
+        {isExpired && !isResolved && (
+          <div className="text-center py-3 rounded-xl border border-amber-400/10 bg-amber-400/[0.03] mb-2">
+            <div className="flex items-center justify-center gap-1.5 mb-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-xs font-heading text-amber-400/90">Settling on-chain...</span>
+            </div>
+            <p className="text-[10px] text-gray-500 leading-relaxed px-3">
+              The bot is resolving all 3 rounds and creating new ones.
+              Results appear in ~5 min. You can claim winnings after.
+            </p>
           </div>
         )}
 

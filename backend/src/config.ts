@@ -15,4 +15,11 @@ export const config = {
   oracleIntervalMinutes: 1,
   resolverIntervalMinutes: 5,
   corsOrigin: parseCorsOrigin(process.env.CORS_ORIGIN),
+  // Provable delegated proving
+  provableApiKey: process.env.PROVABLE_API_KEY || '',
+  provableConsumerId: process.env.PROVABLE_CONSUMER_ID || '',
+  // Round bot
+  roundDurationMinutes: parseInt(process.env.ROUND_DURATION_MINUTES || '15', 10),
+  roundBotEnabled: process.env.ROUND_BOT_ENABLED !== 'false',
+  roundInitialLiquidity: parseInt(process.env.ROUND_INITIAL_LIQUIDITY || '1000000', 10), // 1 token in microcredits
 };

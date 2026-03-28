@@ -102,16 +102,24 @@ export default function Docs() {
           </div>
           <div className="text-sm text-gray-400 space-y-3 leading-relaxed">
             <p>
-              Strike Rounds are price prediction markets (24h, 2-day, 7-day, or 30-day durations)
-              where users bet UP or DOWN on BTC, ETH, or ALEO prices.
+              Strike Rounds are 15-minute price prediction markets where you bet UP or DOWN
+              on BTC, ETH, or ALEO prices. Three concurrent slots run — all denominated in ALEO.
             </p>
             <p>
-              The oracle records the start price when the market opens. When the round expires,
-              the admin views the oracle price comparison on the Admin page and calls
+              The <strong className="text-white">Round Bot</strong> automates the full lifecycle using
+              <strong className="text-teal"> delegated proving</strong> (~30s per transaction via Provable API).
+              Every 15 minutes the bot creates 3 markets (BTC-ALEO, ETH-ALEO, ALEO-ALEO), waits for the
+              timer to expire, compares oracle start vs end price, and calls
               <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs mx-1">flash_settle</code>
-              directly from their wallet, committing the winning outcome on-chain instantly
-              with no challenge window. After resolving, the admin creates the next round
-              manually.
+              on-chain for every market — including empty ones (ensures clean on-chain state). After settlement
+              the bot immediately creates the next round. Admin can still override any round manually from
+              the Admin page.
+            </p>
+            <p>
+              <span className="text-white font-medium">Smart Recovery:</span> On restart, the bot detects
+              live rounds that haven&apos;t expired and keeps them running. Expired or transient rounds are
+              reset to idle and the bot creates fresh markets. A settle retry limit (max 3) prevents
+              permanent stuck states.
             </p>
           </div>
         </Card>

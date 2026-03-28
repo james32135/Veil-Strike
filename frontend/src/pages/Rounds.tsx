@@ -22,6 +22,7 @@ export default function Rounds() {
   const { fetchPrices } = useOracleStore();
   const { fetchMarkets, markets } = useMarketStore();
   const resolveBets = useLightningBetStore((s) => s.resolveBets);
+  const expireStaleBets = useLightningBetStore((s) => s.expireStaleBets);
   const bets = useLightningBetStore((s) => s.bets);
   const [allRounds, setAllRounds] = useState<StrikeRound[]>([]);
 
@@ -49,10 +50,25 @@ export default function Rounds() {
     };
   }, [fetchPrices, fetchMarkets, fetchAllRounds, markets.length]);
 
+  // Expire stale PENDING bets on mount only (not on every render)
+  useEffect(() => {
+    expireStaleBets(30 * 60 * 1000);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-resolve bets when markets resolve
   useEffect(() => {
     const pendingBets = bets.filter((b) => !b.result);
     if (pendingBets.length === 0) return;
+
+    // Resolve bets from on-chain market data (more reliable than oracle rounds)
+    for (const bet of pendingBets) {
+      const market = markets.find((m) => m.id === bet.roundId || m.id === bet.marketId);
+      if (market && market.status === 'resolved' && market.resolvedOutcome !== undefined) {
+        const result = market.resolvedOutcome === 0 ? 'up' : 'down';
+        const endPrice = bet.startPrice; // Use start price as fallback
+        resolveBets(bet.roundId, result as 'up' | 'down', endPrice);
+      }
+    }
 
     for (const round of allRounds) {
       if (round.status === 'resolved' && round.result && round.endPrice) {
@@ -62,7 +78,7 @@ export default function Rounds() {
         }
       }
     }
-  }, [allRounds, bets, resolveBets]);
+  }, [allRounds, bets, markets, resolveBets]);
 
   return (
     <div>

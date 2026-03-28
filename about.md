@@ -18,11 +18,11 @@ Veil Strike is a **zero-knowledge prediction market protocol** on **Aleo**. Ever
 **What makes it different:**
 - 🔒 Positions stored as **encrypted on-chain records** — only the holder can decrypt
 - 📊 **FPMM AMM** — no order books, no front-running possible
-- ⚡ **Strike Rounds** — 24h to 30-day price prediction rounds (UP/DOWN on BTC, ETH, ALEO)
-- 🏛️ **On-chain Governance** — propose, vote, and execute protocol changes
+- ⚡ **Strike Rounds** — 15-minute auto-resolved price prediction rounds (UP/DOWN on BTC, ETH, ALEO)
+- 🏩 **On-chain Governance** — propose, vote, and execute protocol changes
 - 🎯 **Multi-outcome markets** — 2, 3, or 4 outcomes per market
 - 💰 **Triple token support** — ALEO, USDCx, USAD
-- ⚖️ **Admin resolution** — oracle shows start vs end price, admin calls `flash_settle` via wallet
+- ⚖️ **Automated resolution** — Round Bot uses delegated proving to auto-resolve rounds via oracle prices
 
 ---
 
@@ -67,8 +67,9 @@ Frontend  →  React 18 + Vite + TypeScript + Tailwind + Zustand + Shield Wallet
 Backend   →  Express + Node.js
                ├── 7-source oracle fallback (CoinGecko → OKX → Binance → CoinCap → ...)
                ├── Auto-indexer + chain scanner (new market detection every 60s)
-               ├── Persistent proof-worker (Aleo SDK, key-cached for fast re-runs)
-               └── Lightning Manager (tracks rounds, auto-creates replacement after admin resolve)
+               ├── Delegated prover (Provable API, ~30s per tx)
+               ├── Round Bot (automated 15-min Strike Rounds: 3 slots, all settled on-chain)
+               └── Lightning Manager (tracks rounds, admin manual override)
 Contracts →  3 Leo programs on Aleo Testnet (47 transitions)
 ```
 
@@ -80,15 +81,17 @@ Contracts →  3 Leo programs on Aleo Testnet (47 transitions)
 
 ---
 
-## ⚡ Strike Rounds — Full Flow
+## ⚡ Strike Rounds — Full Flow (Automated)
 
-1. Admin creates `BTC Strike Round` via `open_market`. Oracle records start price at that moment.
+1. **Round Bot** creates 3 concurrent markets via delegated proving (~30s each): BTC/ALEO, ETH/ALEO, ALEO/ALEO.
 2. User bets UP or DOWN → private `OutcomeShare` record on-chain.
-3. Round expires (24h / 2d / 7d / 30d).
-4. Admin visits `/admin` — sees oracle startPrice (at creation) vs live endPrice for each round.
-5. Admin reads price direction and calls `flash_settle(market_id, winner)` via wallet. Instant. No dispute window.
-6. Admin visits `/create` and opens the next Strike Round manually (new nonce, fresh start price).
-7. Winner calls `harvest_winnings` → receives private credits 1:1.
+3. Round timer expires (15 minutes).
+4. Bot compares oracle start vs end price → `flash_settle` via delegated proving for ALL markets (including empty ones — ensures clean on-chain state).
+5. Bot creates the next round automatically (new nonce, fresh start price).
+6. Winner calls `harvest_winnings` → receives private credits 1:1.
+7. **Smart Recovery**: On restart, live rounds are kept; expired/transient slots reset to idle. Max 3 settle retries before skipping.
+
+> Admin can still override any round manually via `/admin` + wallet `flash_settle`.
 
 ---
 
@@ -103,7 +106,9 @@ On-chain via `submit_proposal` + `cast_vote`. Supported: approve resolvers, trea
 - 🆕 3-program v6 architecture (v5 was single-program, hit variable limit at 2.1M)
 - 🆕 USAD stablecoin — 3rd token with own program
 - 🆕 On-chain governance (`submit_proposal` + `cast_vote` with `GovernanceReceipt`)
-- 🆕 Strike Rounds redesigned: 24h / 2d / 7d / 30d (removed 5-min lightning)
+- 🆕 Strike Rounds redesigned: 15-minute auto-resolved cycles with 3 concurrent slots (BTC, ETH, ALEO)
+- 🆕 All rounds settled on-chain via `flash_settle` (no virtual reset)
+- 🆕 Smart recovery: bot detects live rounds on restart and keeps them running
 - 🆕 Admin panel: oracle startPrice vs endPrice comparison, resolve via wallet with `flash_settle`
 - 🆕 7-source oracle fallback chain (CoinGecko → OKX → Binance → CoinCap → ...)
 - 🆕 Portfolio PnL visualization + history

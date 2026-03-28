@@ -22,6 +22,7 @@ interface LightningBetState {
   bets: LightningBet[];
   addBet: (bet: LightningBet) => void;
   resolveBets: (roundId: string, result: 'up' | 'down', endPrice: number) => void;
+  expireStaleBets: (maxAgeMs: number) => void;
   getBetsForRound: (roundId: string) => LightningBet[];
   getRecentBets: (limit?: number) => LightningBet[];
 }
@@ -43,6 +44,18 @@ export const useLightningBetStore = create<LightningBetState>()(
             // If won: payout ≈ shares value (roughly 2x minus fees for 50/50 market)
             // If lost: payout = 0
             return { ...b, result, endPrice, won, payout: won ? b.shares : 0 };
+          }),
+        }));
+      },
+
+      expireStaleBets: (maxAgeMs) => {
+        const cutoff = Date.now() - maxAgeMs;
+        const hasStale = get().bets.some((b) => !b.result && b.timestamp <= cutoff);
+        if (!hasStale) return;
+        set((state) => ({
+          bets: state.bets.map((b) => {
+            if (b.result || b.timestamp > cutoff) return b;
+            return { ...b, result: 'down', won: false, payout: 0, endPrice: b.startPrice };
           }),
         }));
       },

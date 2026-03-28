@@ -19,7 +19,7 @@
 
 ## What is Veil Strike?
 
-Veil Strike is a **zero-knowledge prediction market protocol** built on **Aleo**. Users bet on real-world outcomes — crypto prices, sports, politics, science — with **full privacy** powered by ZK proofs. The protocol uses a **Fixed Product Market Maker (FPMM)**, supports three tokens (ALEO, USDCx, USAD), features **Strike Rounds** with 24h–30d durations resolved by admin oracle, and includes a 12-hour dispute window to prevent fraud.
+Veil Strike is a **zero-knowledge prediction market protocol** built on **Aleo**. Users bet on real-world outcomes — crypto prices, sports, politics, science — with **full privacy** powered by ZK proofs. The protocol uses a **Fixed Product Market Maker (FPMM)**, supports three tokens (ALEO, USDCx, USAD), features **Strike Rounds** with 15-minute auto-resolved cycles (3 concurrent slots: BTC-ALEO, ETH-ALEO, ALEO-ALEO) using delegated proving, and includes a 12-hour dispute window for event markets.
 
 Every trade generates a zero-knowledge proof. Your identity, position size, and payout are encrypted on-chain — only you can decrypt them.
 
@@ -151,29 +151,28 @@ Same market flow as the main program but handling USDCx and USAD respectively. M
     → Receives private ALEO credits (pro-rata + LP fees)
 ```
 
-### Strike Round Flow (admin-resolved)
+### Strike Round Flow (automated via Round Bot)
 
 ```
-1. Admin: open_market(question="BTC Strike Round", num_outcomes=2, deadline=far_future, resolver=admin)
-   → Creates market with UP(1) / DOWN(2) outcomes. Oracle records the start price at this moment.
+1. Round Bot: open_market(question="BTC Strike Round #N", num_outcomes=2, resolver=bot)
+   → Delegated proving (~30s via Provable API). Oracle records start price.
+   → 3 concurrent slots: BTC/ALEO, ETH/ALEO, ALEO/ALEO
 
 2. User: acquire_shares(market_id, outcome=1or2, amount, ...)
    → Encrypted OutcomeShare record (UP or DOWN position)
 
-3. [Round duration passes: 24h / 2d / 7d / 30d]
+3. [15-minute round timer expires]
 
-4. Admin: visits /admin page
-   → Sees oracle startPrice (at creation) vs live endPrice for each round
-   → Reads price direction (up or down) and chooses outcome
-   → Wallet signs flash_settle(market_id, winning_outcome) — 1=UP, 2=DOWN
-   → No challenge window. Instant on-chain finalization.
+4. Round Bot: compare oracle start vs end price → flash_settle via delegated proving
+   → ALL markets settled on-chain (including empty ones — ensures clean state)
 
-5. Admin: visits /create page
-   → Creates the next Strike Round manually (same question, new nonce, new start price)
-   → Scanner indexes it and the round appears in /rounds
+5. Round Bot: creates next round automatically (open_market with new nonce + start price)
+   → Scanner indexes it and the new round appears in /rounds
 
 6. Winner: harvest_winnings(outcome_share, expected_payout)
-   → Receives private ALEO, USDCx, or USAD credits (1:1)
+   → Receives private ALEO credits (1:1)
+
+Manual override: Admin can still resolve any market via /admin page + wallet flash_settle.
 ```
 
 ### Governance Flow
@@ -201,17 +200,22 @@ Same market flow as the main program but handling USDCx and USAD respectively. M
 
 ---
 
-## Admin Resolution
+## Resolution
 
 The resolver address (`aleo19za49scmhufst9q8lhwka5hmkvzx5ersrue3gjwcs705542daursptmx0r`) is the only address authorized to call `flash_settle` and `render_verdict`.
 
-### Admin Panel — Strike Rounds (`/admin`)
-1. Admin visits `/admin` — only accessible to the deployer wallet address
-2. Each Strike Round shows oracle data: `startPrice` (recorded at creation) vs live `endPrice`
-3. Admin reads price direction and picks outcome: UP (1) or DOWN (2)
-4. Admin clicks Resolve → Shield Wallet signs `flash_settle(market_id, winning_outcome)` directly on the client
-5. No backend involvement — the wallet generates the ZK proof and broadcasts the transaction
-6. After the market is finalized, admin visits `/create` and opens the next Strike Round manually
+### Automated Round Bot — Strike Rounds
+The `services/round-bot.ts` automates the full Strike Round lifecycle using **delegated proving** (Provable API):
+1. Creates 3 concurrent markets on startup (BTC-ALEO, ETH-ALEO, ALEO-ALEO)
+2. Every 15 minutes, the round timer expires
+3. Bot compares oracle start vs end price → `flash_settle` via delegated proving (~30s)
+4. ALL markets are settled on-chain, including empty ones (ensures clean state)
+5. Bot immediately creates the next round
+6. Smart recovery on restart: live rounds are kept; expired/transient slots reset to idle
+7. Settle retry limit: max 3 failures before skipping round and moving on
+
+### Manual Override (`/admin`)
+Admin can still resolve any market manually via the `/admin` page — wallet signs `flash_settle` directly.
 
 ### Backend Auto-Resolver — Event Markets Only
 The `services/auto-resolver.ts` cron runs every 2 minutes and handles event market lifecycle:
@@ -219,7 +223,8 @@ The `services/auto-resolver.ts` cron runs every 2 minutes and handles event mark
 - Stage 2 (closed): calls `render_verdict` automatically
 - Stage 3 (past 2,880-block challenge window): calls `ratify_verdict` automatically
 
-> Strike Rounds use `flash_settle` which is exclusively a manual admin wallet action. The backend has no role in Strike Round resolution or replacement creation.
+### Delegated Proving
+Both the round bot and the proof dispatcher use the **Provable API** for delegated proving. Authorization is built locally (~1s), then the ZK proof is generated on Provable's servers (~15-30s) and broadcast to the network. This replaces the previous local proving (2-5 min) and enables automated sub-minute round resolution.
 
 ---
 
@@ -230,9 +235,9 @@ The `services/auto-resolver.ts` cron runs every 2 minutes and handles event mark
 | `/` | Landing | Hero, features, architecture, how-it-works, comparison |
 | `/markets` | Markets | Browse all prediction markets with filters |
 | `/markets/:id` | Market Detail | Chart, trade panel, buy/sell/LP |
-| `/rounds` | Strike Rounds | 24h–30d price rounds with live oracle feed |
+| `/rounds` | Strike Rounds | 15-min auto-resolved price rounds with live oracle feed |
 | `/portfolio` | Portfolio | Your encrypted positions, history, PnL |
-| `/create` | Create | Create event market or Strike Round |
+| `/create` | Create | Create event market (Strike Rounds are auto-created) |
 | `/governance` | Governance | On-chain proposals and voting |
 | `/leaderboard` | Leaderboard | Top traders |
 | `/pools` | Pools | LP overview |
@@ -253,8 +258,10 @@ The `services/auto-resolver.ts` cron runs every 2 minutes and handles event mark
 | Scanner | `services/scanner.ts` | Scans chain for new market_ids every minute |
 | Resolver | `services/resolver.ts` | Re-fetches market cache after on-chain resolution |
 | Auto-Resolver | `services/auto-resolver.ts` | Cron: auto-closes + resolves + finalizes event markets |
-| Lightning Mgr | `services/lightning-manager.ts` | Tracks active Strike Rounds, auto-creates replacements |
-| Proof Dispatcher | `services/proof-dispatcher.ts` | Persistent worker thread for ZK proof generation |
+| Lightning Mgr | `services/lightning-manager.ts` | Tracks active Strike Rounds, admin resolve/replacement |
+| Round Bot | `services/round-bot.ts` | Automated 15-min round lifecycle (create → settle → repeat) |
+| Delegated Prover | `services/delegated-prover.ts` | Provable API delegated proving (~30s per tx) |
+| Proof Dispatcher | `services/proof-dispatcher.ts` | Routes to delegated prover (fast) or local worker (fallback) |
 | Chain Executor | `services/chain-executor.ts` | Aleo SDK transaction execution |
 
 ### API Routes
@@ -268,8 +275,12 @@ The `services/auto-resolver.ts` cron runs every 2 minutes and handles event mark
 | GET | `/api/oracle` | Live prices (BTC, ETH, ALEO) |
 | POST | `/api/oracle/refresh` | Force price refresh |
 | GET | `/api/lightning/active` | Active strike rounds |
-| POST | `/api/lightning/admin/resolve` | Settle a market (flash_settle) |
-| POST | `/api/lightning/admin/create-round` | Create new strike round |
+| GET | `/api/lightning/bot/status` | Round bot status + slot details |
+| GET | `/api/lightning/bot/rounds` | Active bot rounds (for frontend) |
+| POST | `/api/lightning/bot/start` | Start the round bot |
+| POST | `/api/lightning/bot/stop` | Stop the round bot |
+| POST | `/api/lightning/bot/force-settle` | Force-settle a specific slot |
+| POST | `/api/lightning/admin/resolve` | Manual settle a market (flash_settle) |
 | POST | `/api/lightning/admin/create-replacement` | Replace resolved round |
 | GET | `/api/governance` | All governance proposals |
 | GET | `/api/stats` | Protocol stats |
@@ -334,7 +345,7 @@ contract/
 **Deployed & Working:**
 - ✅ 3 Leo programs deployed on Aleo Testnet (47 transitions)
 - ✅ Event prediction markets (2–4 outcomes, any category)
-- ✅ Strike Rounds — 24h / 2-day / 7-day / 30-day durations
+- ✅ Strike Rounds — 15-minute auto-resolved cycles via delegated proving (3 slots: BTC, ETH, ALEO)
 - ✅ FPMM AMM with complete-set minting
 - ✅ Dispute system (contest_verdict + recover_bond)
 - ✅ On-chain governance (submit_proposal + cast_vote)

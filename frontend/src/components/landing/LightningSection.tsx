@@ -23,7 +23,7 @@ export default function LightningSection() {
               </h2>
 
               <p className="text-smoke/60 leading-relaxed mb-8">
-                Strike Rounds let you bet UP or DOWN on BTC, ETH, and ALEO over 24h, 2-day, 7-day, or 30-day windows — resolved by live oracle price feeds with zero-knowledge privacy.
+                Strike Rounds let you bet UP or DOWN on BTC, ETH, and ALEO in 15-minute rounds — auto-resolved by oracle price feeds with zero-knowledge privacy using delegated proving.
               </p>
 
               <Link to="/rounds" className="btn-primary inline-flex items-center gap-2">
@@ -41,7 +41,7 @@ export default function LightningSection() {
             >
               {/* Tab bar */}
               <div className="flex items-center gap-2 mb-4">
-                {['24H', '2D', '7D', '30D'].map((t, i) => (
+                {['15M', 'BTC', 'ETH', 'ALEO'].map((t, i) => (
                   <span key={t} className={`px-2.5 py-1 rounded-full text-[10px] font-mono ${i === 0 ? 'bg-teal text-white' : 'text-smoke/40'}`}>{t}</span>
                 ))}
               </div>

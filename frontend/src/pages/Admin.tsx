@@ -36,6 +36,32 @@ interface LightningOracleData {
   asset: string;
 }
 
+interface BotSlot {
+  id: string;
+  asset: string;
+  tokenType: string;
+  state: string;
+  marketId: string | null;
+  startPrice: number;
+  startTime: number;
+  endTime: number;
+  roundNumber: number;
+  totalVolume: number;
+  error: string | null;
+  timeRemainingMs: number;
+}
+
+interface BotStatus {
+  running: boolean;
+  slots: BotSlot[];
+  stats: {
+    totalRoundsCreated: number;
+    totalRoundsSettled: number;
+    totalRoundsSkipped: number;
+    uptime: number;
+  };
+}
+
 export default function Admin() {
   const { connected, address } = useWalletStore();
   const { status: txStatus, execute } = useTransaction();
@@ -44,6 +70,7 @@ export default function Admin() {
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [lightningResults, setLightningResults] = useState<Map<string, LightningOracleData>>(new Map());
+  const [botStatus, setBotStatus] = useState<BotStatus | null>(null);
 
   const fetchLightningResults = useCallback(async () => {
     try {
@@ -76,19 +103,29 @@ export default function Admin() {
     }
   }, []);
 
+  const fetchBotStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/lightning/bot/status`);
+      if (res.ok) setBotStatus(await res.json());
+    } catch { /* backend may be offline */ }
+  }, []);
+
   useEffect(() => {
     if (markets.length === 0) {
       setLoading(true);
       fetchMarkets().finally(() => setLoading(false));
     }
     void fetchLightningResults();
-  }, [markets.length, fetchMarkets, fetchLightningResults]);
+    void fetchBotStatus();
+    const botInterval = setInterval(fetchBotStatus, 10_000);
+    return () => clearInterval(botInterval);
+  }, [markets.length, fetchMarkets, fetchLightningResults, fetchBotStatus]);
 
   const handleRefresh = useCallback(async () => {
     setLoading(true);
-    await Promise.all([fetchMarkets(), fetchLightningResults()]);
+    await Promise.all([fetchMarkets(), fetchLightningResults(), fetchBotStatus()]);
     setLoading(false);
-  }, [fetchMarkets, fetchLightningResults]);
+  }, [fetchMarkets, fetchLightningResults, fetchBotStatus]);
 
   const isDeployer = connected && address === DEPLOYER;
 
@@ -175,6 +212,56 @@ export default function Admin() {
           </Badge>
         )}
       </div>
+
+      {/* Round Bot Status */}
+      {botStatus && (
+        <Card className="p-5 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <h3 className="font-heading font-bold text-white">Round Bot</h3>
+              <Badge variant={botStatus.running ? 'green' : 'red'} pulse={botStatus.running}>
+                {botStatus.running ? 'Running' : 'Stopped'}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2 text-smoke/50 text-xs">
+              <span>Created: {botStatus.stats.totalRoundsCreated}</span>
+              <span>·</span>
+              <span>Settled: {botStatus.stats.totalRoundsSettled}</span>
+              <span>·</span>
+              <span>Skipped: {botStatus.stats.totalRoundsSkipped}</span>
+            </div>
+          </div>
+          {botStatus.slots.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {botStatus.slots.map((slot) => (
+                <div key={slot.id} className="bg-dark-200/50 rounded-lg p-3 border border-white/5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-heading font-bold text-white text-sm">{slot.id}</span>
+                    <Badge variant={
+                      slot.state === 'open' ? 'green' :
+                      slot.state === 'creating' ? 'warning' :
+                      slot.state === 'settling' ? 'info' :
+                      'gray'
+                    }>
+                      {slot.state}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-smoke/50 space-y-1">
+                    <div>Round #{slot.roundNumber}</div>
+                    {slot.startPrice > 0 && <div>Start: ${slot.startPrice.toLocaleString()}</div>}
+                    {slot.state === 'open' && slot.timeRemainingMs > 0 && (
+                      <div className="text-teal font-mono">
+                        {Math.floor(slot.timeRemainingMs / 60000)}m {Math.floor((slot.timeRemainingMs % 60000) / 1000)}s left
+                      </div>
+                    )}
+                    {slot.error && <div className="text-accent-red">{slot.error}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Active markets */}
       {activeMarkets.length === 0 && !loading && (
@@ -323,10 +410,10 @@ export default function Admin() {
         <h3 className="font-heading font-bold text-white mb-3">How it works</h3>
         <ul className="space-y-2 text-smoke/70 text-sm">
           <li>
-            <span className="text-teal font-medium">1.</span> Click <strong className="text-white">Resolve UP</strong> or <strong className="text-white">Resolve DOWN</strong> — your wallet will open to sign the <code className="text-orange/80">flash_settle</code> transaction.
+            <span className="text-teal font-medium">Auto:</span> The <strong className="text-white">Round Bot</strong> automatically creates, monitors, and resolves Strike Rounds using delegated proving (~30s per tx). Empty rounds are skipped at zero cost.
           </li>
           <li>
-            <span className="text-teal font-medium">2.</span> Approve in your wallet — the ZK proof is generated and broadcast on-chain.
+            <span className="text-teal font-medium">Manual:</span> Click <strong className="text-white">Resolve UP</strong> or <strong className="text-white">Resolve DOWN</strong> to resolve any active market manually via your wallet's <code className="text-orange/80">flash_settle</code>.
           </li>
           <li>
             <span className="text-teal font-medium">3.</span> After resolving, winners can claim shares at <strong className="text-accent-green">1:1 value</strong> in Portfolio.

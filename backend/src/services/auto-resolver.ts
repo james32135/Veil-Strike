@@ -104,6 +104,9 @@ export async function autoResolveMarkets(): Promise<void> {
     // Skip lightning markets — they use settle_round via lightning-manager
     if (market.isLightning) continue;
 
+    // Skip bot-created strike round markets — handled by round-bot via flash_settle
+    if (market.question.includes('Strike Round')) continue;
+
     try {
       // ──────────────────────────────────────────────
       // Stage 1: ACTIVE past deadline → seal_market

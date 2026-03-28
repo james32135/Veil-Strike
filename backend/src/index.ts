@@ -10,6 +10,7 @@ import { scanForNewMarkets } from './services/scanner';
 import { autoResolveMarkets } from './services/auto-resolver';
 import { initSeedLightningRounds } from './services/lightning-manager';
 import { warmupWorker } from './services/proof-dispatcher';
+import { startRoundBot } from './services/round-bot';
 import marketsRouter from './routes/markets';
 import oracleRouter from './routes/oracle';
 import statsRouter from './routes/stats';
@@ -41,6 +42,11 @@ async function initialize() {
   recordPriceSnapshot();
   initSeedLightningRounds();
   warmupWorker(); // Pre-initialize SDK in worker thread
+
+  // Start automated round bot (delegated proving required)
+  startRoundBot().catch((err) => {
+    console.error('[Init] Round bot failed to start:', err);
+  });
   console.log(`[Init] Loaded ${markets.length} markets`);
 
   // Run initial block scan in background (non-blocking)
@@ -64,8 +70,8 @@ cron.schedule(`*/${config.resolverIntervalMinutes} * * * *`, async () => {
   await resolveExpiredMarkets();
 });
 
-// Refresh market data from chain every 2 minutes
-cron.schedule('*/2 * * * *', async () => {
+// Refresh market data from chain every 5 minutes
+cron.schedule('*/5 * * * *', async () => {
   try {
     const markets = await fetchMarketsFromChain();
     setCachedMarkets(markets);
@@ -75,12 +81,11 @@ cron.schedule('*/2 * * * *', async () => {
   }
 });
 
-// Scan blockchain for new create_market transactions every 1 minute
-cron.schedule('*/1 * * * *', async () => {
+// Scan blockchain for new create_market transactions every 2 minutes
+cron.schedule('*/2 * * * *', async () => {
   try {
     const found = await scanForNewMarkets(300);
     if (found > 0) {
-      // Re-fetch after discovering new markets so they appear in the cache
       const markets = await fetchMarketsFromChain();
       setCachedMarkets(markets);
     }

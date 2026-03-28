@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getLightningRounds } from '../services/oracle';
 import { getActiveLightningRounds, getMarketAssignments, adminResolveMarket, getActiveMarkets, adminCreateReplacement } from '../services/lightning-manager';
+import { getRoundBotStatus, getBotActiveRounds, forceSettleSlot, startRoundBot, stopRoundBot } from '../services/round-bot';
 
 const router = Router();
 
@@ -94,6 +95,49 @@ router.post('/admin/create-replacement', async (req, res) => {
     res.json({ status: 'ok', txId, message: 'Replacement market creating — rounds will resume after indexing.' });
   } else {
     res.json({ status: 'ok', txId: null, message: 'Replacement not created (no resolver key or asset not found). Create manually.' });
+  }
+});
+
+// ─── Round Bot Routes ────────────────────────────────────────────────────────
+
+// GET /bot/status — Full bot status for admin dashboard
+router.get('/bot/status', (_req, res) => {
+  res.json(getRoundBotStatus());
+});
+
+// GET /bot/rounds — Active bot rounds (compatible with existing frontend format)
+router.get('/bot/rounds', (_req, res) => {
+  res.json({ activeRounds: getBotActiveRounds() });
+});
+
+// POST /bot/start — Start the round bot
+router.post('/bot/start', async (_req, res) => {
+  try {
+    await startRoundBot();
+    res.json({ status: 'ok', message: 'Round bot started' });
+  } catch (err: any) {
+    res.status(500).json({ status: 'error', message: err?.message || 'Failed to start bot' });
+  }
+});
+
+// POST /bot/stop — Stop the round bot
+router.post('/bot/stop', (_req, res) => {
+  stopRoundBot();
+  res.json({ status: 'ok', message: 'Round bot stopped' });
+});
+
+// POST /bot/force-settle — Force settle a specific slot
+router.post('/bot/force-settle', async (req, res) => {
+  const { slotId, winningOutcome } = req.body;
+  if (!slotId || (winningOutcome !== 1 && winningOutcome !== 2)) {
+    res.status(400).json({ status: 'error', message: 'slotId and winningOutcome (1 or 2) required' });
+    return;
+  }
+  const result = await forceSettleSlot(slotId, winningOutcome);
+  if (result.success) {
+    res.json({ status: 'ok', message: `Slot ${slotId} force-settled` });
+  } else {
+    res.status(500).json({ status: 'error', message: result.error });
   }
 });
 

@@ -18,7 +18,7 @@ const faqs = [
   },
   {
     q: 'What are Strike Rounds?',
-    a: 'Strike Rounds are time-based prediction markets where you bet UP or DOWN on crypto prices (BTC, ETH, ALEO). Durations range from 24 hours to 30 days. The admin oracle compares the opening and closing prices — if price rose, UP wins; if it fell, DOWN wins. Your position and payout are fully private.',
+    a: 'Strike Rounds are 15-minute price prediction markets where you bet UP or DOWN on crypto prices (BTC, ETH, ALEO). The Round Bot automatically creates 3 concurrent markets every 15 minutes using delegated proving. After the timer expires, it compares oracle start vs end price and calls flash_settle on-chain — all markets are settled, even empty ones. Your position and payout are fully private via ZK proofs.',
   },
   {
     q: 'How is privacy maintained?',
@@ -42,11 +42,11 @@ const faqs = [
   },
   {
     q: 'Can I create my own market?',
-    a: 'Yes! Go to the Create page, fill in your question, outcomes, deadline, and initial liquidity. You can create event markets (any topic) or Strike Rounds. The market is created on-chain and appears in the list once confirmed by the indexer.',
+    a: 'Yes! Go to the Create page to set up an event market with your question, outcomes, deadline, and initial liquidity. The market is created on-chain and appears in the list once confirmed by the indexer. Strike Rounds are created automatically by the Round Bot every 15 minutes.',
   },
   {
-    q: 'How does admin resolution work?',
-    a: 'For Strike Rounds, the admin visits the Admin page, sees the oracle start price vs the current price for each round, then calls flash_settle directly from their wallet — choosing UP (outcome 1) or DOWN (outcome 2). After resolving, the admin creates the next round manually on the Create page. For event markets, the resolver calls render_verdict then ratify_verdict after a 12-hour challenge window.',
+    q: 'How does resolution work?',
+    a: 'Strike Rounds are auto-resolved by the Round Bot every 15 minutes. The bot compares oracle start vs end prices and calls flash_settle on-chain via delegated proving (~30s). All rounds are settled on-chain — including empty ones to keep state clean. Admin can also manually resolve via the Admin page. For event markets, the resolver calls render_verdict then ratify_verdict after a 12-hour challenge window.',
   },
   {
     q: 'How do I get started?',

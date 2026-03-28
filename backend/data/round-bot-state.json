@@ -1,0 +1,60 @@
+{
+  "slots": [
+    {
+      "id": "BTC-ALEO",
+      "asset": "BTC",
+      "tokenType": "ALEO",
+      "programId": "veil_strike_v6.aleo",
+      "state": "open",
+      "marketId": "5827771375142689743570128951256613810804390749773081378939603451936850841535field",
+      "txId": "at1zyzw87ays5vrl5rmeyer5pfgh3lghr80kcdu8s3rxz2jh59ehc8q88pv3w",
+      "startPrice": 66391,
+      "startTime": 1774658706377,
+      "endTime": 1774659606377,
+      "roundNumber": 2,
+      "totalVolume": 0,
+      "error": null,
+      "lastSettleTxId": "at1lltlk0m5wa9nyqk5jrvgznxpk75f3szdetrpl22qptedyv2k2c8qfl9pvw",
+      "settleRetries": 0
+    },
+    {
+      "id": "ETH-ALEO",
+      "asset": "ETH",
+      "tokenType": "ALEO",
+      "programId": "veil_strike_v6.aleo",
+      "state": "open",
+      "marketId": "6675974504148136347544519593381563754932837354481441453616911658187249627950field",
+      "txId": "at137vq6phylxl7c34ltfphhukqcanky2nhgkmszxerctu0erkmw5fq8uugkv",
+      "startPrice": 1991.51,
+      "startTime": 1774658722101,
+      "endTime": 1774659622101,
+      "roundNumber": 2,
+      "totalVolume": 0,
+      "error": null,
+      "lastSettleTxId": "at1mg5cu0kde08l49qced7qlhcqke0c0mezrjledecqs8rjl0wdqgxsamnutk",
+      "settleRetries": 0
+    },
+    {
+      "id": "ALEO-ALEO",
+      "asset": "ALEO",
+      "tokenType": "ALEO",
+      "programId": "veil_strike_v6.aleo",
+      "state": "open",
+      "marketId": "3899001424388171239016424691602527928408012413943900487374577319912039681510field",
+      "txId": "at1suxter9vufy7ylsk9xy05xxntvlfngaj8jpycvzqjqklg2ffzspqyyzknp",
+      "startPrice": 0.053295,
+      "startTime": 1774658737945,
+      "endTime": 1774659637945,
+      "roundNumber": 2,
+      "totalVolume": 0,
+      "error": null,
+      "lastSettleTxId": "at12y04psv8cg8a3evg7y5g7ta6xw3upeudch0wnslz9nzf4ycssgfq9ue2zp",
+      "settleRetries": 0
+    }
+  ],
+  "resolverAddress": "aleo19za49scmhufst9q8lhwka5hmkvzx5ersrue3gjwcs705542daursptmx0r",
+  "startedAt": 1774657714942,
+  "totalRoundsCreated": 6,
+  "totalRoundsSettled": 0,
+  "totalRoundsSkipped": 3
+}

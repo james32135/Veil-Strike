@@ -209,7 +209,7 @@ export default function HeroSection() {
           transition={{ delay: 1.2, duration: 0.5 }}
           className="text-base md:text-lg text-smoke/60 max-w-lg mx-auto mb-10 leading-relaxed font-body"
         >
-          AI-powered prediction markets with human-grade privacy. Trade with complete anonymity on the Aleo blockchain.
+          Zero-knowledge prediction markets with 15-minute auto-resolved Strike Rounds. Every bet, position, and payout is encrypted on-chain — only you can see it.
         </motion.p>
 
         {/* CTAs */}
@@ -231,9 +231,9 @@ export default function HeroSection() {
               <motion.span animate={{ x: [0, 4, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>→</motion.span>
             </span>
           </Link>
-          <Link to="/lightning" className="btn-secondary text-sm px-7 py-3.5 flex items-center gap-2">
+          <Link to="/rounds" className="btn-secondary text-sm px-7 py-3.5 flex items-center gap-2">
             <BoltIcon className="w-3.5 h-3.5 text-teal" />
-            Lightning
+            Strike Rounds
           </Link>
         </motion.div>
 

@@ -10,7 +10,7 @@ const features = [
   {
     icon: <BoltIcon className="w-7 h-7" />,
     title: 'Strike Rounds',
-    description: 'Price prediction markets with 24h, 2-day, 7-day, and 30-day durations on BTC, ETH, and ALEO — resolved by oracle price comparison.',
+    description: '15-minute auto-resolved price predictions on BTC, ETH, and ALEO. The Round Bot creates, settles, and repeats every cycle — all via delegated proving with full ZK privacy.',
   },
   {
     icon: <LockIcon className="w-7 h-7" />,

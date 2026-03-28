@@ -243,3 +243,7 @@ export function savePendingMeta(questionHash: string, meta: PendingMeta): void {
 function getPendingMeta(questionHash: string): PendingMeta | undefined {
   return pendingMetaByHash[questionHash];
 }
+
+export function deletePendingMeta(questionHash: string): void {
+  delete pendingMetaByHash[questionHash];
+}

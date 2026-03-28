@@ -1,31 +1,22 @@
-import { useState } from 'react';
-import { CreateEventForm, CreateLightningForm } from '@/components/create';
+import { CreateEventForm } from '@/components/create';
 import PageHeader from '@/components/layout/PageHeader';
-import Tabs from '@/components/shared/Tabs';
 import Card from '@/components/shared/Card';
 
 export default function CreateMarket() {
-  const [type, setType] = useState('event');
-
-  const tabs = [
-    { id: 'event', label: 'Event Market' },
-    { id: 'lightning', label: '⚡ Strike Round' },
-  ];
-
   return (
     <div>
       <PageHeader
-        title="Create Market"
-        subtitle="Launch a new prediction market on Aleo with full privacy"
+        title="Create Event Market"
+        subtitle="Launch a prediction market on any real-world event — fully private on Aleo"
       />
 
       <div className="max-w-2xl mx-auto mt-6">
-        <Tabs tabs={tabs} activeTab={type} onChange={setType} />
-
-        <Card className="p-6 mt-4">
-          {type === 'event' && <CreateEventForm />}
-          {type === 'lightning' && <CreateLightningForm />}
+        <Card className="p-6">
+          <CreateEventForm />
         </Card>
+        <p className="text-xs text-smoke/40 text-center mt-4">
+          Strike Rounds are created automatically every 15 minutes by the Round Bot.
+        </p>
       </div>
     </div>
   );

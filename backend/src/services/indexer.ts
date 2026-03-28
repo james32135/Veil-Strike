@@ -13,6 +13,7 @@ export interface MarketMeta {
   isLightning: boolean;
   tokenType?: 'ALEO' | 'USDCX' | 'USAD';
   imageUrl?: string;
+  botEndTime?: number; // Wall-clock ms timestamp for round-bot markets
 }
 
 // ── JSON persistence for dynamically discovered/registered markets ──
@@ -258,7 +259,7 @@ export async function fetchMarketsFromChain(): Promise<MarketInfo[]> {
         totalVolume: pool.total_volume,
         tradeCount: 0,
         status: STATUS_MAP[market.status] || 'active',
-        endTime: blockHeightToTimestamp(market.deadline, currentBlock),
+        endTime: meta.botEndTime || blockHeightToTimestamp(market.deadline, currentBlock),
         createdAt: blockHeightToCreatedTimestamp(market.created_at, currentBlock),
         isLightning: meta.isLightning,
         tokenType: TOKEN_TYPE_MAP[tokenType] || 'ALEO',
@@ -320,4 +321,21 @@ export function updateMarketMeta(marketId: string, partial: Partial<MarketMeta>)
   const existing = MARKET_REGISTRY[marketId];
   if (!existing) return;
   Object.assign(existing, partial);
+}
+
+/**
+ * Clear isLightning on ALL existing markets in the registry.
+ * Called by round-bot at startup to prevent orphaned rounds from previous runs
+ * showing on the Rounds page.
+ */
+export function clearAllLightningFlags(): number {
+  let count = 0;
+  for (const meta of Object.values(MARKET_REGISTRY)) {
+    if (meta.isLightning) {
+      meta.isLightning = false;
+      count++;
+    }
+  }
+  if (count > 0) persistRegistry();
+  return count;
 }

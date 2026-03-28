@@ -261,7 +261,8 @@ async function createReplacementMarket(
     return null;
   }
 
-  const deadline = currentBlock + 1_000_000; // Far future — strike rounds resolved by admin
+  const ACTUAL_BLOCK_TIME_S = 5;
+  const deadline = currentBlock + Math.ceil(15 * 60 / ACTUAL_BLOCK_TIME_S) + 30;
   const resolutionDeadline = deadline + 2880;
   const initialLiquidity = 5_000_000; // 5 ALEO/USDCX/USAD
   const nonce = `${BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER))}field`;

@@ -1,10 +1,11 @@
-// Proof Dispatcher — manages a PERSISTENT prove-worker thread.
-// The worker stays alive so the Aleo SDK key cache persists across settlements.
-// First settlement is slow (key synthesis), subsequent ones are fast (cached keys).
+// Proof Dispatcher — routes proving to Provable delegated proving (fast, ~30s)
+// or falls back to a PERSISTENT local prove-worker thread (slow, 2-5 min).
+// Delegated proving is preferred when PROVABLE_API_KEY is configured.
 
 import { Worker } from 'worker_threads';
 import { join } from 'path';
 import { config } from '../config';
+import { delegatedSettle, delegatedCreateMarket, isDelegatedProvingAvailable } from './delegated-prover';
 
 const PRIVATE_KEY = process.env.RESOLVER_PRIVATE_KEY || process.env.PRIVATE_KEY || '';
 const TASK_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes (first key synthesis is slow)
@@ -105,7 +106,7 @@ function dispatch(action: string, params: Record<string, any>, programId: string
 }
 
 /**
- * Dispatch flash_settle to the persistent worker. Non-blocking.
+ * Dispatch flash_settle — uses delegated proving if available, falls back to local worker.
  */
 export async function dispatchSettle(
   marketId: string,
@@ -113,12 +114,21 @@ export async function dispatchSettle(
   tokenType?: string,
 ): Promise<string | null> {
   console.log(`[ProofDispatcher] Dispatching flash_settle market=${marketId.slice(0, 20)}... outcome=${winningOutcome} token=${tokenType || 'ALEO'}`);
+
+  // Try delegated proving first (fast, ~30s)
+  if (isDelegatedProvingAvailable()) {
+    const result = await delegatedSettle(marketId, winningOutcome, tokenType);
+    if (result.success && result.txId) return result.txId;
+    console.warn(`[ProofDispatcher] Delegated settle failed, falling back to local: ${result.error}`);
+  }
+
+  // Fallback to local worker (slow, 2-5 min)
   const result = await dispatch('flash_settle', { marketId, winningOutcome }, getProgramId(tokenType));
   return result.success ? (result.txId ?? null) : null;
 }
 
 /**
- * Dispatch open_market to the persistent worker. Non-blocking.
+ * Dispatch open_market — uses delegated proving if available, falls back to local worker.
  */
 export async function dispatchCreateMarket(
   questionHash: string,
@@ -132,6 +142,18 @@ export async function dispatchCreateMarket(
   tokenType?: string,
 ): Promise<string | null> {
   console.log(`[ProofDispatcher] Dispatching open_market hash=${questionHash.slice(0, 20)}...`);
+
+  // Try delegated proving first (fast, ~30s)
+  if (isDelegatedProvingAvailable()) {
+    const result = await delegatedCreateMarket(
+      questionHash, category, numOutcomes, deadline, resolutionDeadline,
+      resolver, initialLiquidity, nonce, tokenType,
+    );
+    if (result.success && result.txId) return result.txId;
+    console.warn(`[ProofDispatcher] Delegated create failed, falling back to local: ${result.error}`);
+  }
+
+  // Fallback to local worker (slow, 2-5 min)
   const result = await dispatch('open_market', {
     questionHash, category, numOutcomes, deadline, resolutionDeadline,
     resolver, initialLiquidity, nonce,

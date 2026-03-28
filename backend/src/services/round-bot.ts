@@ -4,7 +4,7 @@
 
 import { config } from '../config';
 import { getCachedPrices } from './oracle';
-import { registerMarket, persistRegistry } from './indexer';
+import { registerMarket, persistRegistry, clearStaleLightningFlags, getCachedMarkets } from './indexer';
 import { savePendingMeta, deletePendingMeta } from './scanner';
 import { delegatedSettle, delegatedCreateMarket, isDelegatedProvingAvailable, getResolverAddressFromKey } from './delegated-prover';
 import { fetchCurrentBlock } from './chain-executor';
@@ -364,7 +364,6 @@ async function fetchPoolVolume(marketId: string, tokenType: TokenType): Promise<
 
 async function findMarketIdForSlot(slot: MarketSlot): Promise<string | null> {
   // Look up from the indexer's cached markets
-  const { getCachedMarkets } = await import('./indexer');
   const markets = getCachedMarkets();
   const question = `${slot.asset} Strike Round`;
 
@@ -533,6 +532,32 @@ export async function startRoundBot(): Promise<void> {
   }
 
   running = true;
+
+  // Clear lightning flags only for resolved/cancelled/stale markets (not active ones)
+  const cleared = clearStaleLightningFlags();
+  if (cleared > 0) console.log(`[RoundBot] Cleared ${cleared} stale lightning flags`);
+
+  // Adopt existing active lightning markets from cache into idle slots
+  // This prevents creating duplicate markets when the bot restarts
+  const cached = getCachedMarkets();
+  for (const slot of botState.slots) {
+    if (slot.state !== 'idle') continue;
+    const match = cached.find((m) =>
+      m.isLightning &&
+      m.status === 'active' &&
+      (m.tokenType || 'ALEO') === slot.tokenType &&
+      m.question.toUpperCase().includes(slot.asset) &&
+      m.endTime > Date.now()
+    );
+    if (match) {
+      slot.marketId = match.id;
+      slot.state = 'open';
+      slot.endTime = match.endTime;
+      slot.startTime = match.createdAt || Date.now();
+      slot.startPrice = getAssetPrice(slot.asset);
+      console.log(`[RoundBot] Adopted existing market for ${slot.id}: ${match.id.slice(0, 20)}... (${Math.round((match.endTime - Date.now()) / 1000)}s left)`);
+    }
+  }
 
   saveState();
 

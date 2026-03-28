@@ -101,11 +101,19 @@ export async function autoResolveMarkets(): Promise<void> {
     const id = market.id;
     if (isOnCooldown(id)) continue;
 
-    // Skip lightning markets — they use settle_round via lightning-manager
+    // Skip lightning markets — they use settle_round via lightning-manager / round-bot
     if (market.isLightning) continue;
 
     // Skip bot-created strike round markets — handled by round-bot via flash_settle
     if (market.question.includes('Strike Round')) continue;
+
+    // Skip markets with very short deadlines (< 3 hours) that look like bot-created
+    // round markets whose metadata was lost on redeploy.  Regular event markets
+    // have deadlines of days/weeks, not minutes.
+    if (market.status === 'active' && market.endTime < Date.now()) {
+      const lifespan = market.endTime - (market.createdAt || 0);
+      if (lifespan > 0 && lifespan < 3 * 60 * 60 * 1000) continue;
+    }
 
     try {
       // ──────────────────────────────────────────────

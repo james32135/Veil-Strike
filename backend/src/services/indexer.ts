@@ -324,14 +324,25 @@ export function updateMarketMeta(marketId: string, partial: Partial<MarketMeta>)
 }
 
 /**
- * Clear isLightning on ALL existing markets in the registry.
- * Called by round-bot at startup to prevent orphaned rounds from previous runs
- * showing on the Rounds page.
+ * Clear isLightning only on markets that are resolved/cancelled in the cache,
+ * or whose botEndTime is more than 60 minutes in the past (orphaned rounds).
+ * This prevents wiping flags on markets that are still active and tradable.
  */
-export function clearAllLightningFlags(): number {
+export function clearStaleLightningFlags(): number {
+  const now = Date.now();
+  const STALE_THRESHOLD = 60 * 60 * 1000; // 60 min
   let count = 0;
-  for (const meta of Object.values(MARKET_REGISTRY)) {
-    if (meta.isLightning) {
+  for (const [id, meta] of Object.entries(MARKET_REGISTRY)) {
+    if (!meta.isLightning) continue;
+    // Clear resolved / cancelled markets
+    const cached = marketsCache.find((m) => m.id === id);
+    if (cached && (cached.status === 'resolved' || cached.status === 'cancelled')) {
+      meta.isLightning = false;
+      count++;
+      continue;
+    }
+    // Clear orphaned rounds whose endTime is long past
+    if (meta.botEndTime && meta.botEndTime < now - STALE_THRESHOLD) {
       meta.isLightning = false;
       count++;
     }

@@ -9,11 +9,14 @@ const PRIVATE_KEY = process.env.RESOLVER_PRIVATE_KEY || process.env.PRIVATE_KEY 
 const PRIORITY_FEE = 10_000; // 0.01 ALEO in microcredits
 const DPS_URL = 'https://api.provable.com/prove/testnet'; // Delegated Proving Service
 
-// Lazy-load ESM SDK
+// Real ESM import() — TSC compiles dynamic import() to require() in CJS mode,
+// which fails for ESM packages with top-level await (Node 22+)
+const importESM = new Function('specifier', 'return import(specifier)') as (s: string) => Promise<any>;
+
 let sdkCache: any = null;
 async function getSDK() {
   if (!sdkCache) {
-    sdkCache = await import('@provablehq/sdk');
+    sdkCache = await importESM('@provablehq/sdk');
   }
   return sdkCache;
 }

@@ -3,11 +3,14 @@
 
 import { config } from '../config';
 
-// Lazy-load the ESM SDK
+// Real ESM import() — TSC compiles dynamic import() to require() in CJS mode,
+// which fails for ESM packages with top-level await (Node 22+)
+const importESM = new Function('specifier', 'return import(specifier)') as (s: string) => Promise<any>;
+
 let sdkCache: any = null;
 async function getSDK() {
   if (!sdkCache) {
-    sdkCache = await import('@provablehq/sdk');
+    sdkCache = await importESM('@provablehq/sdk');
   }
   return sdkCache;
 }

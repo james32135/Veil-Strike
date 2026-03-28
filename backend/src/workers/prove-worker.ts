@@ -23,6 +23,9 @@ interface TaskResult {
 
 const PRIORITY_FEE = 10_000; // 0.01 ALEO
 
+// Real ESM import() — TSC compiles dynamic import() to require() in CJS mode
+const importESM = new Function('specifier', 'return import(specifier)') as (s: string) => Promise<any>;
+
 // Persistent ProgramManager cache — key cache survives across tasks
 const pmCache = new Map<string, any>();
 
@@ -30,7 +33,7 @@ async function getOrCreatePM(privateKey: string, aleoEndpoint: string, programId
   const cacheKey = `${programId}:${aleoEndpoint}`;
   if (pmCache.has(cacheKey)) return pmCache.get(cacheKey);
 
-  const sdk = await import('@provablehq/sdk');
+  const sdk = await importESM('@provablehq/sdk');
   const { ProgramManager, AleoNetworkClient, AleoKeyProvider, NetworkRecordProvider, Account } = sdk;
 
   const account = new Account({ privateKey });

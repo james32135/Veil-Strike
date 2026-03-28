@@ -33,9 +33,11 @@ const pendingTasks = new Map<string, {
 function ensureWorker(): Worker {
   if (worker) return worker;
 
-  const workerPath = join(__dirname, '../workers/prove-worker.ts');
+  const isCompiled = __filename.endsWith('.js');
+  const workerFile = isCompiled ? 'prove-worker.js' : 'prove-worker.ts';
+  const workerPath = join(__dirname, '../workers/' + workerFile);
   const w = new Worker(workerPath, {
-    execArgv: ['--require', 'tsx/cjs'],
+    ...(isCompiled ? {} : { execArgv: ['--require', 'tsx/cjs'] }),
   });
 
   w.on('message', (result: TaskResult) => {

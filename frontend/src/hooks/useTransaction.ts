@@ -205,10 +205,22 @@ export function useTransaction() {
         addNotification('error', 'Transaction Failed', 'No transaction ID returned.');
         return null;
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Transaction failed';
+        const raw = err instanceof Error ? err.message : 'Transaction failed';
+        let message = raw;
+        let title = 'Transaction Failed';
+
+        // Provide friendly error for common Aleo issues
+        if (raw.includes('input ID') && raw.includes('already exists')) {
+          title = 'Record Already Spent';
+          message = 'This credits record was already used in a recent transaction. Please wait ~30 seconds for it to confirm, then try again.';
+        } else if (raw.includes('insufficient') || raw.includes('balance')) {
+          title = 'Insufficient Balance';
+          message = 'Not enough credits to cover the bet and transaction fee. Try a smaller amount.';
+        }
+
         setError(message);
         setStatus('error');
-        addNotification('error', 'Transaction Failed', message);
+        addNotification('error', title, message);
         return null;
       }
     },

@@ -4,7 +4,7 @@ import cors from 'cors';
 import cron from 'node-cron';
 import { config } from './config';
 import { fetchOraclePrices, recordPriceSnapshot } from './services/oracle';
-import { fetchMarketsFromChain, setCachedMarkets } from './services/indexer';
+import { fetchMarketsFromChain, setCachedMarkets, clearAllLightningFlags } from './services/indexer';
 import { resolveExpiredMarkets } from './services/resolver';
 import { scanForNewMarkets } from './services/scanner';
 import { autoResolveMarkets } from './services/auto-resolver';
@@ -34,6 +34,12 @@ app.use('/api/governance', governanceRouter);
 // Initialize data
 async function initialize() {
   console.log('[Init] Fetching initial data...');
+
+  // Clear stale lightning flags BEFORE fetching markets so old orphaned
+  // rounds don't leak into the cache or get re-seeded.
+  const cleared = clearAllLightningFlags();
+  if (cleared > 0) console.log(`[Init] Cleared ${cleared} orphaned lightning flags`);
+
   const [markets] = await Promise.all([
     fetchMarketsFromChain(),
     fetchOraclePrices(),

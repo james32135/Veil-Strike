@@ -42,12 +42,17 @@ export default function Portfolio() {
 
   const handleSell = async (record: ShareRecord) => {
     const market = markets.find((m) => m.id === record.marketId);
-    const isResolved = market?.status === 'resolved' && market.resolvedOutcome === record.outcome - 1;
+    const outcomeIdx = record.outcome - 1;
+    const marketResolved = market?.status === 'resolved';
+    const isWinner = marketResolved && market.resolvedOutcome === outcomeIdx;
+    const isLoser = marketResolved && !isWinner;
+
+    if (isLoser) return; // Can't sell losing shares
 
     let tx;
     const tokenTypeStr = record.tokenType === 1 ? 'USDCX' : record.tokenType === 2 ? 'USAD' : undefined;
 
-    if (isResolved) {
+    if (isWinner) {
       // Market resolved on-chain — redeem at full value via harvest_winnings (1:1)
       tx = buildRedeemSharesTx(record.plaintext, tokenTypeStr as 'USDCX' | 'USAD' | undefined);
     } else {
@@ -178,19 +183,22 @@ export default function Portfolio() {
                 const market = markets.find((m) => m.id === record.marketId);
                 const reserves = market?.reserves ?? [1_000_000, 1_000_000];
                 const outcomeIdx = record.outcome - 1;
-                const isResolved = market?.status === 'resolved' && market.resolvedOutcome === outcomeIdx;
+                const marketResolved = market?.status === 'resolved';
+                const isWinner = marketResolved && market.resolvedOutcome === outcomeIdx;
+                const isLoser = marketResolved && market.resolvedOutcome !== outcomeIdx;
                 const { tokensOut } = estimateSellTokensOut(reserves, outcomeIdx, record.quantity);
-                const displayValue = isResolved ? record.quantity : calculateFees(tokensOut).amountAfterFee;
+                const displayValue = isWinner ? record.quantity : isLoser ? 0 : calculateFees(tokensOut).amountAfterFee;
                 const tokenLabel = record.tokenType === 1 ? 'USDCx' : record.tokenType === 2 ? 'USAD' : 'ALEO';
                 const outcomeLabel = record.outcome === 1 ? 'UP / YES' : 'DOWN / NO';
 
                 // Detect lightning winning position — user won even if on-chain market not yet resolved
-                // Must match by marketId to avoid false positives from other markets
-                const isLightningWin = !isResolved && market?.isLightning && lightningBets.some(
+                const isLightningWin = !marketResolved && market?.isLightning && lightningBets.some(
                   (b) => b.won && b.marketId === record.marketId && b.direction === (record.outcome === 1 ? 'up' : 'down')
                 );
-                const isLightningSettling = isLightningWin && !isResolved;
-                const isClaimable = isResolved;
+                const isLightningLoss = !marketResolved && market?.isLightning && lightningBets.some(
+                  (b) => b.won === false && b.marketId === record.marketId && b.direction === (record.outcome === 1 ? 'up' : 'down')
+                );
+                const isClaimable = isWinner;
 
                 return (
                   <motion.div
@@ -199,14 +207,16 @@ export default function Portfolio() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.04, duration: 0.4 }}
                   >
-                    <Card className="p-4 group/share">
+                    <Card className={`p-4 group/share ${isLoser || isLightningLoss ? 'opacity-60' : ''}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0 mr-3">
                           <div className="flex items-center gap-2 mb-1.5">
                             <Badge variant={record.outcome === 1 ? 'green' : 'red'}>{outcomeLabel}</Badge>
                             <Badge variant="teal"><CryptoIcon symbol={tokenLabel} size={12} className="mr-1" />{tokenLabel}</Badge>
-                            {isResolved && <Badge variant="success" size="sm">Claimable</Badge>}
+                            {isWinner && <Badge variant="success" size="sm">💰 Claimable</Badge>}
+                            {isLoser && <Badge variant="danger" size="sm">✗ Lost</Badge>}
                             {isLightningWin && <Badge variant="success" size="sm">⚡ Won</Badge>}
+                            {isLightningLoss && <Badge variant="danger" size="sm">⚡ Lost</Badge>}
                           </div>
                           <p className="text-sm font-mono text-gray-300 truncate group-hover/share:text-white transition-colors duration-300">
                             {market?.question || `Market ${record.marketId.slice(0, 12)}...`}
@@ -216,21 +226,29 @@ export default function Portfolio() {
                               <span className="text-[10px] text-gray-500">Qty </span>
                               <span className="text-xs font-mono text-gray-300 tabular-nums">{formatAleo(record.quantity)}</span>
                             </div>
-                            <div className={`px-2.5 py-1 rounded-lg ${isClaimable ? 'bg-accent-green/[0.06] border border-accent-green/[0.12]' : 'bg-teal/[0.04] border border-teal/[0.08]'}`}>
-                              <span className="text-[10px] text-gray-500">{isClaimable ? 'Claim' : 'Sell'} </span>
-                              <span className={`text-xs font-mono tabular-nums ${isClaimable ? 'text-accent-green' : 'text-teal'}`}>~{formatAleo(displayValue)} {tokenLabel}</span>
-                            </div>
+                            {isLoser ? (
+                              <div className="px-2.5 py-1 rounded-lg bg-accent-red/[0.06] border border-accent-red/[0.12]">
+                                <span className="text-xs font-mono tabular-nums text-accent-red">Worthless</span>
+                              </div>
+                            ) : (
+                              <div className={`px-2.5 py-1 rounded-lg ${isClaimable ? 'bg-accent-green/[0.06] border border-accent-green/[0.12]' : 'bg-teal/[0.04] border border-teal/[0.08]'}`}>
+                                <span className="text-[10px] text-gray-500">{isClaimable ? 'Claim' : 'Sell'} </span>
+                                <span className={`text-xs font-mono tabular-nums ${isClaimable ? 'text-accent-green' : 'text-teal'}`}>~{formatAleo(displayValue)} {tokenLabel}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => handleSell(record)}
-                          loading={txStatus === 'proving' || txStatus === 'broadcasting'}
-                          className={`!text-xs !rounded-xl ${isClaimable ? '!bg-gradient-to-r !from-accent-green/20 !to-accent-green/10 !text-accent-green !border !border-accent-green/20 hover:!shadow-[0_0_16px_-4px_rgba(34,197,94,0.3)]' : ''}`}
-                        >
-                          {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : isClaimable ? '💰 Claim' : isLightningSettling ? 'Sell (AMM)' : 'Sell Shares'}
-                        </Button>
+                        {!isLoser && !isLightningLoss && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleSell(record)}
+                            loading={txStatus === 'proving' || txStatus === 'broadcasting'}
+                            className={`!text-xs !rounded-xl ${isClaimable ? '!bg-gradient-to-r !from-accent-green/20 !to-accent-green/10 !text-accent-green !border !border-accent-green/20 hover:!shadow-[0_0_16px_-4px_rgba(34,197,94,0.3)]' : ''}`}
+                          >
+                            {txStatus === 'proving' ? 'Proving...' : txStatus === 'broadcasting' ? 'Broadcasting...' : isClaimable ? '💰 Claim' : '🔄 Sell'}
+                          </Button>
+                        )}
                       </div>
                     </Card>
                   </motion.div>

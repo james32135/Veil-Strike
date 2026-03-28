@@ -4,7 +4,7 @@
 
 import { config } from '../config';
 import { getCachedPrices } from './oracle';
-import { registerMarket, persistRegistry, clearAllLightningFlags } from './indexer';
+import { registerMarket, persistRegistry } from './indexer';
 import { savePendingMeta, deletePendingMeta } from './scanner';
 import { delegatedSettle, delegatedCreateMarket, isDelegatedProvingAvailable, getResolverAddressFromKey } from './delegated-prover';
 import { fetchCurrentBlock } from './chain-executor';
@@ -533,12 +533,6 @@ export async function startRoundBot(): Promise<void> {
   }
 
   running = true;
-
-  // Clean up orphaned lightning flags from previous bot runs
-  const cleared = clearAllLightningFlags();
-  if (cleared > 0) {
-    console.log(`[RoundBot] Cleared ${cleared} orphaned lightning flags from registry`);
-  }
 
   saveState();
 

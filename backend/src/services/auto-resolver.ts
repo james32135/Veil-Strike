@@ -11,6 +11,8 @@ import {
   fetchResolution,
   fetchCurrentBlock,
   getResolverAddress,
+  hasMinBalance,
+  isExecutionBusy,
 } from './chain-executor';
 
 // Track markets we've already submitted tx for (avoid double-submitting while tx confirms)
@@ -69,6 +71,18 @@ export async function autoResolveMarkets(): Promise<void> {
   const resolverAddr = getResolverAddress();
   if (!resolverAddr) {
     console.log('[AutoResolver] No RESOLVER_PRIVATE_KEY configured — skipping');
+    return;
+  }
+
+  // Skip if another execution is already running (prevents OOM from concurrent proofs)
+  if (isExecutionBusy()) {
+    console.log('[AutoResolver] ChainExecutor busy — skipping this cycle');
+    return;
+  }
+
+  // Pre-check balance before iterating markets (avoids pointless heavy work)
+  if (!(await hasMinBalance())) {
+    console.log('[AutoResolver] Skipping cycle — insufficient resolver balance');
     return;
   }
 

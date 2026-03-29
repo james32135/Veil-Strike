@@ -18,6 +18,39 @@ async function getSDK() {
 const PRIVATE_KEY = process.env.RESOLVER_PRIVATE_KEY || process.env.PRIVATE_KEY || '';
 const PRIORITY_FEE = 10_000; // 0.01 ALEO
 
+// Minimum balance (microcredits) required to attempt on-chain execution.
+// lock_market costs ~10 ALEO; set threshold at 15 ALEO to have margin.
+const MIN_BALANCE_MICROCREDITS = 15_000_000;
+
+// Serialization lock — only one local proof at a time to prevent OOM on small instances
+let executionBusy = false;
+
+async function fetchAccountBalance(): Promise<number> {
+  try {
+    const addr = resolverAddressCache;
+    if (!addr) return 0;
+    const url = `${config.aleoEndpoint}/testnet/program/credits.aleo/mapping/account/${addr}`;
+    const res = await fetch(url);
+    if (!res.ok) return 0;
+    let text = await res.text();
+    try { text = JSON.parse(text); } catch {}
+    return parseInt(text.replace(/u64$/, ''), 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function hasMinBalance(): Promise<boolean> {
+  const balance = await fetchAccountBalance();
+  if (balance < MIN_BALANCE_MICROCREDITS) {
+    console.log(`[ChainExecutor] Insufficient balance: ${(balance / 1_000_000).toFixed(2)} ALEO (need ${MIN_BALANCE_MICROCREDITS / 1_000_000} ALEO) — skipping`);
+    return false;
+  }
+  return true;
+}
+
+export function isExecutionBusy(): boolean { return executionBusy; }
+
 function getProgramId(tokenType?: string): string {
   if (tokenType === 'USDCX') return config.programIdCx;
   if (tokenType === 'USAD') return config.programIdSd;
@@ -77,6 +110,9 @@ initResolverAddress();
  * Execute seal_market on-chain — permissionless, anyone can call after deadline
  */
 export async function executeCloseMarket(marketId: string, tokenType?: string): Promise<string | null> {
+  if (executionBusy) { console.log('[ChainExecutor] Busy — skipping lock_market'); return null; }
+  if (!(await hasMinBalance())) return null;
+  executionBusy = true;
   try {
     const pm = await getProgramManager();
     console.log(`[ChainExecutor] Locking market ${marketId.slice(0, 20)}...`);
@@ -94,6 +130,8 @@ export async function executeCloseMarket(marketId: string, tokenType?: string): 
   } catch (err: any) {
     console.error(`[ChainExecutor] lock_market failed:`, err?.message || err);
     return null;
+  } finally {
+    executionBusy = false;
   }
 }
 
@@ -106,6 +144,9 @@ export async function executeResolveMarket(
   winningOutcome: number,
   tokenType?: string
 ): Promise<string | null> {
+  if (executionBusy) { console.log('[ChainExecutor] Busy — skipping render_verdict'); return null; }
+  if (!(await hasMinBalance())) return null;
+  executionBusy = true;
   try {
     const pm = await getProgramManager();
     console.log(`[ChainExecutor] Rendering verdict ${marketId.slice(0, 20)}... outcome=${winningOutcome}`);
@@ -123,6 +164,8 @@ export async function executeResolveMarket(
   } catch (err: any) {
     console.error(`[ChainExecutor] render_verdict failed:`, err?.message || err);
     return null;
+  } finally {
+    executionBusy = false;
   }
 }
 
@@ -130,6 +173,9 @@ export async function executeResolveMarket(
  * Execute confirm_verdict on-chain — permissionless, after challenge window
  */
 export async function executeFinalizeResolution(marketId: string, tokenType?: string): Promise<string | null> {
+  if (executionBusy) { console.log('[ChainExecutor] Busy — skipping ratify_verdict'); return null; }
+  if (!(await hasMinBalance())) return null;
+  executionBusy = true;
   try {
     const pm = await getProgramManager();
     console.log(`[ChainExecutor] Ratifying verdict for ${marketId.slice(0, 20)}...`);
@@ -147,6 +193,8 @@ export async function executeFinalizeResolution(marketId: string, tokenType?: st
   } catch (err: any) {
     console.error(`[ChainExecutor] ratify_verdict failed:`, err?.message || err);
     return null;
+  } finally {
+    executionBusy = false;
   }
 }
 

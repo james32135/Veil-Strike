@@ -19,8 +19,8 @@ const PRIVATE_KEY = process.env.RESOLVER_PRIVATE_KEY || process.env.PRIVATE_KEY 
 const PRIORITY_FEE = 10_000; // 0.01 ALEO
 
 // Minimum balance (microcredits) required to attempt on-chain execution.
-// lock_market costs ~10 ALEO; set threshold at 15 ALEO to have margin.
-const MIN_BALANCE_MICROCREDITS = 15_000_000;
+// lock_market costs ~10 ALEO (10,000,002,815 microcredits); set threshold at 11 ALEO.
+const MIN_BALANCE_MICROCREDITS = 11_000_000_000;
 
 // Serialization lock — only one local proof at a time to prevent OOM on small instances
 let executionBusy = false;

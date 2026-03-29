@@ -70,8 +70,8 @@ cron.schedule(`*/${config.resolverIntervalMinutes} * * * *`, async () => {
   await resolveExpiredMarkets();
 });
 
-// Refresh market data from chain every 5 minutes
-cron.schedule('*/5 * * * *', async () => {
+// Refresh market data from chain every 2 minutes (keeps frontend data fresh)
+cron.schedule('*/2 * * * *', async () => {
   try {
     const markets = await fetchMarketsFromChain();
     setCachedMarkets(markets);

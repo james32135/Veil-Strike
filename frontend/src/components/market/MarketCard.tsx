@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import type { Market } from '@/types';
@@ -13,6 +14,7 @@ interface MarketCardProps {
 }
 
 export default function MarketCard({ market, index = 0 }: MarketCardProps) {
+  const [imgFailed, setImgFailed] = useState(false);
   const prices = calculatePrices(market.reserves);
   const outcomesWithPrices = market.outcomes.map((name, i) => ({
     name,
@@ -58,16 +60,13 @@ export default function MarketCard({ market, index = 0 }: MarketCardProps) {
           <div className="flex gap-3 mb-4">
             {/* Event Thumbnail */}
             <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 border border-white/[0.06] bg-dark-200 flex items-center justify-center">
-              {market.imageUrl ? (
+              {market.imageUrl && !imgFailed ? (
                 <img
                   src={market.imageUrl}
                   alt=""
                   className="w-full h-full object-cover"
                   loading="lazy"
-                  onError={(e) => {
-                    const el = e.target as HTMLImageElement;
-                    el.style.display = 'none';
-                  }}
+                  onError={() => setImgFailed(true)}
                 />
               ) : detectedAsset ? (
                 <CryptoIcon symbol={detectedAsset} size={30} />

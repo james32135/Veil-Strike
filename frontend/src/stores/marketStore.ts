@@ -27,12 +27,14 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   selectedToken: 'All',
 
   fetchMarkets: async () => {
-    set({ loading: true });
+    // Only show loading spinner on first fetch; background polls are silent
+    const isFirstLoad = get().markets.length === 0;
+    if (isFirstLoad) set({ loading: true });
     try {
       const markets = await fetchRealMarkets();
       set({ markets, loading: false });
     } catch {
-      set({ loading: false });
+      if (isFirstLoad) set({ loading: false });
     }
   },
 
@@ -44,7 +46,8 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   getFilteredMarkets: () => {
     const { markets, selectedCategory, sortBy, searchQuery, selectedToken } = get();
 
-    let filtered = [...markets];
+    // Hide resolved lightning/strike rounds — they clutter the Markets page
+    let filtered = markets.filter((m) => !(m.isLightning && m.status === 'resolved'));
 
     if (selectedCategory !== 'All') {
       filtered = filtered.filter((m) => m.category === selectedCategory);

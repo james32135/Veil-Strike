@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMarketStore } from '@/stores/marketStore';
 import { useMarkets } from '@/hooks/useMarkets';
 import { MarketCard, MarketFilters } from '@/components/market';
@@ -6,6 +6,8 @@ import PageHeader from '@/components/layout/PageHeader';
 import Loading from '@/components/shared/Loading';
 import EmptyState from '@/components/shared/EmptyState';
 import { ChartIcon } from '@/components/icons';
+
+const POLL_INTERVAL = 30_000; // Refresh markets every 30 seconds
 
 export default function Markets() {
   const { loading, fetchMarkets } = useMarketStore();
@@ -21,8 +23,12 @@ export default function Markets() {
     setSelectedToken,
   } = useMarkets();
 
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
     fetchMarkets();
+    intervalRef.current = setInterval(() => fetchMarkets(), POLL_INTERVAL);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchMarkets]);
 
   return (

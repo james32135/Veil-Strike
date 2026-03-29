@@ -46,8 +46,8 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   getFilteredMarkets: () => {
     const { markets, selectedCategory, sortBy, searchQuery, selectedToken } = get();
 
-    // Hide resolved lightning/strike rounds — they clutter the Markets page
-    let filtered = markets.filter((m) => !(m.isLightning && m.status === 'resolved'));
+    // Hide resolved & cancelled markets — users browse active/open markets here
+    let filtered = markets.filter((m) => m.status !== 'resolved' && m.status !== 'cancelled');
 
     if (selectedCategory !== 'All') {
       filtered = filtered.filter((m) => m.category === selectedCategory);

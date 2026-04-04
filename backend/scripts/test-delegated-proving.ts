@@ -38,7 +38,7 @@ async function main() {
   const { ProgramManager, AleoNetworkClient, AleoKeyProvider, NetworkRecordProvider, Account } = sdk;
 
   const endpoint = process.env.ALEO_ENDPOINT || 'https://api.explorer.provable.com/v1';
-  const programId = 'veil_strike_v6.aleo';
+  const programId = 'veil_strike_v7.aleo';
 
   // Initialize
   const account = new Account({ privateKey });

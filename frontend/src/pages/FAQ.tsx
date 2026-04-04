@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 const faqs = [
   {
     q: 'What tokens can I trade with?',
-    a: 'Veil Strike v6 supports three tokens: ALEO (native Aleo credits), USDCx (USD-pegged stablecoin), and USAD (algorithmic stablecoin). Each token runs on its own dedicated Leo smart contract — veil_strike_v6.aleo, veil_strike_v6_cx.aleo, and veil_strike_v6_sd.aleo respectively.',
+    a: 'Veil Strike v7 supports three tokens: ALEO (native Aleo credits), USDCx (USD-pegged stablecoin), and USAD (algorithmic stablecoin). Each token runs on its own dedicated Leo smart contract — veil_strike_v7.aleo, veil_strike_v7_cx.aleo, and veil_strike_v7_sd.aleo respectively.',
   },
   {
     q: 'What is Veil Strike?',

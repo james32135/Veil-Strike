@@ -45,7 +45,7 @@ function saveDynamicRegistry(registry: Record<string, MarketMeta>): void {
 }
 
 // Registry of known market IDs with their off-chain metadata
-// v6: Seed registry is empty — all markets are discovered dynamically via scanner
+// v7: Seed registry is empty — all markets are discovered dynamically via scanner
 // or registered via POST /api/markets/register. Legacy v5 seeds removed.
 const SEED_REGISTRY: Record<string, MarketMeta> = {};
 
@@ -205,73 +205,77 @@ function parsePoolStruct(raw: string): AleoPool | null {
 }
 
 export async function fetchMarketsFromChain(): Promise<MarketInfo[]> {
-  const markets: MarketInfo[] = [];
   const currentBlock = await fetchCurrentBlockHeight();
+  const entries = Object.entries(MARKET_REGISTRY);
 
-  for (const [marketId, meta] of Object.entries(MARKET_REGISTRY)) {
-    try {
-      // Determine which program to query based on token type
-      const pid = meta.tokenType === 'USDCX' ? config.programIdCx
-        : meta.tokenType === 'USAD' ? config.programIdSd : config.programId;
+  // Fetch all markets in parallel for dramatically faster loading
+  const results = await Promise.allSettled(
+    entries.map(async ([marketId, meta]): Promise<MarketInfo | null> => {
+      try {
+        const pid = meta.tokenType === 'USDCX' ? config.programIdCx
+          : meta.tokenType === 'USAD' ? config.programIdSd : config.programId;
 
-      const [marketRaw, poolRaw] = await Promise.all([
-        fetchMapping('markets', marketId, pid),
-        fetchMapping('amm_pools', marketId, pid),
-      ]);
+        const [marketRaw, poolRaw] = await Promise.all([
+          fetchMapping('markets', marketId, pid),
+          fetchMapping('amm_pools', marketId, pid),
+        ]);
 
-      if (!marketRaw || !poolRaw) {
-        console.log(`[Indexer] Market ${marketId.slice(0, 20)}... not found on chain`);
-        continue;
+        if (!marketRaw || !poolRaw) return null;
+
+        const market = parseMarketStruct(marketRaw);
+        const pool = parsePoolStruct(poolRaw);
+        if (!market || !pool) return null;
+
+        const tokenType = market.token_type;
+
+        const reserves: number[] = [];
+        reserves.push(pool.reserve_1);
+        reserves.push(pool.reserve_2);
+        if (market.num_outcomes >= 3) reserves.push(pool.reserve_3);
+        if (market.num_outcomes >= 4) reserves.push(pool.reserve_4);
+
+        let resolvedOutcome: number | undefined;
+        if (market.status === 3 || market.status === 5) {
+          try {
+            const resRaw = await fetchMapping('market_resolutions', marketId, pid);
+            if (resRaw) {
+              const resFields = parseAleoStruct(resRaw);
+              const wo = parseInt(parseAleoValue(resFields['winning_outcome'] || '0'), 10);
+              if (wo > 0) resolvedOutcome = wo - 1;
+            }
+          } catch {}
+        }
+
+        return {
+          id: marketId,
+          question: meta.question,
+          category: CATEGORY_MAP[market.category] || 'Other',
+          outcomes: meta.outcomes,
+          reserves,
+          totalLiquidity: pool.total_liquidity,
+          totalVolume: pool.total_volume,
+          tradeCount: 0,
+          status: STATUS_MAP[market.status] || 'active',
+          endTime: meta.botEndTime || blockHeightToTimestamp(market.deadline, currentBlock),
+          createdAt: blockHeightToCreatedTimestamp(market.created_at, currentBlock),
+          isLightning: meta.isLightning,
+          tokenType: TOKEN_TYPE_MAP[tokenType] || 'ALEO',
+          resolvedOutcome,
+          imageUrl: meta.imageUrl,
+        };
+      } catch (err) {
+        console.error(`[Indexer] Error fetching market ${marketId.slice(0, 20)}...`, err);
+        return null;
       }
+    })
+  );
 
-      const market = parseMarketStruct(marketRaw);
-      const pool = parsePoolStruct(poolRaw);
-      if (!market || !pool) continue;
+  const markets = results
+    .filter((r): r is PromiseFulfilledResult<MarketInfo | null> => r.status === 'fulfilled')
+    .map(r => r.value)
+    .filter((m): m is MarketInfo => m !== null);
 
-      const tokenType = market.token_type;
-
-      const reserves: number[] = [];
-      reserves.push(pool.reserve_1);
-      reserves.push(pool.reserve_2);
-      if (market.num_outcomes >= 3) reserves.push(pool.reserve_3);
-      if (market.num_outcomes >= 4) reserves.push(pool.reserve_4);
-
-      // Fetch resolved outcome if market is resolved or pending resolution
-      let resolvedOutcome: number | undefined;
-      if (market.status === 3 || market.status === 5) {
-        try {
-          const resRaw = await fetchMapping('market_resolutions', marketId, pid);
-          if (resRaw) {
-            const resFields = parseAleoStruct(resRaw);
-            const wo = parseInt(parseAleoValue(resFields['winning_outcome'] || '0'), 10);
-            if (wo > 0) resolvedOutcome = wo - 1; // Convert 1-based to 0-based for frontend
-          }
-        } catch {}
-      }
-
-      markets.push({
-        id: marketId,
-        question: meta.question,
-        category: CATEGORY_MAP[market.category] || 'Other',
-        outcomes: meta.outcomes,
-        reserves,
-        totalLiquidity: pool.total_liquidity,
-        totalVolume: pool.total_volume,
-        tradeCount: 0,
-        status: STATUS_MAP[market.status] || 'active',
-        endTime: meta.botEndTime || blockHeightToTimestamp(market.deadline, currentBlock),
-        createdAt: blockHeightToCreatedTimestamp(market.created_at, currentBlock),
-        isLightning: meta.isLightning,
-        tokenType: TOKEN_TYPE_MAP[tokenType] || 'ALEO',
-        resolvedOutcome,
-        imageUrl: meta.imageUrl,
-      });
-    } catch (err) {
-      console.error(`[Indexer] Error fetching market ${marketId.slice(0, 20)}...`, err);
-    }
-  }
-
-  console.log(`[Indexer] Fetched ${markets.length} markets from chain`);
+  console.log(`[Indexer] Fetched ${markets.length} markets from chain (parallel)`);
   return markets;
 }
 

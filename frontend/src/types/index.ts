@@ -106,6 +106,10 @@ export interface Notification {
   timestamp: number;
   link?: string;
   linkLabel?: string;
+  /** Current step index (0-based) for multi-step toasts */
+  currentStep?: number;
+  /** Step labels for multi-step progress */
+  steps?: string[];
 }
 
 export interface AleoTransaction {

@@ -145,7 +145,28 @@ export function useTransaction() {
       setStatus('preparing');
       setError(null);
 
+      const TX_STEPS = [
+        'Preparing transaction',
+        'Waiting for wallet approval',
+        'Generating ZK proof',
+        'Broadcasting to network',
+        'Confirming on-chain',
+      ];
+
+      // Show multi-step toast immediately
+      const toastId = addNotification(
+        'pending',
+        'Transaction In Progress',
+        `${transaction.functionName} on ${transaction.programId.replace('.aleo', '')}`,
+        undefined,
+        undefined,
+      );
+      // Set steps on the toast
+      updateNotification(toastId, { steps: TX_STEPS, currentStep: 0 });
+
       try {
+        // Step 1 → 2: Waiting for wallet
+        updateNotification(toastId, { currentStep: 1, message: 'Approve the transaction in your Shield Wallet' });
         setStatus('proving');
 
         const result = await executeTransaction({
@@ -159,15 +180,17 @@ export function useTransaction() {
         if (result?.transactionId) {
           const rawId = result.transactionId;
           setTxId(rawId);
-          // Wallet has confirmed — clear loading state immediately
+
+          // Wallet accepted — mark confirmed immediately (don't block on chain resolution)
           setStatus('confirmed');
 
-          // Show immediate success toast — wallet accepted the transaction
-          const toastId = addNotification(
-            'success',
-            'Transaction Submitted',
-            'Your transaction was accepted by the wallet.'
-          );
+          // Show all steps completed + success toast instantly
+          updateNotification(toastId, {
+            type: 'success',
+            title: 'Transaction Accepted',
+            message: 'Wallet signed successfully. Fetching on-chain ID...',
+            currentStep: 4,
+          });
 
           // Fire onConfirmed callback after short delay (data refresh)
           if (onConfirmed) {
@@ -183,18 +206,25 @@ export function useTransaction() {
                 ? `${EXPLORER_BASE}/${confirmedId}`
                 : undefined;
 
-              if (explorerUrl) {
-                updateNotification(toastId, {
-                  title: 'Transaction Confirmed',
-                  message: `TX: ${confirmedId.slice(0, 20)}...`,
-                  link: explorerUrl,
-                  linkLabel: 'View on Explorer',
-                });
-              }
-
               setTxId(confirmedId);
+              updateNotification(toastId, {
+                type: 'success',
+                title: 'Transaction Confirmed',
+                message: confirmedId.startsWith('at1')
+                  ? `TX: ${confirmedId.slice(0, 12)}...${confirmedId.slice(-8)}`
+                  : 'Transaction accepted by the network',
+                currentStep: 5,
+                link: explorerUrl,
+                linkLabel: 'View on Explorer',
+              });
             } catch {
-              // Resolution failed — toast already shows success, nothing to do
+              // Resolution failed — toast already shows success
+              updateNotification(toastId, {
+                type: 'success',
+                title: 'Transaction Confirmed',
+                message: 'Transaction accepted. Explorer link unavailable.',
+                currentStep: 5,
+              });
             }
           })();
 
@@ -202,25 +232,39 @@ export function useTransaction() {
         }
 
         setStatus('error');
-        addNotification('error', 'Transaction Failed', 'No transaction ID returned.');
+        updateNotification(toastId, {
+          type: 'error',
+          title: 'Transaction Failed',
+          message: 'No transaction ID returned from wallet.',
+          steps: undefined,
+          currentStep: undefined,
+        });
         return null;
       } catch (err) {
         const raw = err instanceof Error ? err.message : 'Transaction failed';
         let message = raw;
         let title = 'Transaction Failed';
 
-        // Provide friendly error for common Aleo issues
         if (raw.includes('input ID') && raw.includes('already exists')) {
           title = 'Record Already Spent';
-          message = 'This credits record was already used in a recent transaction. Please wait ~30 seconds for it to confirm, then try again.';
+          message = 'This credits record was already used. Wait ~30s for it to confirm, then try again.';
         } else if (raw.includes('insufficient') || raw.includes('balance')) {
           title = 'Insufficient Balance';
-          message = 'Not enough credits to cover the bet and transaction fee. Try a smaller amount.';
+          message = 'Not enough credits to cover the bet and transaction fee.';
+        } else if (raw.includes('User rejected') || raw.includes('cancelled') || raw.includes('denied')) {
+          title = 'Transaction Cancelled';
+          message = 'You cancelled the transaction in your wallet.';
         }
 
         setError(message);
         setStatus('error');
-        addNotification('error', title, message);
+        updateNotification(toastId, {
+          type: 'error',
+          title,
+          message,
+          steps: undefined,
+          currentStep: undefined,
+        });
         return null;
       }
     },

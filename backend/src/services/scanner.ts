@@ -163,7 +163,7 @@ export async function scanForNewMarkets(blocksToScan: number = 200): Promise<num
     console.log(`[Scanner] Scanning blocks ${startBlock}..${currentHeight} for new markets`);
 
     let newMarkets = 0;
-    const BATCH_SIZE = 5;
+    const BATCH_SIZE = 10;
 
     // Scan in parallel batches (newest first for faster discovery)
     for (let offset = 0; offset < currentHeight - startBlock; offset += BATCH_SIZE) {
@@ -200,7 +200,7 @@ export async function scanForNewMarkets(blocksToScan: number = 200): Promise<num
 
       // Brief pause between batches to avoid API rate limiting
       if (offset + BATCH_SIZE < currentHeight - startBlock) {
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise(r => setTimeout(r, 100));
       }
     }
 

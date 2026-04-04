@@ -272,6 +272,52 @@ export function buildCastVoteTx(
   ], 500_000);
 }
 
+export function buildExecuteProposalTx(proposalId: string): AleoTransaction {
+  return buildTransaction(TRANSITIONS.EXECUTE_PROPOSAL, [proposalId], 500_000);
+}
+
+export function buildExecuteTreasuryTx(
+  proposalId: string,
+  recipient: string,
+  amountMicrocredits: string
+): AleoTransaction {
+  return buildTransaction(TRANSITIONS.EXECUTE_TREASURY, [
+    proposalId,
+    recipient,
+    `${amountMicrocredits}u64`,
+  ], 500_000);
+}
+
+// ========== Resolver Registry (main program only) ==========
+
+export function buildRegisterResolverTx(
+  creditsRecord: string,
+  stakeAmount: string
+): AleoTransaction {
+  return buildTransaction(TRANSITIONS.REGISTER_RESOLVER, [
+    creditsRecord,
+    `${stakeAmount}u128`,
+  ], 1_000_000);
+}
+
+export function buildWithdrawResolverStakeTx(
+  expectedStake: string
+): AleoTransaction {
+  return buildTransaction(TRANSITIONS.WITHDRAW_RESOLVER_STAKE, [
+    `${expectedStake}u128`,
+  ], 500_000);
+}
+
+// ========== Emergency Controls (deployer only) ==========
+
+export function buildEmergencyPauseTx(): AleoTransaction {
+  return buildTransaction(TRANSITIONS.EMERGENCY_PAUSE, [], 500_000);
+}
+
+export function buildEmergencyUnpauseTx(): AleoTransaction {
+  return buildTransaction(TRANSITIONS.EMERGENCY_UNPAUSE, [], 500_000);
+}
+
 // ========== Legacy compat aliases ==========
 export const buildBuySharesPrivateTx = buildBuySharesTx;
 export const buildCreateMarketUsdcxTx = (

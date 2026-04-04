@@ -11,7 +11,7 @@
 
 **Trade outcomes. Stay private. Win on-chain.**
 
-[🌐 Live App](https://veil-strike.netlify.app) · [🔍 Explorer](https://testnet.aleoscan.io/program?id=veil_strike_v6.aleo) · [⚡ API](https://veil-strike-api.onrender.com/api/health)
+[🌐 Live App](https://veil-strike.netlify.app) · [🔍 Explorer](https://testnet.aleoscan.io/program?id=veil_strike_v7.aleo) · [⚡ API](https://veil-strike-api.onrender.com/api/health)
 
 </div>
 
@@ -29,15 +29,15 @@ Every trade generates a zero-knowledge proof. Your identity, position size, and 
 
 ```
 ┌─────────────────────────────────────────────────────────────── ┐
-│                     Veil Strike v6 Protocol                     │
+│                     Veil Strike v7 Protocol                     │
 │                                                                  │
 │  ┌──────────────────┐  ┌─────────────────┐  ┌────────────────┐ │
-│  │ veil_strike_v6   │  │veil_strike_v6_cx│  │veil_strike_v6_sd││
-│  │  ALEO + Govern.  │  │     USDCx       │  │      USAD      │ │
-│  │  17 transitions  │  │  15 transitions │  │ 15 transitions │ │
-│  │   919,704 vars   │  │ 1,095,849 vars  │  │ 1,095,373 vars │ │
+│  │ veil_strike_v7   │  │veil_strike_v7_cx│  │veil_strike_v7_sd││
+│  │ ALEO+Gov+Resolv  │  │     USDCx       │  │      USAD      │ │
+│  │  23 transitions  │  │  15 transitions │  │ 15 transitions │ │
+│  │  15 mappings     │  │   9 mappings    │  │  9 mappings    │ │
 │  └──────────────────┘  └─────────────────┘  └────────────────┘ │
-│              Total: 47 transitions · 3,110,926 variables        │
+│          Total: 53 transitions · Leo v4 syntax · @test fn       │
 └─────────────────────────────────────────────────────────────────┘
           ▼                        ▼
 ┌──────────────────┐     ┌──────────────────────────────────────┐
@@ -45,6 +45,7 @@ Every trade generates a zero-knowledge proof. Your identity, position size, and 
 │  TypeScript      │     │  Oracle · Indexer · Auto-Resolver    │
 │  Tailwind CSS    │     │  7-source price feeds (fallback chain)│
 │  Zustand stores  │     │  Scanner · Lightning Manager          │
+│  SSE real-time   │     │  SSE push · Governance execute        │
 │  14 pages        │     │  Persistent prove-worker thread       │
 │  Shield Wallet   │     └──────────────────────────────────────┘
 └──────────────────┘
@@ -58,15 +59,15 @@ Three independent Leo programs deployed on Aleo Testnet — split to stay under 
 
 ### Program IDs
 
-| Program | Token | Transitions | Deploy TX |
-|---------|-------|-------------|-----------|
-| `veil_strike_v6.aleo` | ALEO + Governance | 17 | `at1459u3ehmatrnk8huk5wj4dtfw668fml6kga62rkw0m4wpnfrxvqs79ey84` |
-| `veil_strike_v6_cx.aleo` | USDCx | 15 | `at1g4py5xd8htpnalkm07axnahp5gyxj57jgm5cj9dqfxeeqckdzs8qpguzw9` |
-| `veil_strike_v6_sd.aleo` | USAD | 15 | `at1yupukl8wynnu748u95scnqztqk33nwema3lxy7dfw7jm694cucyshswksx` |
+| Program | Token | Transitions | Mappings |
+|---------|-------|-------------|----------|
+| `veil_strike_v7.aleo` | ALEO + Governance + Resolver Registry | 23 | 15 |
+| `veil_strike_v7_cx.aleo` | USDCx | 15 | 9 |
+| `veil_strike_v7_sd.aleo` | USAD | 15 | 9 |
 
 ### Transitions Overview
 
-#### veil_strike_v6.aleo — ALEO Market + Governance (17)
+#### veil_strike_v7.aleo — ALEO Market + Governance + Resolver Registry (23)
 
 | # | Transition | Description |
 |---|-----------|-------------|
@@ -75,10 +76,10 @@ Three independent Leo programs deployed on Aleo Testnet — split to stay under 
 | 3 | `dispose_shares` | Sell shares back to AMM (private shares in, private credits out) |
 | 4 | `fund_pool` | Add liquidity to AMM pool (returns encrypted LP token) |
 | 5 | `lock_market` | Close market after trading deadline |
-| 6 | `render_verdict` | Submit initial resolution with winning outcome |
+| 6 | `render_verdict` | Submit initial resolution (approved resolvers only) |
 | 7 | `ratify_verdict` | Finalize after 12-hour challenge window |
 | 8 | `void_market` | Cancel market (creator or emergency) |
-| 9 | `flash_settle` | **Strike Rounds** — instant resolver-only settlement (no challenge) |
+| 9 | `flash_settle` | **Strike Rounds** — instant settlement (approved resolvers only) |
 | 10 | `contest_verdict` | Dispute resolution with 5 ALEO bond |
 | 11 | `recover_bond` | Reclaim dispute bond after finalization |
 | 12 | `harvest_winnings` | Redeem winning shares for ALEO |
@@ -87,9 +88,15 @@ Three independent Leo programs deployed on Aleo Testnet — split to stay under 
 | 15 | `harvest_fees` | Withdraw accumulated creator fees |
 | 16 | `submit_proposal` | Create on-chain governance proposal |
 | 17 | `cast_vote` | Vote on governance proposal |
+| 18 | `execute_proposal` | **Execute passed proposal** (quorum 3 + timelock 480 blocks) |
+| 19 | `execute_treasury` | **Execute treasury withdrawal** (credits transfer) |
+| 20 | `register_resolver` | **Stake 10 ALEO** to become approved resolver |
+| 21 | `withdraw_resolver_stake` | Deregister and reclaim staked ALEO |
+| 22 | `emergency_pause` | Deployer-only: pause trading |
+| 23 | `emergency_unpause` | Deployer-only: resume trading |
 
-#### veil_strike_v6_cx.aleo (USDCx) · veil_strike_v6_sd.aleo (USAD) — 15 each
-Same market flow as the main program but handling USDCx and USAD respectively. Missing: `flash_settle`, `submit_proposal`, `cast_vote` (governance lives in main program only).
+#### veil_strike_v7_cx.aleo (USDCx) · veil_strike_v7_sd.aleo (USAD) — 15 each
+Same 15-transition market flow as main (1-15) but using stablecoin tokens. Governance, resolver registry, and emergency controls live in the main program only.
 
 ### Key Constants
 
@@ -103,6 +110,9 @@ Same market flow as the main program but handling USDCx and USAD respectively. M
 | Min trade | 0.01 ALEO |
 | Min liquidity | 1 ALEO |
 | Min dispute bond | 5 ALEO |
+| Governance quorum | 3 votes |
+| Governance timelock | 480 blocks (~2 hours) |
+| Min resolver stake | 10 ALEO |
 
 ### Privacy Model
 
@@ -333,11 +343,11 @@ RESOLVER_PRIVATE_KEY=APrivateKey1...
 
 ```
 contract/
-├── veil_strike_v6/        ← ALEO + Governance (17 transitions)
+├── veil_strike_v7/        ← ALEO + Governance + Resolver Registry (23 transitions, Leo v4)
 │   └── src/main.leo
-├── veil_strike_v6_cx/     ← USDCx (15 transitions)
+├── veil_strike_v7_cx/     ← USDCx (15 transitions, Leo v4)
 │   └── src/main.leo
-└── veil_strike_v6_sd/     ← USAD (15 transitions)
+└── veil_strike_v7_sd/     ← USAD (15 transitions, Leo v4)
     └── src/main.leo
 ```
 
@@ -346,12 +356,16 @@ contract/
 ## Status & Roadmap
 
 **Deployed & Working:**
-- ✅ 3 Leo programs deployed on Aleo Testnet (47 transitions)
+- ✅ 3 Leo programs on Aleo Testnet (53 transitions, Leo v4 syntax)
 - ✅ Event prediction markets (2–4 outcomes, any category)
 - ✅ Strike Rounds — 15-minute auto-resolved cycles via delegated proving (3 slots: BTC, ETH, ALEO)
 - ✅ FPMM AMM with complete-set minting
 - ✅ Dispute system (contest_verdict + recover_bond)
-- ✅ On-chain governance (submit_proposal + cast_vote)
+- ✅ Executable governance (submit → vote → execute with quorum 3 + timelock)
+- ✅ Resolver registry with 10 ALEO staking requirement
+- ✅ Emergency pause/unpause controls
+- ✅ @test functions for on-chain logic verification
+- ✅ SSE real-time market updates (replaces polling)
 - ✅ Full backend with oracle, indexer, scanner, auto-resolver, lightning manager
 - ✅ React frontend (14 pages, all working)
 - ✅ Portfolio with encrypted position tracking + proper win/loss/claimable states

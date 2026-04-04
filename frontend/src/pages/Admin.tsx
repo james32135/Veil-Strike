@@ -8,7 +8,7 @@ import { API_BASE, DEPLOYER } from '@/constants';
 import type { TokenType } from '@/constants';
 import { useWalletStore } from '@/stores/walletStore';
 import { useTransaction } from '@/hooks/useTransaction';
-import { buildFlashSettleTx } from '@/utils/transactions';
+import { buildFlashSettleTx, buildEmergencyPauseTx, buildEmergencyUnpauseTx, buildRegisterResolverTx, buildWithdrawResolverStakeTx } from '@/utils/transactions';
 import { useMarketStore } from '@/stores/marketStore';
 
 interface AdminMarket {
@@ -71,6 +71,8 @@ export default function Admin() {
   const [loading, setLoading] = useState(false);
   const [lightningResults, setLightningResults] = useState<Map<string, LightningOracleData>>(new Map());
   const [botStatus, setBotStatus] = useState<BotStatus | null>(null);
+  const [resolverStake, setResolverStake] = useState('10');
+  const [withdrawStake, setWithdrawStake] = useState('10');
 
   const fetchLightningResults = useCallback(async () => {
     try {
@@ -144,6 +146,28 @@ export default function Admin() {
     }));
 
   const resolvedMarkets = markets.filter((m) => m.status === 'resolved' || resolvedIds.has(m.id));
+
+  const handleEmergencyPause = async () => {
+    const tx = buildEmergencyPauseTx();
+    await execute(tx, handleRefresh);
+  };
+
+  const handleEmergencyUnpause = async () => {
+    const tx = buildEmergencyUnpauseTx();
+    await execute(tx, handleRefresh);
+  };
+
+  const handleRegisterResolver = async () => {
+    const microcredits = String(Math.floor(parseFloat(resolverStake) * 1_000_000));
+    const tx = buildRegisterResolverTx('', microcredits);
+    await execute(tx);
+  };
+
+  const handleWithdrawResolverStake = async () => {
+    const microcredits = String(Math.floor(parseFloat(withdrawStake) * 1_000_000));
+    const tx = buildWithdrawResolverStakeTx(microcredits);
+    await execute(tx);
+  };
 
   const handleResolve = async (marketId: string, winningOutcome: number, tokenType: string) => {
     setConfirm(null);
@@ -404,6 +428,54 @@ export default function Admin() {
           </div>
         </div>
       )}
+
+      {/* Emergency Controls & Resolver Registry */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+        <Card className="p-5">
+          <h3 className="font-heading font-bold text-white mb-3">Emergency Controls</h3>
+          <p className="text-smoke/50 text-xs mb-4">Pause or unpause all protocol operations. Deployer only.</p>
+          <div className="flex items-center gap-3">
+            <Button variant="danger" size="sm" disabled={isBusy} onClick={handleEmergencyPause}>
+              Pause Protocol
+            </Button>
+            <Button variant="primary" size="sm" disabled={isBusy} onClick={handleEmergencyUnpause}>
+              Unpause Protocol
+            </Button>
+          </div>
+        </Card>
+        <Card className="p-5">
+          <h3 className="font-heading font-bold text-white mb-3">Resolver Registry</h3>
+          <p className="text-smoke/50 text-xs mb-4">Register as a resolver by staking ALEO, or withdraw your stake.</p>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="1"
+                value={resolverStake}
+                onChange={(e) => setResolverStake(e.target.value)}
+                className="bg-dark-200 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm w-24"
+                placeholder="ALEO"
+              />
+              <Button variant="primary" size="sm" disabled={isBusy} onClick={handleRegisterResolver}>
+                Register Resolver
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="1"
+                value={withdrawStake}
+                onChange={(e) => setWithdrawStake(e.target.value)}
+                className="bg-dark-200 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm w-24"
+                placeholder="ALEO"
+              />
+              <Button variant="secondary" size="sm" disabled={isBusy} onClick={handleWithdrawResolverStake}>
+                Withdraw Stake
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </div>
 
       {/* Instructions */}
       <Card className="mt-10 p-6">

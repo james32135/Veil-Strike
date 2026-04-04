@@ -3,7 +3,7 @@ import type { Notification } from '@/types';
 
 interface NotificationState {
   notifications: Notification[];
-  addNotification: (type: Notification['type'], title: string, message: string, link?: string, linkLabel?: string) => string;
+  addNotification: (type: Notification['type'], title: string, message: string, link?: string, linkLabel?: string, steps?: string[], currentStep?: number) => string;
   updateNotification: (id: string, updates: Partial<Omit<Notification, 'id' | 'timestamp'>>) => void;
   dismiss: (id: string) => void;
   clearAll: () => void;
@@ -12,7 +12,7 @@ interface NotificationState {
 export const useNotificationStore = create<NotificationState>((set) => ({
   notifications: [],
 
-  addNotification: (type, title, message, link, linkLabel) => {
+  addNotification: (type, title, message, link, linkLabel, steps, currentStep) => {
     const id = crypto.randomUUID();
     const notification: Notification = {
       id,
@@ -22,6 +22,8 @@ export const useNotificationStore = create<NotificationState>((set) => ({
       timestamp: Date.now(),
       link,
       linkLabel,
+      steps,
+      currentStep,
     };
     set((state) => ({
       notifications: [...state.notifications.slice(-4), notification],

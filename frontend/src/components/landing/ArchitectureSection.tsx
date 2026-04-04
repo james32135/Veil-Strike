@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 const architecture = [
   { layer: 'Frontend', items: ['React 18', 'Vite + TypeScript', 'Tailwind CSS', 'Framer Motion', 'Zustand 5'] },
   { layer: 'Wallet', items: ['Shield Wallet', 'Delegated Proving', 'Record Decryption'] },
-  { layer: 'Contracts', items: ['veil_strike_v6.aleo', 'veil_strike_v6_cx.aleo', 'veil_strike_v6_sd.aleo', '47 transitions'] },
+  { layer: 'Contracts', items: ['veil_strike_v7.aleo', 'veil_strike_v7_cx.aleo', 'veil_strike_v7_sd.aleo', '53 transitions'] },
   { layer: 'Backend', items: ['Express + Node.js', '7-source Oracle', 'Auto-Resolver', 'Indexer / Scanner', 'Auto-Bot'] },
 ];
 

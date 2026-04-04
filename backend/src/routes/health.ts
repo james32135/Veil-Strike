@@ -6,12 +6,12 @@ router.get('/', (_req, res) => {
   res.json({
     status: 'ok',
     timestamp: Date.now(),
-    version: '6.0.0',
-    program: 'veil_strike_v6.aleo',
+    version: '7.0.0',
+    program: 'veil_strike_v7.aleo',
     programs: {
-      main: 'veil_strike_v6.aleo',
-      usdcx: 'veil_strike_v6_cx.aleo',
-      usad: 'veil_strike_v6_sd.aleo',
+      main: 'veil_strike_v7.aleo',
+      usdcx: 'veil_strike_v7_cx.aleo',
+      usad: 'veil_strike_v7_sd.aleo',
     },
   });
 });

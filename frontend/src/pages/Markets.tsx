@@ -7,7 +7,7 @@ import Loading from '@/components/shared/Loading';
 import EmptyState from '@/components/shared/EmptyState';
 import { ChartIcon } from '@/components/icons';
 
-const POLL_INTERVAL = 30_000; // Refresh markets every 30 seconds
+const POLL_INTERVAL = 15_000; // Refresh markets every 15 seconds (SSE handles real-time updates)
 
 export default function Markets() {
   const { loading, fetchMarkets } = useMarketStore();

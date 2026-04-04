@@ -2,9 +2,9 @@
 // Veil Strike — Application constants
 // ============================================================================
 
-export const PROGRAM_ID = 'veil_strike_v6.aleo';
-export const PROGRAM_ID_CX = 'veil_strike_v6_cx.aleo';
-export const PROGRAM_ID_SD = 'veil_strike_v6_sd.aleo';
+export const PROGRAM_ID = 'veil_strike_v7.aleo';
+export const PROGRAM_ID_CX = 'veil_strike_v7_cx.aleo';
+export const PROGRAM_ID_SD = 'veil_strike_v7_sd.aleo';
 
 export const ALEO_TESTNET_API = 'https://api.explorer.provable.com/v1/testnet';
 
@@ -107,4 +107,10 @@ export const TRANSITIONS = {
   SETTLE_ROUND: 'flash_settle',
   SUBMIT_PROPOSAL: 'submit_proposal',
   CAST_VOTE: 'cast_vote',
+  EXECUTE_PROPOSAL: 'execute_proposal',
+  EXECUTE_TREASURY: 'execute_treasury',
+  REGISTER_RESOLVER: 'register_resolver',
+  WITHDRAW_RESOLVER_STAKE: 'withdraw_resolver_stake',
+  EMERGENCY_PAUSE: 'emergency_pause',
+  EMERGENCY_UNPAUSE: 'emergency_unpause',
 } as const;

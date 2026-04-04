@@ -259,4 +259,86 @@ router.post('/resolve', async (req, res) => {
   res.json({ success: true, resolved: updated });
 });
 
+// Check if a proposal is ready for execution (quorum + timelock passed)
+router.get('/:id/executable', async (req, res) => {
+  const meta = proposalRegistry.find(p => p.id === req.params.id || p.resolvedId === req.params.id);
+  if (!meta) { res.status(404).json({ error: 'Proposal not found' }); return; }
+
+  const lookupId = meta.resolvedId || meta.id;
+  const raw = await fetchProposalFromChain(lookupId);
+  if (!raw) { res.json({ executable: false, reason: 'Not found on-chain' }); return; }
+
+  const chain = parseProposalStruct(typeof raw === 'string' ? raw : JSON.stringify(raw));
+  if (!chain) { res.json({ executable: false, reason: 'Parse error' }); return; }
+
+  const executed = chain.executed === 'true';
+  if (executed) { res.json({ executable: false, reason: 'Already executed' }); return; }
+
+  const votesFor = parseInt((chain.votes_for || '0').replace(/u\d+$/, ''), 10);
+  const votesAgainst = parseInt((chain.votes_against || '0').replace(/u\d+$/, ''), 10);
+  const deadline = parseInt((chain.deadline || '0').replace(/u\d+$/, ''), 10);
+  const QUORUM = 3;
+  const TIMELOCK = 480;
+
+  // Fetch current block height
+  let currentHeight = 0;
+  try {
+    const hRes = await fetch(`${config.aleoEndpoint}/testnet/block/height/latest`);
+    if (hRes.ok) currentHeight = parseInt(await hRes.text(), 10);
+  } catch {}
+
+  const votingEnded = currentHeight > deadline;
+  const timelockPassed = currentHeight >= deadline + TIMELOCK;
+  const hasMajority = votesFor > votesAgainst;
+  const hasQuorum = votesFor >= QUORUM;
+
+  const executable = votingEnded && timelockPassed && hasMajority && hasQuorum;
+  const actionType = parseInt((chain.action_type || '0').replace(/u\d+$/, ''), 10);
+  const isTreasury = actionType === 2;
+
+  res.json({
+    executable,
+    isTreasury,
+    actionType,
+    votesFor,
+    votesAgainst,
+    deadline,
+    currentHeight,
+    timelockBlock: deadline + TIMELOCK,
+    reasons: {
+      votingEnded,
+      timelockPassed,
+      hasMajority,
+      hasQuorum,
+    },
+    // For treasury execution, frontend needs these params
+    ...(isTreasury ? {
+      recipient: chain.recipient || '',
+      amount: (chain.amount || '0').replace(/u\d+$/, ''),
+    } : {}),
+  });
+});
+
+// Fetch approved resolvers status
+router.get('/resolvers/:address', async (req, res) => {
+  try {
+    const addr = req.params.address;
+    const [approvedRaw, stakeRaw] = await Promise.all([
+      fetchMapping('approved_resolvers', addr),
+      fetchMapping('resolver_stakes', addr),
+    ]);
+    const approved = approvedRaw === 'true';
+    const stake = parseInt((stakeRaw || '0').replace(/u\d+$/, ''), 10);
+    res.json({ address: addr, approved, stake });
+  } catch {
+    res.json({ address: req.params.address, approved: false, stake: 0 });
+  }
+});
+
+function fetchMapping(mappingName: string, key: string): Promise<string | null> {
+  return fetch(`${config.aleoEndpoint}/testnet/program/${config.programId}/mapping/${mappingName}/${key}`)
+    .then(r => r.ok ? r.text().then(t => { try { return JSON.parse(t); } catch { return t; } }) : null)
+    .catch(() => null);
+}
+
 export default router;

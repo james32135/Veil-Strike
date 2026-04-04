@@ -31,12 +31,16 @@ export ENDPOINT="https://api.explorer.provable.com/v1"
 ## Step 3: Build & Deploy Contract
 
 ```bash
-# Build the Leo program
-cd contract/veil_strike_v4
+# Build the Leo programs
+cd contract/veil_strike_v7
+leo build
+cd ../veil_strike_v7_cx
+leo build
+cd ../veil_strike_v7_sd
 leo build
 
 # Deploy to testnet
-cd ../..
+cd ../../..
 ./scripts/deploy.sh
 ```
 

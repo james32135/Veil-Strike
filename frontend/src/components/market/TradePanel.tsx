@@ -247,12 +247,13 @@ export default function TradePanel({ market }: TradePanelProps) {
         variant={mode === 'buy' ? 'primary' : 'danger'}
         className="w-full"
         size="lg"
-        loading={status === 'proving' || status === 'broadcasting'}
+        loading={status === 'preparing' || status === 'proving' || status === 'broadcasting'}
         disabled={amountMicro < 1000 || estimatedShares <= 0 || market.status !== 'active'}
         onClick={handleTrade}
       >
         {market.status !== 'active' ? 'Market Not Active' :
-         status === 'proving' ? 'Generating ZK Proof...' :
+         status === 'preparing' ? 'Preparing Transaction...' :
+         status === 'proving' ? 'Waiting for Wallet...' :
          status === 'broadcasting' ? 'Broadcasting...' :
          mode === 'buy' ? `Buy ${market.outcomes[selectedOutcome]}` :
          `Sell ${market.outcomes[selectedOutcome]}`}

@@ -1,0 +1,13 @@
+{
+    "program": "veil_strike_v7.aleo",
+    "version": "0.1.0",
+    "description": "Veil Strike v7 — Private prediction market with executable governance, resolver registry, and emergency controls",
+    "license": "MIT",
+    "dependencies": [
+        {
+            "name": "credits.aleo",
+            "location": "network",
+            "network": "testnet"
+        }
+    ]
+}

@@ -28,10 +28,10 @@ export default function Docs() {
               profit/loss history.
             </p>
             <p>
-              <span className="text-white font-medium">v6 Architecture:</span> Three independent Leo programs &mdash;
-              <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">veil_strike_v6.aleo</code> (ALEO + Governance),
-              <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">veil_strike_v6_cx.aleo</code> (USDCx), and
-              <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">veil_strike_v6_sd.aleo</code> (USAD). Total: 47 transitions across 3 deployed programs.
+              <span className="text-white font-medium">v7 Architecture:</span> Three independent Leo programs &mdash;
+              <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">veil_strike_v7.aleo</code> (ALEO + Governance + Resolver Registry),
+              <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">veil_strike_v7_cx.aleo</code> (USDCx), and
+              <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">veil_strike_v7_sd.aleo</code> (USAD). Total: 53 transitions across 3 deployed programs.
             </p>
           </div>
         </Card>

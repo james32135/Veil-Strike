@@ -512,7 +512,7 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1774658623254
   },
   "4726589545713174028710109183891777525901081935409966426722084739358282920781field": {
@@ -522,7 +522,7 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1774658638821
   },
   "5048354781269210087671967330630836665736055779563329740095685073597935292364field": {
@@ -532,7 +532,7 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1774658653761
   },
   "5827771375142689743570128951256613810804390749773081378939603451936850841535field": {
@@ -542,7 +542,7 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1774659595242
   },
   "6675974504148136347544519593381563754932837354481441453616911658187249627950field": {
@@ -552,7 +552,7 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1774659611303
   },
   "3899001424388171239016424691602527928408012413943900487374577319912039681510field": {
@@ -562,7 +562,117 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1774659627271
+  },
+  "7064615235623549236526928923751812302248223171290161498198521811216351163895field": {
+    "questionHash": "48081302717841284948017420545field",
+    "question": "BTC Strike Round #3",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775276580203
+  },
+  "6887256939868888251762926057945761554564660503222936981358729424472812280120field": {
+    "questionHash": "50182100693447155989954073673field",
+    "question": "ETH Strike Round #3",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775276595450
+  },
+  "2718754799770735699426432400751395544985077628741943656490208163704938251385field": {
+    "questionHash": "1463335360541756013065322856677field",
+    "question": "ALEO Strike Round #3",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775276614155
+  },
+  "6785764731697708232901904607717330457914264769157252526816508663990433483829field": {
+    "questionHash": "1855794587670207579886890635290301690963881664701682457272field",
+    "question": "will btc reach $100k by end of 2026 ? ",
+    "outcomes": [
+      "Yes",
+      "No"
+    ],
+    "isLightning": false,
+    "tokenType": "ALEO"
+  },
+  "3543419603121692923355160778012214245764036213310578374292988754615592542826field": {
+    "questionHash": "59864341537748631609254536622267796482705860151667176040field",
+    "question": "will btc reach $100k by end of 2026 ?",
+    "outcomes": [
+      "Yes",
+      "No"
+    ],
+    "isLightning": false,
+    "tokenType": "USDCX"
+  },
+  "779945942327065121968637979387263809563553042746309193228665802080791120058field": {
+    "questionHash": "48081302717841284948017420546field",
+    "question": "BTC Strike Round #4",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775277548843
+  },
+  "7141902576997786170063359880666062319532439139178181721720137107823785524568field": {
+    "questionHash": "50182100693447155989954073674field",
+    "question": "ETH Strike Round #4",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775277565573
+  },
+  "3360758117688800420894430767082526510209886950852569219169808854999903378833field": {
+    "questionHash": "1463335360541756013065322856678field",
+    "question": "ALEO Strike Round #4",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775277582552
+  },
+  "5788307599660598282062291091707660424866587805384652526771410537090145199462field": {
+    "questionHash": "48081302717841284948017420547field",
+    "question": "BTC Strike Round #5",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775278525316
+  },
+  "1288345091367243169438368983512605547230400304287709791165117437960945699655field": {
+    "questionHash": "50182100693447155989954073675field",
+    "question": "ETH Strike Round #5",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775278542339
+  },
+  "7168510928879801305562256894189736482999759924185385320797713325403630767691field": {
+    "questionHash": "1463335360541756013065322856679field",
+    "question": "ALEO Strike Round #5",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775278558612
   }
 }

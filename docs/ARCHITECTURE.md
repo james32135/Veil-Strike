@@ -14,7 +14,7 @@ Veil Strike is a three-tier application:
 ┌────────────────────────┐  ┌─────────────────────────────┐
 │    Frontend (Vite)     │  │    Backend (Express)         │
 │    React + TypeScript   │  │    Oracle + Resolver +       │
-│    Zustand + Tailwind   │  │    Indexer Services          │
+│    Zustand + Tailwind   │  │    Indexer + SSE Services    │
 │    Port 5173           │  │    Port 3001                 │
 └────────────┬───────────┘  └──────────┬──────────────────┘
              │                         │
@@ -23,16 +23,21 @@ Veil Strike is a three-tier application:
 │              Aleo Blockchain (Testnet)                   │
 │                                                         │
 │  ┌─────────────────────────────────────────────────────┐│
-│  │            veil_strike_v4.aleo                       ││
-│  │                                                     ││
-│  │  Transitions (24)  │  Records (4)  │  Mappings (9)  ││
-│  │                                                     ││
-│  │  FPMM Engine  │  Oracle  │  Pools  │  Streaks       ││
+│  │  veil_strike_v7.aleo      (23 transitions)          ││
+│  │  ALEO markets + Governance + Resolver Registry      ││
+│  ├─────────────────────────────────────────────────────┤│
+│  │  veil_strike_v7_cx.aleo   (15 transitions)          ││
+│  │  USDCx stablecoin markets                           ││
+│  ├─────────────────────────────────────────────────────┤│
+│  │  veil_strike_v7_sd.aleo   (15 transitions)          ││
+│  │  USAD stablecoin markets                            ││
 │  └─────────────────────────────────────────────────────┘│
 │                                                         │
-│  ┌─────────────────┐                                   │
-│  │  credits.aleo    │  ← Private credit transfers      │
-│  └─────────────────┘                                   │
+│  Records (5)  │  Mappings (15)  │  53 total transitions │
+│                                                         │
+│  ┌─────────────────┐  ┌──────────────────────┐         │
+│  │  credits.aleo    │  │  stablecoin contracts │         │
+│  └─────────────────┘  └──────────────────────┘         │
 └─────────────────────────────────────────────────────────┘
 ```
 

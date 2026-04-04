@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useTransaction } from '@/hooks/useTransaction';
-import { buildSubmitProposalTx, buildCastVoteTx } from '@/utils/transactions';
+import { buildSubmitProposalTx, buildCastVoteTx, buildExecuteProposalTx, buildExecuteTreasuryTx } from '@/utils/transactions';
 import PageHeader from '@/components/layout/PageHeader';
 import Card from '@/components/shared/Card';
 import Badge from '@/components/shared/Badge';
@@ -43,6 +43,7 @@ const ACTION_LABELS: Record<number, string> = {
   2: 'Treasury Withdrawal',
   3: 'Fee Update',
   4: 'Market Override',
+  5: 'Revoke Resolver',
 };
 
 const ACTION_DESCRIPTIONS: Record<number, string> = {
@@ -217,6 +218,21 @@ export default function Governance() {
     await execute(tx, fetchProposals);
   };
 
+  const handleExecute = async (proposal: Proposal) => {
+    const proposalId = proposal.onChainId || proposal.id;
+    // Check executable status from backend
+    try {
+      const res = await fetch(`${API_BASE}/governance/${proposal.id}/executable`);
+      const data = await res.json();
+      if (!data.executable) return;
+
+      const tx = data.isTreasury
+        ? buildExecuteTreasuryTx(proposalId, data.recipient, data.amount)
+        : buildExecuteProposalTx(proposalId);
+      await execute(tx, fetchProposals);
+    } catch { /* ignore */ }
+  };
+
   const tabs = [
     { id: 'proposals' as const, label: `Proposals (${proposals.length})` },
     { id: 'create' as const, label: 'New Proposal' },
@@ -360,7 +376,7 @@ export default function Governance() {
                           </div>
                         </div>
 
-                        {/* Vote Buttons */}
+                        {/* Vote / Execute Buttons */}
                         {isActive && (
                           <div className="flex flex-col gap-2 shrink-0">
                             <Button
@@ -380,6 +396,15 @@ export default function Governance() {
                               className="!text-xs !px-3"
                             >
                               {txStatus === 'broadcasting' ? 'Submitting...' : 'Against'}
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleExecute(proposal)}
+                              loading={txStatus === 'proving' || txStatus === 'broadcasting'}
+                              className="!text-xs !px-3 mt-1"
+                            >
+                              Execute
                             </Button>
                           </div>
                         )}

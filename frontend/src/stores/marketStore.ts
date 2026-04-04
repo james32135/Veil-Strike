@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Market, MarketSortBy } from '@/types';
 import { fetchRealMarkets } from '@/utils/marketApi';
+import { subscribeSSE } from '@/utils/sse';
 import type { TokenFilter } from '@/components/market/MarketFilters';
 
 interface MarketState {
@@ -17,6 +18,9 @@ interface MarketState {
   setSelectedToken: (token: TokenFilter) => void;
   getFilteredMarkets: () => Market[];
 }
+
+// SSE subscription singleton — set up once
+let sseInitialized = false;
 
 export const useMarketStore = create<MarketState>((set, get) => ({
   markets: [],
@@ -35,6 +39,16 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       set({ markets, loading: false });
     } catch {
       if (isFirstLoad) set({ loading: false });
+    }
+
+    // Subscribe to SSE for real-time updates (once)
+    if (!sseInitialized) {
+      sseInitialized = true;
+      subscribeSSE('markets', (data) => {
+        if (Array.isArray(data)) {
+          set({ markets: data as Market[] });
+        }
+      });
     }
   },
 

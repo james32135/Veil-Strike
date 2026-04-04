@@ -674,5 +674,35 @@
     ],
     "isLightning": true,
     "botEndTime": 1775278558612
+  },
+  "4389086797482413775500498063254594682197437941338272947078554407596631754603field": {
+    "questionHash": "48081302717841284948017420548field",
+    "question": "BTC Strike Round #6",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775279500243
+  },
+  "8355805286567561708774736786538873269888775926459050164682435938434279502435field": {
+    "questionHash": "50182100693447155989954073676field",
+    "question": "ETH Strike Round #6",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775279516697
+  },
+  "2988678812274973021615643555539506381739765335355279798694491593735084389845field": {
+    "questionHash": "1463335360541756013065322856680field",
+    "question": "ALEO Strike Round #6",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775279532373
   }
 }

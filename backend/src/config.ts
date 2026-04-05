@@ -6,6 +6,7 @@ const parseCorsOrigin = (origin?: string): string | string[] => {
 
 export const config = {
   port: parseInt(process.env.PORT || '3001', 10),
+  databaseUrl: process.env.DATABASE_URL || '',
   aleoEndpoint: process.env.ALEO_ENDPOINT || 'https://api.explorer.provable.com/v1',
   programId: 'veil_strike_v7.aleo',
   programIdCx: 'veil_strike_v7_cx.aleo',

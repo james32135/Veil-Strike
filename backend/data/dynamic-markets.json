@@ -572,7 +572,7 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1775276580203
   },
   "6887256939868888251762926057945761554564660503222936981358729424472812280120field": {
@@ -582,7 +582,7 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1775276595450
   },
   "2718754799770735699426432400751395544985077628741943656490208163704938251385field": {
@@ -592,7 +592,7 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1775276614155
   },
   "6785764731697708232901904607717330457914264769157252526816508663990433483829field": {
@@ -622,7 +622,7 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1775277548843
   },
   "7141902576997786170063359880666062319532439139178181721720137107823785524568field": {
@@ -632,7 +632,7 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1775277565573
   },
   "3360758117688800420894430767082526510209886950852569219169808854999903378833field": {
@@ -642,7 +642,7 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1775277582552
   },
   "5788307599660598282062291091707660424866587805384652526771410537090145199462field": {
@@ -652,7 +652,7 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1775278525316
   },
   "1288345091367243169438368983512605547230400304287709791165117437960945699655field": {
@@ -662,7 +662,7 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1775278542339
   },
   "7168510928879801305562256894189736482999759924185385320797713325403630767691field": {
@@ -672,7 +672,7 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1775278558612
   },
   "4389086797482413775500498063254594682197437941338272947078554407596631754603field": {
@@ -682,7 +682,7 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1775279500243
   },
   "8355805286567561708774736786538873269888775926459050164682435938434279502435field": {
@@ -692,7 +692,7 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1775279516697
   },
   "2988678812274973021615643555539506381739765335355279798694491593735084389845field": {
@@ -702,7 +702,97 @@
       "Up",
       "Down"
     ],
-    "isLightning": true,
+    "isLightning": false,
     "botEndTime": 1775279532373
+  },
+  "383740783381594234238723281958572963716852544901683568961941744593249256141field": {
+    "questionHash": "48081302717841284948017420549field",
+    "question": "BTC Strike Round #7",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775344777378
+  },
+  "6513144319447300330267786777627144292129763565358357049657695129986726279751field": {
+    "questionHash": "50182100693447155989954073677field",
+    "question": "ETH Strike Round #7",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775344793654
+  },
+  "6285026925316395231131879785399285404934688278710936624180353093733189750684field": {
+    "questionHash": "1463335360541756013065322856681field",
+    "question": "ALEO Strike Round #7",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775344809498
+  },
+  "7717611740571938930341611205297737561071849001648180818059861887325199292123field": {
+    "questionHash": "48081302717841284948017420550field",
+    "question": "BTC Strike Round #8",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775345748839
+  },
+  "6584462616259915422619169258648337420758917482355160110848758401969659577659field": {
+    "questionHash": "50182100693447155989954073678field",
+    "question": "ETH Strike Round #8",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775345767194
+  },
+  "5033346152331972300249567513427484710708640858690391335557213104045452168890field": {
+    "questionHash": "1463335360541756013065322856682field",
+    "question": "ALEO Strike Round #8",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775345783283
+  },
+  "5057692419983669799955550228826280148628229307627153323696530560169848776505field": {
+    "questionHash": "48081302717841284948017420551field",
+    "question": "BTC Strike Round #9",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775346725141
+  },
+  "1793489534651197635174867392944509233198135634215391629959431000784927857431field": {
+    "questionHash": "50182100693447155989954073679field",
+    "question": "ETH Strike Round #9",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775346743035
+  },
+  "6935556093308595473877856517177228954764708852338536030740293342874965348428field": {
+    "questionHash": "1463335360541756013065322856683field",
+    "question": "ALEO Strike Round #9",
+    "outcomes": [
+      "Up",
+      "Down"
+    ],
+    "isLightning": true,
+    "botEndTime": 1775346759400
   }
 }

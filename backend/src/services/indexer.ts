@@ -1,6 +1,5 @@
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { join } from 'path';
 import { config } from '../config';
+import { query } from './db';
 import type { MarketInfo } from '../types';
 
 let marketsCache: MarketInfo[] = [];
@@ -16,31 +15,26 @@ export interface MarketMeta {
   botEndTime?: number; // Wall-clock ms timestamp for round-bot markets
 }
 
-// ── JSON persistence for dynamically discovered/registered markets ──
-const DYNAMIC_REGISTRY_PATH = join(__dirname, '../../data/dynamic-markets.json');
+// ── Database persistence for dynamically discovered/registered markets ──
 
-function loadDynamicRegistry(): Record<string, MarketMeta> {
+/** Load all market metadata from PostgreSQL on startup */
+export async function loadRegistryFromDB(): Promise<void> {
   try {
-    if (existsSync(DYNAMIC_REGISTRY_PATH)) {
-      const raw = readFileSync(DYNAMIC_REGISTRY_PATH, 'utf-8');
-      return JSON.parse(raw);
+    const { rows } = await query('SELECT * FROM markets');
+    for (const row of rows) {
+      MARKET_REGISTRY[row.id] = {
+        questionHash: row.question_hash || '',
+        question: row.question,
+        outcomes: row.outcomes || ['Yes', 'No'],
+        isLightning: row.is_lightning || false,
+        tokenType: row.token_type || undefined,
+        imageUrl: row.image_url || undefined,
+        botEndTime: row.bot_end_time ? Number(row.bot_end_time) : undefined,
+      };
     }
+    console.log(`[Indexer] Loaded ${rows.length} market(s) from database`);
   } catch (err) {
-    console.error('[Indexer] Failed to load dynamic registry:', err);
-  }
-  return {};
-}
-
-function saveDynamicRegistry(registry: Record<string, MarketMeta>): void {
-  try {
-    const dir = join(__dirname, '../../data');
-    if (!existsSync(dir)) {
-      const { mkdirSync } = require('fs');
-      mkdirSync(dir, { recursive: true });
-    }
-    writeFileSync(DYNAMIC_REGISTRY_PATH, JSON.stringify(registry, null, 2));
-  } catch (err) {
-    console.error('[Indexer] Failed to save dynamic registry:', err);
+    console.error('[Indexer] Failed to load registry from DB:', err);
   }
 }
 
@@ -49,10 +43,9 @@ function saveDynamicRegistry(registry: Record<string, MarketMeta>): void {
 // or registered via POST /api/markets/register. Legacy v5 seeds removed.
 const SEED_REGISTRY: Record<string, MarketMeta> = {};
 
-// Merge seed + dynamic (file-persisted) registries
+// Merge seed + dynamic (DB-loaded) registries
 // Seed entries take priority — they have curated question text & correct metadata
 const MARKET_REGISTRY: Record<string, MarketMeta> = {
-  ...loadDynamicRegistry(),
   ...SEED_REGISTRY,
 };
 
@@ -304,18 +297,51 @@ export function registerMarket(marketId: string, meta: MarketMeta): boolean {
 }
 
 /**
- * Persist all dynamically registered markets (those not in the seed registry) to disk.
+ * Persist all dynamically registered markets to the database.
  * Called after scanner discovers new markets or after manual registration.
  */
-export function persistRegistry(): void {
-  const dynamic: Record<string, MarketMeta> = {};
-  for (const [id, meta] of Object.entries(MARKET_REGISTRY)) {
-    if (!SEED_REGISTRY[id]) {
-      dynamic[id] = meta;
+export async function persistRegistry(): Promise<void> {
+  const entries = Object.entries(MARKET_REGISTRY).filter(([id]) => !SEED_REGISTRY[id]);
+  if (entries.length === 0) return;
+
+  try {
+    const values: unknown[] = [];
+    const placeholders: string[] = [];
+    let idx = 1;
+    for (const [id, meta] of entries) {
+      placeholders.push(
+        `($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7})`,
+      );
+      values.push(
+        id,
+        meta.questionHash || '',
+        meta.question,
+        JSON.stringify(meta.outcomes),
+        meta.isLightning || false,
+        meta.tokenType || 'ALEO',
+        meta.imageUrl || null,
+        meta.botEndTime || null,
+      );
+      idx += 8;
     }
+    await query(
+      `INSERT INTO markets (id, question_hash, question, outcomes, is_lightning, token_type, image_url, bot_end_time)
+       VALUES ${placeholders.join(', ')}
+       ON CONFLICT (id) DO UPDATE SET
+         question_hash = EXCLUDED.question_hash,
+         question = EXCLUDED.question,
+         outcomes = EXCLUDED.outcomes,
+         is_lightning = EXCLUDED.is_lightning,
+         token_type = EXCLUDED.token_type,
+         image_url = EXCLUDED.image_url,
+         bot_end_time = EXCLUDED.bot_end_time,
+         updated_at = NOW()`,
+      values,
+    );
+    console.log(`[Indexer] Persisted ${entries.length} dynamic market(s) to database`);
+  } catch (err) {
+    console.error('[Indexer] Failed to persist registry to DB:', err);
   }
-  saveDynamicRegistry(dynamic);
-  console.log(`[Indexer] Persisted ${Object.keys(dynamic).length} dynamic market(s) to disk`);
 }
 
 /**
@@ -351,6 +377,6 @@ export function clearStaleLightningFlags(): number {
       count++;
     }
   }
-  if (count > 0) persistRegistry();
+  if (count > 0) persistRegistry().catch(() => {});
   return count;
 }

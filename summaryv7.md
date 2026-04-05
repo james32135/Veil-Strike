@@ -13,7 +13,8 @@
 - [10. Judge Feedback Fixes](#10-judge-feedback-fixes)
 - [11. Performance Improvements](#11-performance-improvements)
 - [12. Files Changed](#12-files-changed)
-- [13. Statistics](#13-statistics)
+- [13. Database — Render PostgreSQL](#13-database--render-postgresql)
+- [14. Statistics](#14-statistics)
 
 ---
 
@@ -28,6 +29,7 @@ Veil Strike v7 is a **major upgrade** building on the v6 3-program architecture.
 - **Governance Quorum Upgrade**: Changed from 1 to 3 minimum votes
 - **Governance Timelock**: 480 blocks (~2 hours) after vote deadline before execution
 - **Performance**: Parallel market fetching in indexer (was sequential), faster scanner, faster SSE refresh
+- **Production Database**: Migrated from JSON file storage to **Render PostgreSQL** with 8 tables, auto-schema initialization, and connection pooling
 
 ### Key Changes from v6
 | Feature | v6 | v7 |
@@ -43,6 +45,8 @@ Veil Strike v7 is a **major upgrade** building on the v6 3-program architecture.
 | Indexer Speed | Sequential market fetch | **Parallel (`Promise.allSettled`)** |
 | Scanner Batch Size | 5 blocks | **10 blocks** |
 | Backend Refresh | 30s market / 15s scan | **15s market / 10s scan** |
+| Data Storage | JSON files (4) + in-memory | **PostgreSQL (8 tables)** |
+| Data Persistence | Local disk only | **Render PostgreSQL (cloud)** |
 
 ### v6 → v7 New Transition Summary
 | # | Transition | Program | Description |
@@ -80,6 +84,10 @@ Veil Strike v7 is a **major upgrade** building on the v6 3-program architecture.
                     │  Backend      │
                     │  (Express)    │
                     │  Port 3001    │
+                    ├───────────────┤
+                    │  Database     │
+                    │  (PostgreSQL) │
+                    │  Render.com   │
                     ├───────────────┤
                     │  Indexer      │
                     │  Scanner      │
@@ -328,6 +336,7 @@ All 23 transition names defined in `TRANSITIONS` object, all 3 program IDs set t
 ### Services
 | Service | File | Description |
 |---|---|---|
+| **Database** | **`services/db.ts`** | **PostgreSQL connection pool + auto-schema** |
 | Indexer | `services/indexer.ts` | Fetches market data from chain (**parallel in v7**) |
 | Scanner | `services/scanner.ts` | Scans blocks for new markets (**batch=10 in v7**) |
 | Oracle | `services/oracle.ts` | CoinGecko price feeds |
@@ -484,13 +493,21 @@ After:  await Promise.allSettled(entries.map(async ...))        // O(1) parallel
 - `contract/veil_strike_v7_sd/program.json`
 
 ### Backend (Modified)
-- `backend/src/config.ts` — v7 program IDs
-- `backend/src/index.ts` — Faster cron intervals (15s/10s)
-- `backend/src/services/indexer.ts` — Parallel `Promise.allSettled` market fetch
-- `backend/src/services/scanner.ts` — Batch 10, 100ms delay
+- `backend/src/config.ts` — v7 program IDs + `databaseUrl` config
+- `backend/src/index.ts` — Faster cron intervals (15s/10s) + DB initialization on startup
+- `backend/src/services/indexer.ts` — Parallel `Promise.allSettled` market fetch + PostgreSQL persistence
+- `backend/src/services/scanner.ts` — Batch 10, 100ms delay + DB state persistence
+- `backend/src/services/oracle.ts` — Price history persisted to PostgreSQL
+- `backend/src/services/round-bot.ts` — Bot state/slots persisted to PostgreSQL (was JSON file)
+- `backend/src/routes/governance.ts` — Proposals persisted to PostgreSQL (was JSON file)
+- `backend/src/routes/markets.ts` — Async `persistRegistry()` calls
 - `backend/src/routes/health.ts` — v7 references
-- `backend/data/round-bot-state.json` — v7
-- `backend/scripts/test-delegated-proving.ts` — v7
+- `backend/package.json` — `pg` driver (replaced `@supabase/supabase-js`)
+- `backend/.env.example` — `DATABASE_URL` added
+
+### Backend (Created)
+- `backend/src/services/db.ts` — PostgreSQL connection pool + auto-schema initialization (8 tables)
+- `backend/scripts/test-db.ts` — Database connection & schema test script
 
 ### Frontend (Modified)
 - `frontend/src/constants/index.ts` — v7 program IDs, 23 transitions
@@ -500,7 +517,148 @@ After:  await Promise.allSettled(entries.map(async ...))        // O(1) parallel
 
 ---
 
-## 13. Statistics
+## 13. Database — Render PostgreSQL
+
+### Overview
+Migrated from **JSON file storage** (4 files + in-memory state) to a production **PostgreSQL database** hosted on Render.com (free tier). All state survives server restarts and is accessible across deployments.
+
+### Database Details
+| Field | Value |
+|---|---|
+| Provider | Render.com (Free Tier) |
+| PostgreSQL Version | 18 |
+| Region | Oregon (US West) |
+| Database Name | `veil_strike_db` |
+| Connection | `DATABASE_URL` environment variable |
+| Driver | `pg` (node-postgres) v8.13+ |
+| Connection Pool | 10 max connections, 30s idle timeout |
+| SSL | Auto-enabled for Render external connections |
+| Schema Init | **Auto-create on startup** (no manual migration needed) |
+
+### What Was Replaced
+| Before (v6/v7 initial) | After (v7 + DB) |
+|---|---|
+| `data/dynamic-markets.json` (~100KB) | `markets` table |
+| `data/governance-registry.json` | `proposals` table |
+| `data/round-bot-state.json` | `round_bot_state` + `round_bot_slots` tables |
+| In-memory `priceHistory[]` array | `price_history` table |
+| In-memory `pendingMetaByHash{}` map | `pending_market_meta` table |
+| In-memory `lastScannedBlock` var | `scanner_state` table |
+| (none) | `event_log` table (new audit trail) |
+
+### Database Schema (8 Tables)
+
+#### `markets` — Market Metadata
+| Column | Type | Description |
+|---|---|---|
+| `id` | TEXT PK | On-chain market field ID |
+| `question_hash` | TEXT | BHP256 hash of question |
+| `question` | TEXT | Human-readable question |
+| `outcomes` | JSONB | Array of outcome labels |
+| `is_lightning` | BOOLEAN | Strike Round flag |
+| `token_type` | TEXT | ALEO / USDCX / USAD |
+| `image_url` | TEXT | Optional cover image |
+| `bot_end_time` | BIGINT | Wall-clock expiry for bot rounds |
+| `created_at` | TIMESTAMPTZ | Row creation time |
+| `updated_at` | TIMESTAMPTZ | Last update time |
+
+#### `proposals` — Governance Proposals
+| Column | Type | Description |
+|---|---|---|
+| `id` | TEXT PK | Nonce field from submission |
+| `tx_id` | TEXT | Wallet transaction ID |
+| `resolved_id` | TEXT | On-chain BHP256 proposal ID |
+| `title` | TEXT | Proposal title |
+| `description` | TEXT | Full description |
+| `action_type` | INTEGER | 0=generic, 2=treasury |
+| `target_market` | TEXT | Target market field |
+| `amount` | TEXT | Requested amount |
+| `recipient` | TEXT | Recipient address |
+| `token_type` | INTEGER | Token type code |
+| `created_at` | BIGINT | Unix ms timestamp |
+
+#### `round_bot_state` — Bot Global State (single row)
+| Column | Type | Description |
+|---|---|---|
+| `id` | INTEGER PK | Always 1 |
+| `resolver_address` | TEXT | Active resolver address |
+| `started_at` | BIGINT | Bot start timestamp |
+| `total_rounds_created` | INTEGER | Lifetime counter |
+| `total_rounds_settled` | INTEGER | Lifetime counter |
+| `total_rounds_skipped` | INTEGER | Empty rounds counter |
+
+#### `round_bot_slots` — Per-Slot State
+| Column | Type | Description |
+|---|---|---|
+| `slot_id` | TEXT PK | e.g. "BTC-ALEO" |
+| `asset` | TEXT | BTC / ETH / ALEO |
+| `token_type` | TEXT | ALEO / USDCX / USAD |
+| `state` | TEXT | idle / creating / open / settling / cooldown |
+| `market_id` | TEXT | Current on-chain market |
+| `round_number` | INTEGER | Current round counter |
+| `start_price` | DOUBLE PRECISION | Price at round open |
+| `start_time` / `end_time` | BIGINT | Round time window |
+
+#### `price_history` — Persistent Price Archive
+| Column | Type | Description |
+|---|---|---|
+| `id` | SERIAL PK | Auto-increment |
+| `timestamp` | BIGINT | Unix ms |
+| `btc` / `eth` / `aleo` | DOUBLE PRECISION | USD prices |
+| Index | `idx_price_history_timestamp` | DESC for fast lookups |
+
+Auto-cleanup: rows older than 2 hours are pruned on each write.
+
+#### `pending_market_meta` — Pre-Confirmation Metadata
+| Column | Type | Description |
+|---|---|---|
+| `question_hash` | TEXT PK | Hash sent before tx confirms |
+| `question` | TEXT | Question text |
+| `outcomes` | JSONB | Outcome labels |
+| `is_lightning` | BOOLEAN | Lightning flag |
+| `created_at` | BIGINT | Timestamp |
+
+#### `scanner_state` — Block Scanner Checkpoint (single row)
+| Column | Type | Description |
+|---|---|---|
+| `id` | INTEGER PK | Always 1 |
+| `last_scanned_block` | BIGINT | Last processed block height |
+
+#### `event_log` — Audit Trail
+| Column | Type | Description |
+|---|---|---|
+| `id` | SERIAL PK | Auto-increment |
+| `event_type` | TEXT | Event category |
+| `payload` | JSONB | Event data |
+| `created_at` | TIMESTAMPTZ | Timestamp |
+
+### Startup Flow
+```
+1. initializeDatabase()     → CREATE TABLE IF NOT EXISTS (all 8 tables)
+2. loadRegistryFromDB()     → Load markets from DB into in-memory cache
+3. loadScannerState()       → Restore last scanned block from DB
+4. loadPriceHistory()       → Load last 2hr of prices from DB
+5. fetchMarketsFromChain()  → Fetch live on-chain data
+6. fetchOraclePrices()      → Get latest exchange prices
+7. startRoundBot()          → Load bot state from DB, resume rounds
+```
+
+### Render Deployment Setup
+1. **Create Web Service** → connect GitHub repo
+2. **Root Directory**: `backend`
+3. **Build Command**: `npm install && npx tsc`
+4. **Start Command**: `node dist/index.js`
+5. **Environment Variables**:
+   - `DATABASE_URL` = internal Render DB URL (zero-latency within Render network)
+   - `ALEO_ENDPOINT` = `https://api.explorer.provable.com/v1`
+   - `CORS_ORIGIN` = frontend deployment URL
+   - `RESOLVER_PRIVATE_KEY` = deployer key
+   - `PROVABLE_API_KEY` / `PROVABLE_CONSUMER_ID` = delegated proving
+   - `ROUND_BOT_ENABLED` = `true`
+
+---
+
+## 14. Statistics
 
 ### Contract Totals
 | Metric | Value |
@@ -539,3 +697,11 @@ After:  await Promise.allSettled(entries.map(async ...))        // O(1) parallel
 | Performance (indexer) | ✅ Parallel fetch |
 | Performance (scanner) | ✅ Batch 10, 100ms |
 | Performance (cron) | ✅ 15s/10s intervals |
+| Render PostgreSQL | ✅ 8 tables created |
+| DB connection test | ✅ Auto-schema + pool |
+| Markets from DB | ✅ Loaded on startup |
+| Scanner state from DB | ✅ Block height restored |
+| Price history from DB | ✅ Last 2hr loaded |
+| Round bot state from DB | ✅ Resumed active rounds |
+| Governance from DB | ✅ Proposals persisted |
+| JSON files replaced | ✅ 4 files → 8 tables |

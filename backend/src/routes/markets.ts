@@ -48,7 +48,7 @@ router.post('/register', async (req, res) => {
       imageUrl: imageUrl || undefined,
     });
   }
-  persistRegistry();
+  persistRegistry().catch(() => {});
   const markets = await fetchMarketsFromChain();
   setCachedMarkets(markets);
   res.json({ success: true, marketCount: markets.length });

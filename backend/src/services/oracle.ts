@@ -1,4 +1,5 @@
 import type { OraclePrices } from '../types';
+import { query, cleanupOldPrices } from './db';
 
 let cachedPrices: OraclePrices = {
   btc: 0,
@@ -345,11 +346,40 @@ export function recordPriceSnapshot(): void {
   const p = getCachedPrices();
   if (p.btc > 0) {
     priceHistory.push({ timestamp: Date.now(), btc: p.btc, eth: p.eth, aleo: p.aleo });
-    // Keep last 2 hours of data (so older lightning rounds can still resolve bets)
+    // Keep last 2 hours of data in memory
     const cutoff = Date.now() - 120 * 60 * 1000;
     while (priceHistory.length > 0 && priceHistory[0].timestamp < cutoff) {
       priceHistory.shift();
     }
+    // Persist to DB (fire-and-forget)
+    query(
+      'INSERT INTO price_history (timestamp, btc, eth, aleo) VALUES ($1, $2, $3, $4)',
+      [Date.now(), p.btc, p.eth, p.aleo],
+    ).catch(() => {});
+    // Periodic DB cleanup
+    cleanupOldPrices().catch(() => {});
+  }
+}
+
+/** Load recent price history from DB on startup */
+export async function loadPriceHistory(): Promise<void> {
+  try {
+    const cutoff = Date.now() - 120 * 60 * 1000;
+    const { rows } = await query(
+      'SELECT timestamp, btc, eth, aleo FROM price_history WHERE timestamp > $1 ORDER BY timestamp ASC',
+      [cutoff],
+    );
+    for (const row of rows) {
+      priceHistory.push({
+        timestamp: Number(row.timestamp),
+        btc: row.btc,
+        eth: row.eth,
+        aleo: row.aleo,
+      });
+    }
+    console.log(`[Oracle] Loaded ${rows.length} price snapshot(s) from database`);
+  } catch (err) {
+    console.error('[Oracle] Failed to load price history from DB:', err);
   }
 }
 

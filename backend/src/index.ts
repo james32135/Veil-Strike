@@ -3,10 +3,11 @@ import express from 'express';
 import cors from 'cors';
 import cron from 'node-cron';
 import { config } from './config';
-import { fetchOraclePrices, recordPriceSnapshot } from './services/oracle';
-import { fetchMarketsFromChain, setCachedMarkets } from './services/indexer';
+import { initializeDatabase } from './services/db';
+import { fetchOraclePrices, recordPriceSnapshot, loadPriceHistory } from './services/oracle';
+import { fetchMarketsFromChain, setCachedMarkets, loadRegistryFromDB } from './services/indexer';
 import { resolveExpiredMarkets } from './services/resolver';
-import { scanForNewMarkets } from './services/scanner';
+import { scanForNewMarkets, loadScannerState } from './services/scanner';
 import { autoResolveMarkets } from './services/auto-resolver';
 import { initSeedLightningRounds } from './services/lightning-manager';
 import { warmupWorker } from './services/proof-dispatcher';
@@ -56,6 +57,16 @@ export function broadcastSSE(eventType: string, data: unknown): void {
 
 // Initialize data
 async function initialize() {
+  // 1. Connect to database and create tables
+  console.log('[Init] Connecting to database...');
+  await initializeDatabase();
+
+  // 2. Load persisted data from DB
+  await loadRegistryFromDB();
+  await loadScannerState();
+  await loadPriceHistory();
+
+  // 3. Fetch live data from chain + oracle
   console.log('[Init] Fetching initial data...');
   const [markets] = await Promise.all([
     fetchMarketsFromChain(),

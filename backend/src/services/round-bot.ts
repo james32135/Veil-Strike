@@ -8,8 +8,7 @@ import { registerMarket, persistRegistry, clearStaleLightningFlags, getCachedMar
 import { savePendingMeta, deletePendingMeta } from './scanner';
 import { delegatedSettle, delegatedCreateMarket, isDelegatedProvingAvailable, getResolverAddressFromKey } from './delegated-prover';
 import { fetchCurrentBlock } from './chain-executor';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { query } from './db';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -61,8 +60,6 @@ const SLOT_DEFINITIONS: { id: string; asset: Asset; tokenType: TokenType }[] = [
   // { id: 'ETH-USAD',  asset: 'ETH',  tokenType: 'USAD'  },
 ];
 
-const STATE_FILE = join(__dirname, '../../data/round-bot-state.json');
-
 // ─── State ───────────────────────────────────────────────────────────────────
 
 let botState: BotState | null = null;
@@ -84,25 +81,89 @@ function getAssetPrice(asset: Asset): number {
 
 function saveState(): void {
   if (!botState) return;
-  try {
-    const dir = join(__dirname, '../../data');
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    writeFileSync(STATE_FILE, JSON.stringify(botState, null, 2));
-  } catch (err) {
-    console.error('[RoundBot] Failed to save state:', err);
-  }
+  // Persist to DB (fire-and-forget async)
+  (async () => {
+    try {
+      await query(
+        `UPDATE round_bot_state SET
+          resolver_address = $1, started_at = $2,
+          total_rounds_created = $3, total_rounds_settled = $4,
+          total_rounds_skipped = $5, updated_at = NOW()
+        WHERE id = 1`,
+        [
+          botState!.resolverAddress,
+          botState!.startedAt,
+          botState!.totalRoundsCreated,
+          botState!.totalRoundsSettled,
+          botState!.totalRoundsSkipped,
+        ],
+      );
+
+      // Upsert all slots
+      for (const s of botState!.slots) {
+        await query(
+          `INSERT INTO round_bot_slots
+            (slot_id, asset, token_type, program_id, state, market_id, tx_id,
+             start_price, start_time, end_time, round_number, total_volume,
+             error, last_settle_tx_id, settle_retries, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+           ON CONFLICT (slot_id) DO UPDATE SET
+             state = EXCLUDED.state, market_id = EXCLUDED.market_id,
+             tx_id = EXCLUDED.tx_id, start_price = EXCLUDED.start_price,
+             start_time = EXCLUDED.start_time, end_time = EXCLUDED.end_time,
+             round_number = EXCLUDED.round_number, total_volume = EXCLUDED.total_volume,
+             error = EXCLUDED.error, last_settle_tx_id = EXCLUDED.last_settle_tx_id,
+             settle_retries = EXCLUDED.settle_retries, updated_at = NOW()`,
+          [
+            s.id, s.asset, s.tokenType, s.programId, s.state,
+            s.marketId, s.txId, s.startPrice, s.startTime, s.endTime,
+            s.roundNumber, s.totalVolume, s.error, s.lastSettleTxId, s.settleRetries,
+          ],
+        );
+      }
+    } catch (err) {
+      console.error('[RoundBot] Failed to save state to DB:', err);
+    }
+  })();
 }
 
-function loadState(): BotState | null {
+async function loadState(): Promise<BotState | null> {
   try {
-    if (existsSync(STATE_FILE)) {
-      const raw = readFileSync(STATE_FILE, 'utf-8');
-      return JSON.parse(raw);
-    }
+    const { rows: stateRows } = await query('SELECT * FROM round_bot_state WHERE id = 1');
+    if (stateRows.length === 0) return null;
+    const st = stateRows[0];
+
+    const { rows: slotRows } = await query('SELECT * FROM round_bot_slots ORDER BY slot_id');
+    if (slotRows.length === 0) return null;
+
+    return {
+      resolverAddress: st.resolver_address || '',
+      startedAt: Number(st.started_at) || Date.now(),
+      totalRoundsCreated: st.total_rounds_created || 0,
+      totalRoundsSettled: st.total_rounds_settled || 0,
+      totalRoundsSkipped: st.total_rounds_skipped || 0,
+      slots: slotRows.map((r: any) => ({
+        id: r.slot_id,
+        asset: r.asset as Asset,
+        tokenType: r.token_type as TokenType,
+        programId: r.program_id,
+        state: r.state as SlotState,
+        marketId: r.market_id || null,
+        txId: r.tx_id || null,
+        startPrice: r.start_price || 0,
+        startTime: Number(r.start_time) || 0,
+        endTime: Number(r.end_time) || 0,
+        roundNumber: r.round_number || 1,
+        totalVolume: r.total_volume || 0,
+        error: r.error || null,
+        lastSettleTxId: r.last_settle_tx_id || null,
+        settleRetries: r.settle_retries || 0,
+      })),
+    };
   } catch (err) {
-    console.error('[RoundBot] Failed to load state:', err);
+    console.error('[RoundBot] Failed to load state from DB:', err);
+    return null;
   }
-  return null;
 }
 
 // ─── Market Creation ─────────────────────────────────────────────────────────
@@ -227,7 +288,7 @@ async function createMarketForSlot(slot: MarketSlot): Promise<void> {
       });
       // Delete pending meta so scanner won't tag old markets with same questionHash as lightning
       deletePendingMeta(questionHash);
-      persistRegistry();
+      persistRegistry().catch(() => {});
     }
 
     // Wait for confirmation
@@ -470,8 +531,8 @@ export async function startRoundBot(): Promise<void> {
     return;
   }
 
-  // Try to restore state from disk
-  const saved = loadState();
+  // Try to restore state from database
+  const saved = await loadState();
   if (saved && saved.slots.length === SLOT_DEFINITIONS.length) {
     botState = saved;
     botState.resolverAddress = resolverAddress;

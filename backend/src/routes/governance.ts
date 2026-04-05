@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import { config } from '../config';
-import fs from 'fs';
-import path from 'path';
+import { query } from '../services/db';
 
 const router = Router();
 
-// ---- Proposal registry (persisted to disk) ----
+// ---- Proposal registry (persisted to PostgreSQL) ----
 interface ProposalMeta {
   id: string;          // The nonce field used when submitting
   txId?: string;       // Transaction ID from the wallet
@@ -20,23 +19,61 @@ interface ProposalMeta {
   createdAt: number;
 }
 
-const REGISTRY_PATH = path.join(process.cwd(), 'data', 'governance-registry.json');
 let proposalRegistry: ProposalMeta[] = [];
 
-function loadRegistry() {
+async function loadRegistry(): Promise<void> {
   try {
-    if (fs.existsSync(REGISTRY_PATH)) {
-      proposalRegistry = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf-8'));
-    }
-  } catch { proposalRegistry = []; }
+    const { rows } = await query('SELECT * FROM proposals ORDER BY created_at DESC');
+    proposalRegistry = rows.map((r: any) => ({
+      id: r.id,
+      txId: r.tx_id || undefined,
+      resolvedId: r.resolved_id || undefined,
+      title: r.title || '',
+      description: r.description || '',
+      actionType: r.action_type || 0,
+      targetMarket: r.target_market || '0field',
+      amount: r.amount || '0',
+      recipient: r.recipient || '',
+      tokenType: r.token_type || 0,
+      createdAt: Number(r.created_at) || 0,
+    }));
+    console.log(`[Governance] Loaded ${proposalRegistry.length} proposal(s) from database`);
+  } catch (err) {
+    console.error('[Governance] Failed to load proposals from DB:', err);
+    proposalRegistry = [];
+  }
 }
 
-function persistRegistry() {
-  const dir = path.dirname(REGISTRY_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(REGISTRY_PATH, JSON.stringify(proposalRegistry, null, 2));
+async function persistProposal(meta: ProposalMeta): Promise<void> {
+  try {
+    await query(
+      `INSERT INTO proposals (id, tx_id, resolved_id, title, description, action_type, target_market, amount, recipient, token_type, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT (id) DO UPDATE SET
+         tx_id = COALESCE(EXCLUDED.tx_id, proposals.tx_id),
+         resolved_id = COALESCE(EXCLUDED.resolved_id, proposals.resolved_id),
+         title = EXCLUDED.title,
+         description = EXCLUDED.description,
+         action_type = EXCLUDED.action_type,
+         target_market = EXCLUDED.target_market,
+         amount = EXCLUDED.amount,
+         recipient = EXCLUDED.recipient,
+         token_type = EXCLUDED.token_type`,
+      [meta.id, meta.txId || null, meta.resolvedId || null, meta.title, meta.description,
+       meta.actionType, meta.targetMarket, meta.amount, meta.recipient, meta.tokenType, meta.createdAt],
+    );
+  } catch (err) {
+    console.error('[Governance] Failed to persist proposal:', err);
+  }
 }
 
+async function persistAllProposals(): Promise<void> {
+  for (const meta of proposalRegistry) {
+    await persistProposal(meta);
+  }
+}
+
+// Load on startup
 loadRegistry();
 
 // ---- Fetch proposal data from chain ----
@@ -133,7 +170,7 @@ router.get('/', async (_req, res) => {
       };
     })
   );
-  if (registryChanged) persistRegistry();
+  if (registryChanged) persistAllProposals().catch(() => {});
   res.json({ proposals: enriched });
 });
 
@@ -151,7 +188,7 @@ router.get('/:id', async (req, res) => {
     const resolved = await resolveProposalIdFromTx(meta.txId);
     if (resolved) {
       meta.resolvedId = resolved;
-      persistRegistry();
+      persistProposal(meta).catch(() => {});
       lookupId = resolved;
     }
   }
@@ -176,7 +213,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Register a new proposal (called by frontend after tx confirms)
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   const { id, txId, title, description, actionType, targetMarket, amount, recipient, tokenType } = req.body;
   if (!id || !title) {
     res.status(400).json({ error: 'id and title required' });
@@ -187,12 +224,12 @@ router.post('/register', (req, res) => {
     // Update txId if provided and not already set
     if (txId && !existing.txId) {
       existing.txId = txId;
-      persistRegistry();
+      persistProposal(existing).catch(() => {});
     }
     res.json({ success: true, message: 'already registered' });
     return;
   }
-  proposalRegistry.push({
+  const newProposal: ProposalMeta = {
     id,
     txId: txId || undefined,
     title: title || '',
@@ -203,8 +240,9 @@ router.post('/register', (req, res) => {
     recipient: recipient || '',
     tokenType: tokenType || 0,
     createdAt: Date.now(),
-  });
-  persistRegistry();
+  };
+  proposalRegistry.push(newProposal);
+  persistProposal(newProposal).catch(() => {});
   res.json({ success: true, count: proposalRegistry.length });
 });
 
@@ -255,7 +293,7 @@ router.post('/resolve', async (req, res) => {
     }
   }
 
-  if (updated > 0) persistRegistry();
+  if (updated > 0) persistAllProposals().catch(() => {});
   res.json({ success: true, resolved: updated });
 });
 

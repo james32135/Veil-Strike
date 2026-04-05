@@ -4,12 +4,37 @@
 
 import { config } from '../config';
 import { registerMarket, persistRegistry } from './indexer';
+import { query } from './db';
 
 const CREATE_FUNCTION = 'open_market';
 const PROGRAM_SET = new Set(config.allProgramIds);
 
 // Track the last scanned block to avoid re-scanning
 let lastScannedBlock = 0;
+
+/** Load scanner state from DB on startup */
+export async function loadScannerState(): Promise<void> {
+  try {
+    const { rows } = await query('SELECT last_scanned_block FROM scanner_state WHERE id = 1');
+    if (rows.length > 0) {
+      lastScannedBlock = Number(rows[0].last_scanned_block) || 0;
+      console.log(`[Scanner] Restored last scanned block: ${lastScannedBlock}`);
+    }
+  } catch (err) {
+    console.error('[Scanner] Failed to load scanner state:', err);
+  }
+}
+
+async function saveScannerState(): Promise<void> {
+  try {
+    await query(
+      'UPDATE scanner_state SET last_scanned_block = $1, updated_at = NOW() WHERE id = 1',
+      [lastScannedBlock],
+    );
+  } catch (err) {
+    console.error('[Scanner] Failed to save scanner state:', err);
+  }
+}
 
 /**
  * Extract finalize arguments from a future output value string.
@@ -207,9 +232,12 @@ export async function scanForNewMarkets(blocksToScan: number = 200): Promise<num
     lastScannedBlock = currentHeight;
 
     if (newMarkets > 0) {
-      persistRegistry();
+      persistRegistry().catch(() => {});
       console.log(`[Scanner] Found ${newMarkets} new market(s)`);
     }
+
+    // Persist scanner state to DB
+    saveScannerState().catch(() => {});
 
     return newMarkets;
   } catch (err) {
@@ -238,6 +266,15 @@ export function savePendingMeta(questionHash: string, meta: PendingMeta): void {
   for (const [hash, m] of Object.entries(pendingMetaByHash)) {
     if (m.createdAt < cutoff) delete pendingMetaByHash[hash];
   }
+  // Persist to DB (fire-and-forget)
+  query(
+    `INSERT INTO pending_market_meta (question_hash, question, outcomes, is_lightning, created_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (question_hash) DO UPDATE SET
+       question = EXCLUDED.question, outcomes = EXCLUDED.outcomes,
+       is_lightning = EXCLUDED.is_lightning, created_at = EXCLUDED.created_at`,
+    [questionHash, meta.question, JSON.stringify(meta.outcomes), meta.isLightning, meta.createdAt],
+  ).catch(() => {});
 }
 
 function getPendingMeta(questionHash: string): PendingMeta | undefined {
@@ -246,4 +283,5 @@ function getPendingMeta(questionHash: string): PendingMeta | undefined {
 
 export function deletePendingMeta(questionHash: string): void {
   delete pendingMetaByHash[questionHash];
+  query('DELETE FROM pending_market_meta WHERE question_hash = $1', [questionHash]).catch(() => {});
 }

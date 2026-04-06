@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useSeriesStore } from '@/stores/seriesStore';
@@ -34,15 +34,42 @@ const assetColors: Record<string, string> = {
   ALEO: 'text-teal',
 };
 
+const AMOUNT_PRESETS = ['1', '5', '10', '25'];
+function CustomAmountInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isCustom = !AMOUNT_PRESETS.includes(value);
+  return (
+    <div
+      onClick={() => inputRef.current?.focus()}
+      className={`flex-[1.4] flex items-center px-2 rounded-xl border transition-all duration-200 cursor-text ${
+        isCustom ? 'border-teal/40 bg-teal/10 shadow-[0_0_12px_-4px_rgba(0,212,184,0.3)]' : 'border-white/[0.04] bg-white/[0.01] hover:border-white/[0.08]'
+      }`}
+    >
+      <input
+        ref={inputRef}
+        type="number"
+        min="0.01"
+        step="0.5"
+        value={isCustom ? value : ''}
+        placeholder="custom"
+        onChange={(e) => { const v = e.target.value; if (v && parseFloat(v) > 0) onChange(v); }}
+        className="w-full bg-transparent text-xs font-mono text-gray-300 placeholder:text-gray-600 outline-none tabular-nums py-2.5"
+      />
+    </div>
+  );
+}
+
 export default function SeriesDetail() {
   const { slug } = useParams<{ slug: string }>();
   const { currentSeries, loading, fetchSeriesBySlug } = useSeriesStore();
   const prices = useOracleStore((s) => s.prices);
   const fetchPrices = useOracleStore((s) => s.fetchPrices);
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
+  const allMarkets = useMarketStore((s) => s.markets);
 
   // Betting state
   const [betAmount, setBetAmount] = useState('1');
+  const [pendingDirection, setPendingDirection] = useState<'up' | 'down' | null>(null);
   const { status: txStatus, execute, fetchCreditsRecord, fetchUsdcxRecord } = useTransaction();
   const addTrade = useTradeStore((s) => s.addTrade);
   const addBet = useLightningBetStore((s) => s.addBet);
@@ -50,13 +77,33 @@ export default function SeriesDetail() {
   const startCooldown = useBetCooldownStore((s) => s.startCooldown);
   const isOnCooldown = useBetCooldownStore((s) => s.isOnCooldown);
   const getRemainingSeconds = useBetCooldownStore((s) => s.getRemainingSeconds);
-  const onCooldown = isOnCooldown();
-  const cooldownLeft = getRemainingSeconds();
   const { fetchShareRecords } = useTransaction();
   const [shareRecords, setShareRecords] = useState<ShareRecord[]>([]);
   const [claiming, setClaiming] = useState(false);
   const [priceHistory, setPriceHistory] = useState<{ time: number; price: number }[]>([]);
-  const allMarkets = useMarketStore((s) => s.markets);
+
+  // Reactive cooldown ticker — re-evaluates every second while cooling down
+  const [cooldownTick, setCooldownTick] = useState(0);
+  useEffect(() => {
+    if (!isOnCooldown()) return;
+    const id = setInterval(() => setCooldownTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [isOnCooldown, cooldownTick]);
+  const cooldownLeft = getRemainingSeconds();
+  const onCooldown = cooldownLeft > 0;
+
+  // Pre-compute round end time BEFORE early returns so useCountdown always runs (Rules of Hooks)
+  const _preAsset = currentSeries?.asset?.toUpperCase() ?? '';
+  const roundEndTime = currentSeries?.currentRound?.endTime
+    ?? allMarkets.find((m) => {
+      if (!m.isLightning || m.status !== 'active') return false;
+      const q = m.question.toUpperCase();
+      if (_preAsset === 'BTC') return q.includes('BTC') || q.includes('BITCOIN');
+      if (_preAsset === 'ETH') return q.includes('ETH') || q.includes('ETHEREUM');
+      return q.includes('ALEO');
+    })?.endTime
+    ?? 0;
+  const roundCountdown = useCountdown(roundEndTime);
 
   // Fetch series + prices on mount
   useEffect(() => {
@@ -120,10 +167,14 @@ export default function SeriesDetail() {
     return q.includes('ALEO');
   }) ?? undefined;
 
-  const hasLiveRound = !!round && round.status === 'active';
+  const isRoundExpired = roundCountdown.isExpired && roundEndTime > 0;
+  const isSettling = isRoundExpired && !!round && round.status === 'active';
+  const isResolved = round?.status === 'resolved';
+  const hasLiveRound = !!round && round.status === 'active' && !isRoundExpired;
   const currentPrice = asset === 'BTC' ? prices.btc : asset === 'ETH' ? prices.eth : prices.aleo;
   const tokenLabel = series.tokenType === 'USDCX' ? 'USDCx' : series.tokenType === 'USAD' ? 'USAD' : 'ALEO';
   const marketToken = round ? ((round.tokenType || 'ALEO').toLowerCase() as TokenType) : 'aleo';
+  const isTxInProgress = txStatus === 'preparing' || txStatus === 'proving' || txStatus === 'broadcasting';
 
   // Probability from reserves
   let upProbability = 50;
@@ -136,11 +187,20 @@ export default function SeriesDetail() {
   // User's existing bet on current round
   const userBet = round ? allBets.find((b) => (b.roundId === round.id || b.marketId === round.id) && !b.result) : undefined;
 
+  // Clear pending direction once bet confirmed in store, or if tx failed
+  useEffect(() => {
+    if (userBet) setPendingDirection(null);
+  }, [userBet]);
+  useEffect(() => {
+    if (txStatus === 'error') setPendingDirection(null);
+  }, [txStatus]);
+
   // Reserves for FPMM calculations
   const liveReserves = round?.reserves || [1_000_000, 1_000_000];
 
   const handleBet = async (direction: 'up' | 'down') => {
     if (!round) return;
+    setPendingDirection(direction);
     const amountMicro = Math.floor(parseFloat(betAmount) * 1_000_000);
     if (amountMicro < 1000) return;
     const outcome = direction === 'up' ? 0 : 1;
@@ -177,6 +237,7 @@ export default function SeriesDetail() {
     const txId = await execute(tx, refreshChain);
     if (txId) {
       startCooldown();
+      // Immediately record the bet so panel switches to "Your Bet" view
       addBet({
         roundId: round.id, marketId: round.id, asset: asset as 'BTC' | 'ETH' | 'ALEO', direction,
         amount: amountMicro, shares: Number(exactShares),
@@ -189,8 +250,12 @@ export default function SeriesDetail() {
         price: 0.5, timestamp: Date.now(),
       });
       refreshChain();
+    } else {
+      setPendingDirection(null);
     }
   };
+
+  const handleBetClick = (direction: 'up' | 'down') => handleBet(direction);
 
   const handleClaim = async (record: ShareRecord) => {
     setClaiming(true);
@@ -234,8 +299,11 @@ export default function SeriesDetail() {
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
                     <h1 className={`text-xl font-heading font-bold ${assetColors[asset]}`}>{series.title}</h1>
-                    <Badge variant={hasLiveRound ? 'success' : 'gray'} pulse={hasLiveRound}>
-                      {hasLiveRound ? 'LIVE' : 'NEXT SOON'}
+                    <Badge
+                      variant={isSettling ? 'warning' : hasLiveRound ? 'success' : 'gray'}
+                      pulse={hasLiveRound || isSettling}
+                    >
+                      {isSettling ? 'SETTLING...' : hasLiveRound ? 'LIVE' : 'NEXT SOON'}
                     </Badge>
                   </div>
                   {series.subtitle && <p className="text-sm text-gray-500 mt-0.5">{series.subtitle}</p>}
@@ -249,6 +317,7 @@ export default function SeriesDetail() {
                 asset={asset}
                 endTime={round?.endTime ?? 0}
                 hasLiveRound={hasLiveRound}
+                isSettling={isSettling}
               />
             </Card>
           </motion.div>
@@ -318,17 +387,59 @@ export default function SeriesDetail() {
             <Card className="p-5">
               <h3 className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-4">Trade</h3>
 
-              {!hasLiveRound ? (
+              {isSettling ? (
+                // Settling state — round expired, waiting for on-chain resolution
+                <div className="text-center py-5 rounded-xl border border-amber-400/10 bg-amber-400/[0.03]">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                    <span className="text-sm font-heading text-amber-400/90">Settling on-chain...</span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 leading-relaxed px-2">
+                    The bot is resolving this round and creating the next one.
+                    Results appear in ~5 min. Claim winnings after.
+                  </p>
+                </div>
+              ) : isResolved ? (
+                // Resolved state
+                <div className={`text-center py-4 rounded-xl border ${
+                  round?.resolvedOutcome === 0
+                    ? 'bg-gradient-to-r from-accent-green/[0.06] to-accent-green/[0.03] border-accent-green/15 text-accent-green'
+                    : 'bg-gradient-to-r from-accent-red/[0.06] to-accent-red/[0.03] border-accent-red/15 text-accent-red'
+                }`}>
+                  <span className="text-sm font-heading font-bold">
+                    {round?.resolvedOutcome === 0 ? '↑ UP WINS' : '↓ DOWN WINS'}
+                  </span>
+                </div>
+              ) : !hasLiveRound ? (
                 <div className="text-center py-6">
                   <BoltIcon className="w-8 h-8 text-gray-600 mx-auto mb-2" />
                   <p className="text-sm text-gray-400">Waiting for next round...</p>
                   <p className="text-[10px] text-gray-600 mt-1">A new round will start automatically</p>
                 </div>
-              ) : onCooldown ? (
-                <div className="text-center py-6 rounded-xl border border-amber-400/15 bg-amber-400/[0.04]">
-                  <div className="text-xs text-amber-400/80 font-heading mb-1">Transaction Cooldown</div>
-                  <div className="text-3xl font-mono font-bold text-amber-400 tabular-nums">{cooldownLeft}s</div>
-                  <p className="text-[10px] text-gray-500 mt-1">Wait for your previous bet to confirm</p>
+              ) : isTxInProgress && pendingDirection ? (
+                // Optimistic pending state — shows immediately after clicking UP/DOWN
+                <div className={`p-4 rounded-xl border animate-pulse ${
+                  pendingDirection === 'up'
+                    ? 'border-accent-green/20 bg-accent-green/[0.04]'
+                    : 'border-accent-red/20 bg-accent-red/[0.04]'
+                }`}>
+                  <div className="flex items-center justify-between text-xs mb-3">
+                    <span className="text-gray-400 font-heading">Placing Bet...</span>
+                    <Badge variant={pendingDirection === 'up' ? 'success' : 'danger'} size="sm">
+                      {pendingDirection === 'up' ? '↑ UP' : '↓ DOWN'}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin"
+                      style={{ borderColor: pendingDirection === 'up' ? 'rgba(34,197,94,0.6)' : 'rgba(239,68,68,0.6)', borderTopColor: 'transparent' }}
+                    />
+                    <span>
+                      {txStatus === 'preparing' ? 'Preparing transaction...' :
+                       txStatus === 'proving' ? 'Generating ZK proof...' :
+                       'Broadcasting to network...'}
+                    </span>
+                  </div>
+                  <div className="mt-3 text-[10px] text-gray-600">{betAmount} {tokenLabel} at {pendingDirection === 'up' ? upProbability : 100 - upProbability}¢</div>
                 </div>
               ) : userBet ? (
                 <div className={`p-4 rounded-xl border ${
@@ -359,6 +470,12 @@ export default function SeriesDetail() {
                     </span>
                   </div>
                 </div>
+              ) : onCooldown ? (
+                <div className="text-center py-6 rounded-xl border border-amber-400/15 bg-amber-400/[0.04]">
+                  <div className="text-xs text-amber-400/80 font-heading mb-1">Transaction Cooldown</div>
+                  <div className="text-3xl font-mono font-bold text-amber-400 tabular-nums">{cooldownLeft}s</div>
+                  <p className="text-[10px] text-gray-500 mt-1">Wait for your previous bet to confirm</p>
+                </div>
               ) : (
                 <>
                   {/* Amount selector */}
@@ -373,13 +490,15 @@ export default function SeriesDetail() {
                           onClick={() => setBetAmount(val)}
                           className={`flex-1 py-2.5 text-xs font-mono font-medium rounded-xl border transition-all duration-300 ${
                             betAmount === val
-                              ? 'border-teal/30 bg-teal/10 text-teal'
+                              ? 'border-teal/30 bg-teal/10 text-teal shadow-[0_0_12px_-4px_rgba(0,212,184,0.3)]'
                               : 'border-white/[0.04] bg-white/[0.01] text-gray-500 hover:text-gray-300 hover:border-white/[0.08]'
                           }`}
                         >
                           {val}
                         </button>
                       ))}
+                      {/* Custom amount */}
+                      <CustomAmountInput value={betAmount} onChange={setBetAmount} />
                     </div>
                   </div>
 
@@ -389,8 +508,8 @@ export default function SeriesDetail() {
                       variant="primary"
                       size="md"
                       className="!bg-gradient-to-r !from-accent-green/20 !to-accent-green/10 !text-accent-green !border !border-accent-green/20 hover:!from-accent-green/30 hover:!to-accent-green/15 hover:!shadow-[0_0_20px_-4px_rgba(34,197,94,0.3)] !rounded-xl"
-                      onClick={() => handleBet('up')}
-                      loading={txStatus === 'preparing' || txStatus === 'proving' || txStatus === 'broadcasting'}
+                      onClick={() => handleBetClick('up')}
+                      loading={isTxInProgress && pendingDirection === 'up'}
                     >
                       <ArrowUpIcon className="w-4 h-4 mr-1" /> Up {upProbability}¢
                     </Button>
@@ -398,8 +517,8 @@ export default function SeriesDetail() {
                       variant="danger"
                       size="md"
                       className="!bg-gradient-to-r !from-accent-red/20 !to-accent-red/10 !text-accent-red !border !border-accent-red/20 hover:!from-accent-red/30 hover:!to-accent-red/15 hover:!shadow-[0_0_20px_-4px_rgba(239,68,68,0.3)] !rounded-xl"
-                      onClick={() => handleBet('down')}
-                      loading={txStatus === 'preparing' || txStatus === 'proving' || txStatus === 'broadcasting'}
+                      onClick={() => handleBetClick('down')}
+                      loading={isTxInProgress && pendingDirection === 'down'}
                     >
                       <ArrowDownIcon className="w-4 h-4 mr-1" /> Down {100 - upProbability}¢
                     </Button>
@@ -482,12 +601,13 @@ export default function SeriesDetail() {
 
 /* ─── Sub-components ─── */
 
-function PriceRow({ startPrice, currentPrice, asset, endTime, hasLiveRound }: {
+function PriceRow({ startPrice, currentPrice, asset, endTime, hasLiveRound, isSettling }: {
   startPrice?: number;
   currentPrice: number;
   asset: string;
   endTime: number;
   hasLiveRound: boolean;
+  isSettling: boolean;
 }) {
   const { minutes, seconds, isExpired } = useCountdown(endTime);
   const fmtPrice = (p: number) => asset === 'ALEO' ? `$${p.toFixed(4)}` : formatUSD(p);
@@ -509,7 +629,12 @@ function PriceRow({ startPrice, currentPrice, asset, endTime, hasLiveRound }: {
       </div>
       <div className="px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
         <div className="text-[10px] text-gray-500 uppercase tracking-wider font-heading mb-0.5">Time Left</div>
-        {hasLiveRound && !isExpired ? (
+        {isSettling ? (
+          <div className="text-sm font-mono font-bold text-amber-400 flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            Settling...
+          </div>
+        ) : hasLiveRound && !isExpired ? (
           <div className="text-lg font-mono font-bold text-white tabular-nums flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-accent-green animate-pulse" />
             {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}

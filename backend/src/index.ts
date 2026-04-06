@@ -118,8 +118,8 @@ cron.schedule('*/15 * * * * *', async () => {
   }
 });
 
-// Scan blockchain for new create_market transactions every 10 seconds
-cron.schedule('*/10 * * * * *', async () => {
+// Scan blockchain for new create_market transactions every 15 seconds
+cron.schedule('*/15 * * * * *', async () => {
   try {
     const found = await scanForNewMarkets(20);
     if (found > 0) {

@@ -82,7 +82,7 @@ export async function autoResolveMarkets(): Promise<void> {
 
   // Pre-check balance before iterating markets (avoids pointless heavy work)
   if (!(await hasMinBalance())) {
-    console.log('[AutoResolver] Skipping cycle — insufficient resolver balance');
+    // hasMinBalance() already logs throttled warning
     return;
   }
 

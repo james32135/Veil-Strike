@@ -571,7 +571,9 @@ export async function startRoundBot(): Promise<void> {
 
     // On restart, recover slots intelligently:
     // - OPEN slots with valid marketId and time remaining → keep open (don't orphan)
+    // - OPEN slots that have EXPIRED → settle them immediately (don't orphan on-chain)
     // - Everything else → reset to idle (stale rounds, transient states)
+    const expiredSlotsToSettle: MarketSlot[] = [];
     for (const slot of botState.slots) {
       if (slot.state === 'open' && slot.marketId && slot.endTime > Date.now()) {
         // Round is still live — re-register it and keep going
@@ -585,6 +587,10 @@ export async function startRoundBot(): Promise<void> {
           tokenType: slot.tokenType === 'ALEO' ? undefined : slot.tokenType,
           botEndTime: slot.endTime,
         });
+      } else if (slot.state === 'open' && slot.marketId && slot.endTime <= Date.now()) {
+        // Round EXPIRED during restart — queue it for settling
+        console.log(`[RoundBot] ${slot.id} round #${slot.roundNumber} expired during downtime — will settle now`);
+        expiredSlotsToSettle.push(slot);
       } else if (slot.state !== 'idle') {
         console.log(`[RoundBot] Reset slot ${slot.id} from '${slot.state}' (round #${slot.roundNumber}) → idle`);
         slot.state = 'idle';
@@ -594,6 +600,63 @@ export async function startRoundBot(): Promise<void> {
         slot.settleRetries = 0;
         slot.roundNumber++;
       }
+    }
+    // Settle expired slots after the main loop starts (async, won't block startup)
+    if (expiredSlotsToSettle.length > 0) {
+      setTimeout(async () => {
+        for (const slot of expiredSlotsToSettle) {
+          try {
+            await settleSlot(slot);
+          } catch (err) {
+            console.error(`[RoundBot] Failed to settle expired ${slot.id}:`, err);
+            slot.state = 'idle';
+            slot.marketId = null;
+            slot.roundNumber++;
+          }
+        }
+        await saveState();
+      }, 5_000); // 5s delay to let other init finish
+    }
+
+    // ── Orphan cleanup: settle any active lightning markets that expired but are
+    //    not tracked by any current slot (orphaned from previous restarts/crashes) ──
+    const trackedMarketIds = new Set(botState.slots.map((s) => s.marketId).filter(Boolean));
+    const allMarkets = getCachedMarkets();
+    const orphanedExpired = allMarkets.filter(
+      (m) => m.isLightning && m.status === 'active' && m.endTime < Date.now() && !trackedMarketIds.has(m.id)
+    );
+    if (orphanedExpired.length > 0) {
+      console.log(`[RoundBot] Found ${orphanedExpired.length} orphaned expired market(s) — settling...`);
+      setTimeout(async () => {
+        for (const market of orphanedExpired) {
+          try {
+            const q = market.question.toUpperCase();
+            const asset: Asset = q.includes('BTC') || q.includes('BITCOIN') ? 'BTC' : q.includes('ETH') || q.includes('ETHEREUM') ? 'ETH' : 'ALEO';
+            const tokenType: TokenType = market.tokenType === 'USDCX' ? 'USDCX' : market.tokenType === 'USAD' ? 'USAD' : 'ALEO';
+            const tmpSlot: MarketSlot = {
+              id: `orphan-${market.id.slice(0, 8)}`,
+              asset,
+              tokenType,
+              programId: tokenType === 'USDCX' ? 'veil_strike_v7_cx.aleo' : tokenType === 'USAD' ? 'veil_strike_v7_sd.aleo' : 'veil_strike_v7.aleo',
+              state: 'open',
+              marketId: market.id,
+              txId: null,
+              startPrice: market.startPrice || 0,
+              startTime: market.endTime - ROUND_DURATION_MS,
+              endTime: market.endTime,
+              roundNumber: market.roundNumber || 0,
+              totalVolume: 0,
+              error: null,
+              lastSettleTxId: null,
+              settleRetries: 0,
+            };
+            console.log(`[RoundBot] Settling orphan ${asset} market ${market.id.slice(0, 12)}...`);
+            await settleSlot(tmpSlot);
+          } catch (err) {
+            console.error(`[RoundBot] Failed to settle orphan ${market.id.slice(0, 12)}:`, err);
+          }
+        }
+      }, 10_000); // 10s delay — after expired slots settled
     }
   } else {
     // Fresh start

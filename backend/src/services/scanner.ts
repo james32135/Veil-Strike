@@ -185,7 +185,11 @@ export async function scanForNewMarkets(blocksToScan: number = 200): Promise<num
       return 0;
     }
 
-    console.log(`[Scanner] Scanning blocks ${startBlock}..${currentHeight} for new markets`);
+    // Only log scan range when there are blocks to scan (reduces noise)
+    const range = currentHeight - startBlock;
+    if (range > 5) {
+      console.log(`[Scanner] Scanning ${range} blocks (${startBlock}..${currentHeight})`);
+    }
 
     let newMarkets = 0;
     const BATCH_SIZE = 10;

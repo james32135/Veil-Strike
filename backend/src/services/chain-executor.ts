@@ -19,8 +19,11 @@ const PRIVATE_KEY = process.env.RESOLVER_PRIVATE_KEY || process.env.PRIVATE_KEY 
 const PRIORITY_FEE = 10_000; // 0.01 ALEO
 
 // Minimum balance (microcredits) required to attempt on-chain execution.
-// lock_market costs ~10 ALEO (10,000,002,815 microcredits); set threshold at 11 ALEO.
-const MIN_BALANCE_MICROCREDITS = 11_000_000_000;
+// lock_market costs ~10 ALEO; set threshold at 11 ALEO = 11,000,000 microcredits.
+const MIN_BALANCE_MICROCREDITS = 11_000_000;
+
+// Throttle the "insufficient balance" log so it doesn't spam every 2 minutes
+let lastBalanceWarnAt = 0;
 
 // Serialization lock — only one local proof at a time to prevent OOM on small instances
 let executionBusy = false;
@@ -43,7 +46,11 @@ async function fetchAccountBalance(): Promise<number> {
 export async function hasMinBalance(): Promise<boolean> {
   const balance = await fetchAccountBalance();
   if (balance < MIN_BALANCE_MICROCREDITS) {
-    console.log(`[ChainExecutor] Insufficient balance: ${(balance / 1_000_000).toFixed(2)} ALEO (need ${MIN_BALANCE_MICROCREDITS / 1_000_000} ALEO) — skipping`);
+    const now = Date.now();
+    if (now - lastBalanceWarnAt > 300_000) { // warn at most once per 5 min
+      console.log(`[ChainExecutor] Insufficient balance: ${(balance / 1_000_000).toFixed(2)} ALEO (need ${MIN_BALANCE_MICROCREDITS / 1_000_000} ALEO) — skipping`);
+      lastBalanceWarnAt = now;
+    }
     return false;
   }
   return true;

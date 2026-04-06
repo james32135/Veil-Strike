@@ -280,7 +280,10 @@ export async function fetchMarketsFromChain(): Promise<MarketInfo[]> {
     .map(r => r.value)
     .filter((m): m is MarketInfo => m !== null);
 
-  console.log(`[Indexer] Fetched ${markets.length} markets from chain (parallel)`);
+  // Only log when count changes to reduce noise
+  if (markets.length !== marketsCache.length) {
+    console.log(`[Indexer] Fetched ${markets.length} markets from chain`);
+  }
   return markets;
 }
 
@@ -358,7 +361,10 @@ export async function persistRegistry(): Promise<void> {
          updated_at = NOW()`,
       values,
     );
-    console.log(`[Indexer] Persisted ${entries.length} dynamic market(s) to database`);
+    // Only log persist on first call or count change
+    if (entries.length !== marketsCache.length) {
+      console.log(`[Indexer] Persisted ${entries.length} market(s) to database`);
+    }
   } catch (err) {
     console.error('[Indexer] Failed to persist registry to DB:', err);
   }

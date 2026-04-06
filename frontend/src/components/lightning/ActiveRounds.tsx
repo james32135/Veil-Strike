@@ -736,9 +736,9 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-[520px] rounded-2xl bg-white/[0.02] border border-white/[0.04] animate-pulse" />
+          <div key={i} className="h-[560px] rounded-2xl bg-white/[0.02] border border-white/[0.04] animate-pulse" />
         ))}
       </div>
     );
@@ -780,7 +780,7 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
             variants={gridVariants}
             initial="hidden"
             animate="visible"
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
             {activeMarkets.map((market) => (
               <StrikeRoundCard key={market.id} market={market} shareRecords={shareRecords} onClaimed={loadShareRecords} />
@@ -799,7 +799,7 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
             variants={gridVariants}
             initial="hidden"
             animate="visible"
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
             {resolvedMarkets.map((market) => (
               <StrikeRoundCard key={market.id} market={market} shareRecords={shareRecords} onClaimed={loadShareRecords} />

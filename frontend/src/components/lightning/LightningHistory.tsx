@@ -264,47 +264,67 @@ export default function LightningHistory({ }: LightningHistoryProps) {
         </Card>
       )}
 
-      {/* Market Results */}
+      {/* Market Results — capped at 10 most recent */}
       {rounds.length > 0 && (
-        <Card className="p-4">
-          <h3 className="text-xs text-gray-500 uppercase tracking-wider font-heading mb-3">
-            Recent Results
-          </h3>
-      <div className="space-y-0">
-        {rounds.map((round) => {
-          const priceChange = round.endPrice && round.startPrice
-            ? ((round.endPrice - round.startPrice) / round.startPrice) * 100
-            : null;
-          return (
-            <div
-              key={round.id}
-              className="flex items-center justify-between py-3 border-b border-dark-400/10 last:border-0"
-            >
-              <div className="flex-1 min-w-0 mr-3">
-                <p className="text-sm text-gray-300">
-                  <span className="font-mono font-bold">{round.asset}</span>
-                  {' — '}
-                  {round.asset === 'ALEO' ? `$${round.startPrice.toFixed(4)}` : formatUSD(round.startPrice)}
-                  {' → '}
-                  {round.endPrice ? (round.asset === 'ALEO' ? `$${round.endPrice.toFixed(4)}` : formatUSD(round.endPrice)) : '—'}
-                </p>
-                <p className="text-[10px] text-gray-600 mt-0.5">{formatTimeAgo(round.endTime)}</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Badge variant={round.result === 'up' ? 'success' : 'danger'}>
-                  {round.result === 'up' ? '↑ UP' : '↓ DOWN'}
-                </Badge>
-                {priceChange !== null && (
-                  <span className={`text-xs font-mono ${priceChange >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
-                    {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(3)}%
-                  </span>
-                )}
-              </div>
+        <Card className="p-0 overflow-hidden">
+          <div className="h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+          <div className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs text-gray-400 uppercase tracking-widest font-heading font-semibold">
+                Recent Results
+              </h3>
+              <span className="text-[10px] text-gray-600 font-mono">last {Math.min(rounds.length, 10)}</span>
             </div>
-          );
-        })}
-      </div>
-    </Card>
+            <div className="space-y-1">
+              {rounds.slice(0, 10).map((round) => {
+                const priceChange = round.endPrice && round.startPrice
+                  ? ((round.endPrice - round.startPrice) / round.startPrice) * 100
+                  : null;
+                const isUp = round.result === 'up';
+                return (
+                  <div
+                    key={round.id}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 ${
+                      isUp
+                        ? 'border-accent-green/[0.08] bg-accent-green/[0.02] hover:border-accent-green/[0.15]'
+                        : 'border-accent-red/[0.08] bg-accent-red/[0.02] hover:border-accent-red/[0.15]'
+                    }`}
+                  >
+                    {/* Direction badge */}
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${isUp ? 'bg-accent-green/10' : 'bg-accent-red/10'}`}>
+                      <span className={`text-sm font-bold ${isUp ? 'text-accent-green' : 'text-accent-red'}`}>
+                        {isUp ? '↑' : '↓'}
+                      </span>
+                    </div>
+
+                    {/* Asset + prices */}
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <CryptoIcon symbol={round.asset} size={14} />
+                      <span className="text-xs font-mono font-bold text-gray-300 shrink-0">{round.asset}</span>
+                      <span className="text-[10px] text-gray-600 hidden sm:block truncate">
+                        {round.asset === 'ALEO' ? `$${round.startPrice.toFixed(4)}` : formatUSD(round.startPrice)}
+                        {' → '}
+                        {round.endPrice
+                          ? (round.asset === 'ALEO' ? `$${round.endPrice.toFixed(4)}` : formatUSD(round.endPrice))
+                          : '—'}
+                      </span>
+                    </div>
+
+                    {/* Change % + time */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {priceChange !== null && (
+                        <span className={`text-xs font-mono tabular-nums ${isUp ? 'text-accent-green' : 'text-accent-red'}`}>
+                          {isUp ? '+' : ''}{priceChange.toFixed(3)}%
+                        </span>
+                      )}
+                      <span className="text-[10px] text-gray-600 hidden md:block">{formatTimeAgo(round.endTime)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
       )}
     </div>
   );

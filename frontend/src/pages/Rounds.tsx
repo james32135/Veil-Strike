@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useOracleStore } from '@/stores/oracleStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { useLightningBetStore } from '@/stores/lightningBetStore';
-import { ActiveRounds, LightningHistory, OraclePriceFeed } from '@/components/lightning';
+import { ActiveRounds, LightningHistory } from '@/components/lightning';
 import PageHeader from '@/components/layout/PageHeader';
 import { API_BASE } from '@/constants';
 
@@ -87,15 +87,10 @@ export default function Rounds() {
         action={{ label: '+ Create Round', href: '/create' }}
       />
 
-      {/* Unified rounds grid — cards link to /series/:slug for details + live chart */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-3 space-y-6">
-          <ActiveRounds markets={[]} />
-          <LightningHistory markets={[]} />
-        </div>
-        <div>
-          <OraclePriceFeed />
-        </div>
+      {/* Full-width rounds grid — no sidebar */}
+      <div className="space-y-8">
+        <ActiveRounds markets={[]} />
+        <LightningHistory markets={[]} />
       </div>
     </div>
   );

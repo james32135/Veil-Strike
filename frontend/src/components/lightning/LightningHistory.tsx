@@ -50,7 +50,10 @@ export default function LightningHistory({ }: LightningHistoryProps) {
       const res = await fetch(`${API_BASE}/lightning`);
       if (res.ok) {
         const data = await res.json();
-        setRounds((data.rounds || []).filter((r: LightningRound) => r.status === 'resolved'));
+        const resolved = (data.rounds || []).filter((r: LightningRound) => r.status === 'resolved');
+        // Sort newest-first across all assets so slice(0,10) gives latest mixed results
+        resolved.sort((a: LightningRound, b: LightningRound) => b.endTime - a.endTime);
+        setRounds(resolved);
       }
     } catch { /* ignore */ }
   }, []);

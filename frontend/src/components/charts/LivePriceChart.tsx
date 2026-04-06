@@ -75,15 +75,17 @@ export default function LivePriceChart({
       priceLineVisible: true,
     });
 
-    // Set initial data
+    // Set initial data — sort, convert to seconds, deduplicate (keep last value per second)
     const sorted = [...data].sort((a, b) => a.time - b.time);
     liveDataRef.current = sorted;
-    areaSeries.setData(
-      sorted.map((d) => ({
-        time: Math.floor(d.time / 1000) as any,
-        value: d.price,
-      }))
-    );
+    const secMap = new Map<number, number>();
+    for (const d of sorted) {
+      secMap.set(Math.floor(d.time / 1000), d.price);
+    }
+    const deduped = Array.from(secMap.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([time, value]) => ({ time: time as any, value }));
+    areaSeries.setData(deduped);
 
     // Target price dashed line
     if (targetPrice !== undefined) {

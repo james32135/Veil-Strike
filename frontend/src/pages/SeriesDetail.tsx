@@ -35,14 +35,23 @@ const assetColors: Record<string, string> = {
 };
 
 const AMOUNT_PRESETS = ['1', '5', '10', '25'];
+
+// Local rawInput state fully decouples from parent value — same fix as ActiveRounds
 function CustomAmountInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [rawInput, setRawInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-  const isCustom = !AMOUNT_PRESETS.includes(value);
+  const isPreset = AMOUNT_PRESETS.includes(value);
+
+  // When parent resets to a preset, clear raw input so placeholder shows
+  useEffect(() => { if (isPreset) setRawInput(''); }, [value, isPreset]);
+
+  const customActive = !isPreset;
+
   return (
     <div
       onClick={() => inputRef.current?.focus()}
       className={`flex-[1.4] flex items-center px-2 rounded-xl border transition-all duration-200 cursor-text ${
-        isCustom ? 'border-teal/40 bg-teal/10 shadow-[0_0_12px_-4px_rgba(0,212,184,0.3)]' : 'border-white/[0.04] bg-white/[0.01] hover:border-white/[0.08]'
+        customActive ? 'border-teal/40 bg-teal/10 shadow-[0_0_12px_-4px_rgba(0,212,184,0.3)]' : 'border-white/[0.04] bg-white/[0.01] hover:border-white/[0.08]'
       }`}
     >
       <input
@@ -50,10 +59,17 @@ function CustomAmountInput({ value, onChange }: { value: string; onChange: (v: s
         type="number"
         min="0.01"
         step="0.5"
-        value={isCustom ? value : ''}
+        value={rawInput}
         placeholder="custom"
-        onChange={(e) => { const v = e.target.value; if (v && parseFloat(v) > 0) onChange(v); }}
-        className="w-full bg-transparent text-xs font-mono text-gray-300 placeholder:text-gray-600 outline-none tabular-nums py-2.5"
+        onChange={(e) => {
+          const raw = e.target.value;
+          setRawInput(raw);
+          const n = parseFloat(raw);
+          if (!isNaN(n) && n > 0) onChange(raw);
+        }}
+        onBlur={() => { if (!rawInput || parseFloat(rawInput) <= 0) { setRawInput(''); if (customActive) onChange(AMOUNT_PRESETS[0]); } }}
+        className="w-full bg-transparent text-xs font-mono text-gray-300 placeholder:text-gray-600 outline-none tabular-nums py-2.5
+          [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
       />
     </div>
   );
@@ -140,6 +156,22 @@ export default function SeriesDetail() {
     return () => clearInterval(interval);
   }, [currentSeries]);
 
+  // Pre-compute round + userBet before early returns (Rules of Hooks — hooks must not be conditional)
+  const _preRound = currentSeries?.currentRound ?? allMarkets.find((m) => {
+    if (!m.isLightning || m.status !== 'active') return false;
+    const q = m.question.toUpperCase();
+    if (_preAsset === 'BTC') return q.includes('BTC') || q.includes('BITCOIN');
+    if (_preAsset === 'ETH') return q.includes('ETH') || q.includes('ETHEREUM');
+    return q.includes('ALEO');
+  });
+  const _preUserBet = _preRound
+    ? allBets.find((b) => (b.roundId === _preRound.id || b.marketId === _preRound.id) && !b.result)
+    : undefined;
+
+  // MUST be before early returns
+  useEffect(() => { if (_preUserBet) setPendingDirection(null); }, [_preUserBet]);
+  useEffect(() => { if (txStatus === 'error') setPendingDirection(null); }, [txStatus]);
+
   if (loading && !currentSeries) return <Loading />;
   if (!currentSeries) {
     return (
@@ -186,14 +218,6 @@ export default function SeriesDetail() {
 
   // User's existing bet on current round
   const userBet = round ? allBets.find((b) => (b.roundId === round.id || b.marketId === round.id) && !b.result) : undefined;
-
-  // Clear pending direction once bet confirmed in store, or if tx failed
-  useEffect(() => {
-    if (userBet) setPendingDirection(null);
-  }, [userBet]);
-  useEffect(() => {
-    if (txStatus === 'error') setPendingDirection(null);
-  }, [txStatus]);
 
   // Reserves for FPMM calculations
   const liveReserves = round?.reserves || [1_000_000, 1_000_000];

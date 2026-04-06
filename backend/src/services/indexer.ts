@@ -34,6 +34,10 @@ export async function loadRegistryFromDB(): Promise<void> {
         tokenType: row.token_type || undefined,
         imageUrl: row.image_url || undefined,
         botEndTime: row.bot_end_time ? Number(row.bot_end_time) : undefined,
+        startPrice: row.start_price ? Number(row.start_price) : undefined,
+        seriesId: row.series_id || undefined,
+        roundNumber: row.round_number ? Number(row.round_number) : undefined,
+        timeSlot: row.time_slot || undefined,
       };
     }
     console.log(`[Indexer] Loaded ${rows.length} market(s) from database`);
@@ -259,6 +263,10 @@ export async function fetchMarketsFromChain(): Promise<MarketInfo[]> {
           tokenType: TOKEN_TYPE_MAP[tokenType] || 'ALEO',
           resolvedOutcome,
           imageUrl: meta.imageUrl,
+          startPrice: meta.startPrice,
+          seriesId: meta.seriesId,
+          roundNumber: meta.roundNumber,
+          timeSlot: meta.timeSlot,
         };
       } catch (err) {
         console.error(`[Indexer] Error fetching market ${marketId.slice(0, 20)}...`, err);

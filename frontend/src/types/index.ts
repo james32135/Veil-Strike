@@ -18,6 +18,31 @@ export interface Market {
   resolvedOutcome?: number;
   tokenType?: string;
   imageUrl?: string;
+  seriesId?: string;
+  roundNumber?: number;
+  startPrice?: number;
+  timeSlot?: string;
+  tags?: string[];
+}
+
+export interface Series {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle?: string;
+  asset: string;
+  iconUrl?: string;
+  description?: string;
+  category: string;
+  durationSeconds: number;
+  tokenType: string;
+  totalVolume: number;
+  totalRounds: number;
+  isActive: boolean;
+  createdAt: number;
+  currentRound?: Market;
+  pastRounds?: Market[];
+  upcomingSlots?: string[];
 }
 
 export interface SharePosition {
@@ -122,10 +147,14 @@ export interface AleoTransaction {
 
 export type MarketCategory =
   | 'Crypto'
+  | 'Privacy'
+  | 'DeFi'
+  | 'Governance'
+  | 'Whale Watch'
+  | 'Geopolitics'
+  | 'AI'
   | 'Sports'
-  | 'Politics'
-  | 'Science'
-  | 'Entertainment'
+  | 'Culture'
   | 'Other';
 
 export type LightningDuration = '5min' | '15min' | '1hr' | '4hr';

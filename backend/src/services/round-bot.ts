@@ -9,6 +9,7 @@ import { savePendingMeta, deletePendingMeta } from './scanner';
 import { delegatedSettle, delegatedCreateMarket, isDelegatedProvingAvailable, getResolverAddressFromKey } from './delegated-prover';
 import { fetchCurrentBlock } from './chain-executor';
 import { query } from './db';
+import { assetToSeriesId, updateSeriesStats } from './db';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -307,6 +308,18 @@ async function createMarketForSlot(slot: MarketSlot): Promise<void> {
       slot.state = 'open';
       slot.totalVolume = 0;
       botState!.totalRoundsCreated++;
+
+      // Attach series metadata to the market for the API
+      const seriesId = assetToSeriesId(slot.asset);
+      const timeSlot = buildTimeSlotLabel(slot.startTime, slot.endTime);
+      if (slot.marketId) {
+        // Update the DB market row with series linkage
+        query(
+          `UPDATE markets SET series_id = $1, round_number = $2, start_price = $3, time_slot = $4 WHERE id = $5`,
+          [seriesId, slot.roundNumber, slot.startPrice, timeSlot, slot.marketId],
+        ).catch(() => {});
+      }
+
       console.log(`[RoundBot] ${slot.id} round #${slot.roundNumber} OPEN. Start price: $${slot.startPrice}`);
     } else {
       slot.error = 'Transaction not confirmed in time';
@@ -364,6 +377,7 @@ async function settleSlot(slot: MarketSlot): Promise<void> {
 
   if (result.success && result.txId) {
     slot.lastSettleTxId = result.txId;
+    const seriesId = assetToSeriesId(slot.asset);
     if (isEmpty) {
       botState!.totalRoundsSkipped++;
       console.log(`[RoundBot] ${slot.id} EMPTY settled tx=${result.txId} (${result.durationMs}ms)`);
@@ -371,6 +385,9 @@ async function settleSlot(slot: MarketSlot): Promise<void> {
       botState!.totalRoundsSettled++;
       console.log(`[RoundBot] ${slot.id} settled tx=${result.txId} (${result.durationMs}ms)`);
     }
+
+    // Update series cumulative stats
+    updateSeriesStats(seriesId, slot.totalVolume).catch(() => {});
 
     // Cooldown before creating next round
     slot.state = 'cooldown';
@@ -454,6 +471,20 @@ async function waitForTxConfirmation(txId: string): Promise<boolean> {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Build a human-readable time slot label like "2:30 – 2:45 PM" */
+function buildTimeSlotLabel(startMs: number, endMs: number): string {
+  const fmt = (d: Date) => {
+    let h = d.getHours();
+    const m = d.getMinutes().toString().padStart(2, '0');
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return { time: `${h}:${m}`, ampm };
+  };
+  const s = fmt(new Date(startMs));
+  const e = fmt(new Date(endMs));
+  return `${s.time} – ${e.time} ${e.ampm}`;
 }
 
 // ─── Main Tick ───────────────────────────────────────────────────────────────

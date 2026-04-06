@@ -15,6 +15,7 @@ import RiskDisclosure from '@/pages/RiskDisclosure';
 import Privacy from '@/pages/Privacy';
 import FAQ from '@/pages/FAQ';
 import Admin from '@/pages/Admin';
+import SeriesDetail from '@/pages/SeriesDetail';
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
         <Route element={<MainLayout />}>
           <Route path="/markets" element={<Markets />} />
           <Route path="/markets/:id" element={<MarketDetail />} />
+          <Route path="/series/:slug" element={<SeriesDetail />} />
           <Route path="/rounds" element={<Rounds />} />
           <Route path="/portfolio" element={<Portfolio />} />
           <Route path="/create" element={<CreateMarket />} />

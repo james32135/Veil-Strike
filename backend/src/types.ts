@@ -21,6 +21,31 @@ export interface MarketInfo {
   resolvedOutcome?: number;
   tokenType?: string;
   imageUrl?: string;
+  seriesId?: string;
+  roundNumber?: number;
+  startPrice?: number;
+  timeSlot?: string;
+  tags?: string[];
+}
+
+export interface SeriesInfo {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle?: string;
+  asset: string;
+  iconUrl?: string;
+  description?: string;
+  category: string;
+  durationSeconds: number;
+  tokenType: string;
+  totalVolume: number;
+  totalRounds: number;
+  isActive: boolean;
+  createdAt: number;
+  currentRound?: MarketInfo;
+  pastRounds?: MarketInfo[];
+  upcomingSlots?: string[];
 }
 
 export interface ProtocolStats {

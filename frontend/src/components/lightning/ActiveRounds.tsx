@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import Card from '@/components/shared/Card';
 import Badge from '@/components/shared/Badge';
 import Button from '@/components/shared/Button';
@@ -25,6 +26,10 @@ function detectAsset(question: string): 'BTC' | 'ETH' | 'ALEO' {
   if (upper.includes('BTC') || upper.includes('BITCOIN')) return 'BTC';
   if (upper.includes('ETH') || upper.includes('ETHEREUM')) return 'ETH';
   return 'ALEO';
+}
+
+function assetToSlug(asset: string): string {
+  return `${asset.toLowerCase()}-up-or-down`;
 }
 
 // Detect duration label from question text
@@ -250,14 +255,22 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
         </div>
 
         {/* Current Price */}
-        <div className="grid grid-cols-1 gap-2 mb-4">
-          <div className="px-3 py-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-            <div className="text-[10px] text-gray-500 uppercase tracking-wider font-heading mb-0.5">Current Price</div>
-            <div className="text-lg font-mono font-bold text-white tabular-nums">
-              {asset === 'ALEO' ? `$${currentPrice.toFixed(4)}` : formatUSD(currentPrice)}
+        <Link
+          to={`/series/${assetToSlug(asset)}`}
+          className="block mb-4 px-3 py-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:border-white/[0.08] transition-all group/link"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider font-heading mb-0.5">Current Price</div>
+              <div className="text-lg font-mono font-bold text-white tabular-nums">
+                {asset === 'ALEO' ? `$${currentPrice.toFixed(4)}` : formatUSD(currentPrice)}
+              </div>
             </div>
+            <span className="text-[10px] text-teal opacity-0 group-hover/link:opacity-100 transition-opacity font-heading">
+              Live Chart →
+            </span>
           </div>
-        </div>
+        </Link>
 
         {/* Pool info */}
         <div className="flex items-center justify-between text-xs text-gray-500 mb-4 px-1">

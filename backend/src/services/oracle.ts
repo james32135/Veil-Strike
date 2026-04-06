@@ -400,6 +400,11 @@ function getPriceAtTime(asset: 'BTC' | 'ETH' | 'ALEO', time: number): number | n
   return closest[key];
 }
 
+/** Get the in-memory price history array for API use */
+export function getPriceHistory(): typeof priceHistory {
+  return priceHistory;
+}
+
 function getRoundStart(time: number): number {
   return Math.floor(time / ROUND_DURATION) * ROUND_DURATION;
 }

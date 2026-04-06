@@ -40,9 +40,9 @@ export default function Rounds() {
     fetchPrices();
     fetchAllRounds();
     if (markets.length === 0) fetchMarkets();
-    const priceInterval = setInterval(fetchPrices, 30_000);
-    const marketInterval = setInterval(fetchMarkets, 30_000);
-    const roundInterval = setInterval(fetchAllRounds, 30_000);
+    const priceInterval = setInterval(fetchPrices, 15_000);
+    const marketInterval = setInterval(fetchMarkets, 15_000);
+    const roundInterval = setInterval(fetchAllRounds, 15_000);
     return () => {
       clearInterval(priceInterval);
       clearInterval(marketInterval);
@@ -50,7 +50,7 @@ export default function Rounds() {
     };
   }, [fetchPrices, fetchMarkets, fetchAllRounds, markets.length]);
 
-  // Expire stale PENDING bets on mount only (not on every render)
+  // Expire stale PENDING bets on mount only
   useEffect(() => {
     expireStaleBets(30 * 60 * 1000);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -60,12 +60,11 @@ export default function Rounds() {
     const pendingBets = bets.filter((b) => !b.result);
     if (pendingBets.length === 0) return;
 
-    // Resolve bets from on-chain market data (more reliable than oracle rounds)
     for (const bet of pendingBets) {
       const market = markets.find((m) => m.id === bet.roundId || m.id === bet.marketId);
       if (market && market.status === 'resolved' && market.resolvedOutcome !== undefined) {
         const result = market.resolvedOutcome === 0 ? 'up' : 'down';
-        const endPrice = bet.startPrice; // Use start price as fallback
+        const endPrice = bet.startPrice;
         resolveBets(bet.roundId, result as 'up' | 'down', endPrice);
       }
     }
@@ -88,7 +87,8 @@ export default function Rounds() {
         action={{ label: '+ Create Round', href: '/create' }}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mt-6">
+      {/* Unified rounds grid — cards link to /series/:slug for details + live chart */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3 space-y-6">
           <ActiveRounds markets={[]} />
           <LightningHistory markets={[]} />

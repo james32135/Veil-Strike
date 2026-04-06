@@ -13,6 +13,10 @@ export interface MarketMeta {
   tokenType?: 'ALEO' | 'USDCX' | 'USAD';
   imageUrl?: string;
   botEndTime?: number; // Wall-clock ms timestamp for round-bot markets
+  seriesId?: string;
+  roundNumber?: number;
+  startPrice?: number;
+  timeSlot?: string;
 }
 
 // ── Database persistence for dynamically discovered/registered markets ──
@@ -310,7 +314,7 @@ export async function persistRegistry(): Promise<void> {
     let idx = 1;
     for (const [id, meta] of entries) {
       placeholders.push(
-        `($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7})`,
+        `($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7}, $${idx + 8}, $${idx + 9}, $${idx + 10}, $${idx + 11})`,
       );
       values.push(
         id,
@@ -321,11 +325,15 @@ export async function persistRegistry(): Promise<void> {
         meta.tokenType || 'ALEO',
         meta.imageUrl || null,
         meta.botEndTime || null,
+        meta.seriesId || null,
+        meta.roundNumber || null,
+        meta.startPrice || null,
+        meta.timeSlot || null,
       );
-      idx += 8;
+      idx += 12;
     }
     await query(
-      `INSERT INTO markets (id, question_hash, question, outcomes, is_lightning, token_type, image_url, bot_end_time)
+      `INSERT INTO markets (id, question_hash, question, outcomes, is_lightning, token_type, image_url, bot_end_time, series_id, round_number, start_price, time_slot)
        VALUES ${placeholders.join(', ')}
        ON CONFLICT (id) DO UPDATE SET
          question_hash = EXCLUDED.question_hash,
@@ -335,6 +343,10 @@ export async function persistRegistry(): Promise<void> {
          token_type = EXCLUDED.token_type,
          image_url = EXCLUDED.image_url,
          bot_end_time = EXCLUDED.bot_end_time,
+         series_id = COALESCE(EXCLUDED.series_id, markets.series_id),
+         round_number = COALESCE(EXCLUDED.round_number, markets.round_number),
+         start_price = COALESCE(EXCLUDED.start_price, markets.start_price),
+         time_slot = COALESCE(EXCLUDED.time_slot, markets.time_slot),
          updated_at = NOW()`,
       values,
     );

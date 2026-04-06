@@ -1,18 +1,62 @@
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { useMarkets } from '@/hooks/useMarkets';
+import { useSeriesStore } from '@/stores/seriesStore';
+import { SeriesCard } from '@/components/series';
 import { calculatePrices } from '@/utils/fpmm';
 import { formatAleo } from '@/utils/format';
 import { PRECISION } from '@/constants';
 import Badge from '@/components/shared/Badge';
+import { BoltIcon } from '@/components/icons';
 
 export default function LiveMarketsSection() {
   const { allMarkets } = useMarkets();
+  const { allSeries, fetchAllSeries } = useSeriesStore();
   const liveMarkets = allMarkets.filter((m) => m.status === 'active').slice(0, 3);
+  const activeSeries = allSeries.filter((s) => s.isActive);
+
+  useEffect(() => {
+    fetchAllSeries();
+  }, [fetchAllSeries]);
 
   return (
     <section className="py-28 px-4 relative">
       <div className="max-w-6xl mx-auto">
+        {/* Live Series */}
+        {activeSeries.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 25 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mb-16"
+          >
+            <div className="flex items-end justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <BoltIcon className="w-5 h-5 text-amber-400" />
+                <div>
+                  <h2 className="section-title mb-1">Live Price Rounds</h2>
+                  <p className="text-smoke/60">Predict if BTC, ETH, or ALEO goes up or down — fully private on Aleo.</p>
+                </div>
+              </div>
+              <Link to="/rounds" className="btn-secondary text-sm hidden sm:inline-flex">View All Rounds</Link>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {activeSeries.map((series) => (
+                <motion.div
+                  key={series.id}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                >
+                  <SeriesCard series={series} />
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Live Markets */}
         <motion.div
           initial={{ opacity: 0, y: 25 }}
           whileInView={{ opacity: 1, y: 0 }}

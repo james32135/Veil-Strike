@@ -49,10 +49,10 @@ export const STATUS_MAP: Record<number, string> = {
 export const CATEGORY_MAP: Record<number, string> = {
   1: 'Crypto',
   2: 'Crypto',
-  3: 'Sports',
-  4: 'Politics',
-  5: 'Science',
-  6: 'Entertainment',
+  3: 'Privacy',
+  4: 'DeFi',
+  5: 'Governance',
+  6: 'AI',
   7: 'Other',
 };
 
@@ -72,10 +72,14 @@ export const STRIKE_ROUND_DURATIONS = [
 export const CATEGORIES: string[] = [
   'All',
   'Crypto',
+  'Privacy',
+  'DeFi',
+  'Governance',
+  'Whale Watch',
+  'Geopolitics',
+  'AI',
   'Sports',
-  'Politics',
-  'Science',
-  'Entertainment',
+  'Culture',
   'Other',
 ];
 

@@ -38,8 +38,37 @@ export async function initializeDatabase(): Promise<void> {
       token_type TEXT DEFAULT 'ALEO',
       image_url TEXT,
       bot_end_time BIGINT,
+      series_id TEXT,
+      round_number INTEGER,
+      start_price DOUBLE PRECISION,
+      time_slot TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    -- Series (persistent market groups for rolling rounds)
+    CREATE TABLE IF NOT EXISTS series (
+      id TEXT PRIMARY KEY,
+      slug TEXT UNIQUE NOT NULL,
+      title TEXT NOT NULL,
+      subtitle TEXT,
+      asset TEXT NOT NULL,
+      icon_url TEXT,
+      description TEXT,
+      category TEXT NOT NULL DEFAULT 'Crypto',
+      duration_seconds INTEGER NOT NULL DEFAULT 900,
+      token_type TEXT NOT NULL DEFAULT 'ALEO',
+      total_volume DOUBLE PRECISION NOT NULL DEFAULT 0,
+      total_rounds INTEGER NOT NULL DEFAULT 0,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    -- Market tags for multi-tag filtering
+    CREATE TABLE IF NOT EXISTS market_tags (
+      market_id TEXT NOT NULL,
+      tag TEXT NOT NULL,
+      PRIMARY KEY (market_id, tag)
     );
 
     -- Proposals (replaces governance-registry.json)
@@ -128,6 +157,18 @@ export async function initializeDatabase(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_event_log_created ON event_log(created_at DESC);
   `);
 
+  // ── Migrate existing tables: add columns that may not exist yet ──
+  const alterQueries = [
+    `ALTER TABLE markets ADD COLUMN IF NOT EXISTS series_id TEXT`,
+    `ALTER TABLE markets ADD COLUMN IF NOT EXISTS round_number INTEGER`,
+    `ALTER TABLE markets ADD COLUMN IF NOT EXISTS start_price DOUBLE PRECISION`,
+    `ALTER TABLE markets ADD COLUMN IF NOT EXISTS time_slot TEXT`,
+    `ALTER TABLE series ALTER COLUMN total_volume TYPE DOUBLE PRECISION`,
+  ];
+  for (const q of alterQueries) {
+    await pool.query(q).catch(() => {});
+  }
+
   // Seed singleton rows
   await pool.query(`
     INSERT INTO scanner_state (id, last_scanned_block) VALUES (1, 0)
@@ -141,10 +182,68 @@ export async function initializeDatabase(): Promise<void> {
   console.log('[DB] Schema ready');
 }
 
+/** Seed the 3 default Strike Round series if they don't exist yet */
+export async function seedDefaultSeries(): Promise<void> {
+  const defaults = [
+    {
+      id: 'series-btc', slug: 'btc-up-or-down',
+      title: 'Bitcoin Up or Down', subtitle: '15 Minutes',
+      asset: 'BTC', description: 'Predict whether Bitcoin price will go up or down in the next 15 minutes. Fully private on Aleo.',
+      category: 'Crypto', duration_seconds: 900, token_type: 'ALEO',
+    },
+    {
+      id: 'series-eth', slug: 'eth-up-or-down',
+      title: 'Ethereum Up or Down', subtitle: '15 Minutes',
+      asset: 'ETH', description: 'Predict whether Ethereum price will go up or down in the next 15 minutes. Fully private on Aleo.',
+      category: 'Crypto', duration_seconds: 900, token_type: 'ALEO',
+    },
+    {
+      id: 'series-aleo', slug: 'aleo-up-or-down',
+      title: 'ALEO Up or Down', subtitle: '15 Minutes',
+      asset: 'ALEO', description: 'Predict whether ALEO price will go up or down in the next 15 minutes. Fully private on Aleo.',
+      category: 'Crypto', duration_seconds: 900, token_type: 'ALEO',
+    },
+  ];
+  for (const s of defaults) {
+    await pool.query(
+      `INSERT INTO series (id, slug, title, subtitle, asset, description, category, duration_seconds, token_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (id) DO NOTHING`,
+      [s.id, s.slug, s.title, s.subtitle, s.asset, s.description, s.category, s.duration_seconds, s.token_type],
+    );
+  }
+  console.log('[DB] Default series seeded');
+}
+
 /** Delete old price_history rows (keep last 2 hours) */
 export async function cleanupOldPrices(): Promise<void> {
   const cutoff = Date.now() - 120 * 60 * 1000;
   await pool.query('DELETE FROM price_history WHERE timestamp < $1', [cutoff]);
+}
+
+/** Get all active series from DB */
+export async function getAllSeries(): Promise<any[]> {
+  const { rows } = await pool.query('SELECT * FROM series WHERE is_active = true ORDER BY created_at');
+  return rows;
+}
+
+/** Get a single series by slug */
+export async function getSeriesBySlug(slug: string): Promise<any | null> {
+  const { rows } = await pool.query('SELECT * FROM series WHERE slug = $1', [slug]);
+  return rows[0] || null;
+}
+
+/** Increment series stats after a round settles */
+export async function updateSeriesStats(seriesId: string, addVolume: number): Promise<void> {
+  await pool.query(
+    `UPDATE series SET total_volume = total_volume + $1, total_rounds = total_rounds + 1 WHERE id = $2`,
+    [addVolume, seriesId],
+  );
+}
+
+/** Map asset name to series ID */
+export function assetToSeriesId(asset: string): string {
+  return `series-${asset.toLowerCase()}`;
 }
 
 /** Log an event to the audit trail */

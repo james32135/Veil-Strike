@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import cron from 'node-cron';
 import { config } from './config';
-import { initializeDatabase } from './services/db';
+import { initializeDatabase, seedDefaultSeries } from './services/db';
 import { fetchOraclePrices, recordPriceSnapshot, loadPriceHistory } from './services/oracle';
 import { fetchMarketsFromChain, setCachedMarkets, loadRegistryFromDB } from './services/indexer';
 import { resolveExpiredMarkets } from './services/resolver';
@@ -18,6 +18,7 @@ import statsRouter from './routes/stats';
 import healthRouter from './routes/health';
 import lightningRouter from './routes/lightning';
 import governanceRouter from './routes/governance';
+import seriesRouter from './routes/series';
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use('/api/oracle', oracleRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/lightning', lightningRouter);
 app.use('/api/governance', governanceRouter);
+app.use('/api/series', seriesRouter);
 
 // ── SSE (Server-Sent Events) for real-time market updates ──
 import type { Response as ExpressResponse } from 'express';
@@ -60,6 +62,7 @@ async function initialize() {
   // 1. Connect to database and create tables
   console.log('[Init] Connecting to database...');
   await initializeDatabase();
+  await seedDefaultSeries();
 
   // 2. Load persisted data from DB
   await loadRegistryFromDB();

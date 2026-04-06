@@ -24,5 +24,10 @@ export async function fetchRealMarkets(): Promise<Market[]> {
     resolvedOutcome: m.resolvedOutcome as number | undefined,
     tokenType: (m.tokenType as string) || 'ALEO',
     imageUrl: (m.imageUrl as string) || undefined,
+    seriesId: (m.seriesId as string) || undefined,
+    roundNumber: (m.roundNumber as number) || undefined,
+    startPrice: (m.startPrice as number) || undefined,
+    timeSlot: (m.timeSlot as string) || undefined,
+    tags: (m.tags as string[]) || undefined,
   }));
 }

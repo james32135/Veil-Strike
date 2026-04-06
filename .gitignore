@@ -39,9 +39,10 @@ npm-debug.log*
 about.md
 summary.md
 summaryv4.md
-temp_tx.json
 summaryv5.md
-projects.md
 summaryv6.md
-aleo.md
 summaryv7.md
+aleo.md
+projects.md
+auto.md
+temp_tx.json

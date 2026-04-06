@@ -371,6 +371,19 @@ export function updateMarketMeta(marketId: string, partial: Partial<MarketMeta>)
   const existing = MARKET_REGISTRY[marketId];
   if (!existing) return;
   Object.assign(existing, partial);
+  // Persist changed fields directly to DB so they survive a restart
+  const fields: string[] = [];
+  const vals: unknown[] = [];
+  let i = 1;
+  if (partial.imageUrl !== undefined)   { fields.push(`image_url = $${i++}`);    vals.push(partial.imageUrl || null); }
+  if (partial.question !== undefined)   { fields.push(`question = $${i++}`);     vals.push(partial.question); }
+  if (partial.tokenType !== undefined)  { fields.push(`token_type = $${i++}`);   vals.push(partial.tokenType); }
+  if (partial.isLightning !== undefined){ fields.push(`is_lightning = $${i++}`); vals.push(partial.isLightning); }
+  if (fields.length > 0) {
+    vals.push(marketId);
+    query(`UPDATE markets SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${i}`, vals)
+      .catch((err) => console.error('[Indexer] updateMarketMeta DB error:', err));
+  }
 }
 
 /**

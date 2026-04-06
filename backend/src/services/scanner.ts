@@ -213,7 +213,8 @@ export async function scanForNewMarkets(blocksToScan: number = 200): Promise<num
             question: pendingMeta?.question || `Market ${found.marketId.slice(0, 16)}...`,
             outcomes: pendingMeta?.outcomes || outcomes,
             isLightning: pendingMeta?.isLightning || false,
-            tokenType: found.tokenType as 'ALEO' | 'USDCX' | 'USAD',
+            tokenType: (found.tokenType as 'ALEO' | 'USDCX' | 'USAD'),
+            imageUrl: pendingMeta?.imageUrl || undefined,
           });
 
           if (registered) {
@@ -255,6 +256,8 @@ interface PendingMeta {
   outcomes: string[];
   isLightning: boolean;
   createdAt: number;
+  imageUrl?: string;
+  tokenType?: string;
 }
 
 const pendingMetaByHash: Record<string, PendingMeta> = {};

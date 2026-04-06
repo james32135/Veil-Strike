@@ -84,12 +84,12 @@ export interface MarketRegistrationParams {
 export async function registerMarketFromTx(params: MarketRegistrationParams): Promise<void> {
   const { txId, questionText, questionHash, outcomeLabels, isLightning, tokenType, imageUrl, onRegistered } = params;
 
-  // Phase 1: Save pending metadata
+  // Phase 1: Save pending metadata (include imageUrl + tokenType so scanner picks them up)
   try {
     await fetch(`${API_BASE}/markets/pending`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ questionHash, question: questionText, outcomes: outcomeLabels, isLightning }),
+      body: JSON.stringify({ questionHash, question: questionText, outcomes: outcomeLabels, isLightning, imageUrl: imageUrl || undefined, tokenType: tokenType || undefined }),
     });
     console.log(`[MarketReg] Saved pending metadata for hash ${questionHash.slice(0, 20)}...`);
   } catch { /* non-critical */ }

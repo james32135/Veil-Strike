@@ -58,7 +58,7 @@ router.post('/register', async (req, res) => {
 // Frontend sends question text + hash so the scanner can populate the
 // market's metadata when it discovers the market_id on-chain.
 router.post('/pending', (req, res) => {
-  const { questionHash, question, outcomes, isLightning } = req.body;
+  const { questionHash, question, outcomes, isLightning, imageUrl, tokenType } = req.body;
   if (!questionHash || !question) {
     res.status(400).json({ error: 'questionHash and question required' });
     return;
@@ -68,6 +68,8 @@ router.post('/pending', (req, res) => {
     outcomes: Array.isArray(outcomes) ? outcomes : ['Yes', 'No'],
     isLightning: isLightning || false,
     createdAt: Date.now(),
+    imageUrl: imageUrl || undefined,
+    tokenType: tokenType || undefined,
   });
   res.json({ success: true });
 });

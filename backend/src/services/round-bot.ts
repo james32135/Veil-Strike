@@ -240,7 +240,7 @@ async function createMarketForSlot(slot: MarketSlot): Promise<void> {
     return;
   }
 
-  // Use actual testnet block time (~4-5s) for on-chain deadline so it doesn't expire early
+  // Use actual block time (~4-5s) for on-chain deadline so it doesn't expire early
   const ACTUAL_BLOCK_TIME_S = 5;
   const roundBlocks = Math.ceil(config.roundDurationMinutes * 60 / ACTUAL_BLOCK_TIME_S) + 30; // +30 buffer
   const deadline = currentBlock + roundBlocks;
@@ -426,7 +426,7 @@ async function settleSlot(slot: MarketSlot): Promise<void> {
 async function fetchPoolVolume(marketId: string, tokenType: TokenType): Promise<number> {
   try {
     const programId = getProgramId(tokenType);
-    const url = `${config.aleoEndpoint}/testnet/program/${programId}/mapping/amm_pools/${marketId}`;
+    const url = `${config.aleoEndpoint}/${config.aleoNetwork}/program/${programId}/mapping/amm_pools/${marketId}`;
     const res = await fetch(url);
     if (!res.ok) return 0;
     const text = await res.text();
@@ -460,7 +460,7 @@ async function waitForTxConfirmation(txId: string): Promise<boolean> {
   const deadline = Date.now() + TX_CONFIRM_TIMEOUT_MS;
   while (Date.now() < deadline) {
     try {
-      const url = `${config.aleoEndpoint}/testnet/transaction/${txId}`;
+      const url = `${config.aleoEndpoint}/${config.aleoNetwork}/transaction/${txId}`;
       const res = await fetch(url);
       if (res.ok) return true;
     } catch { /* not yet */ }

@@ -67,12 +67,15 @@ const STATUS_MAP: Record<number, MarketInfo['status']> = {
 
 const CATEGORY_MAP: Record<number, string> = {
   1: 'Crypto',
-  2: 'Crypto',
-  3: 'Sports',
-  4: 'Politics',
-  5: 'Science',
-  6: 'Entertainment',
-  7: 'Other',
+  2: 'Privacy',
+  3: 'DeFi',
+  4: 'Governance',
+  5: 'Whale Watch',
+  6: 'Geopolitics',
+  7: 'AI',
+  8: 'Sports',
+  9: 'Culture',
+  10: 'Other',
 };
 
 const TOKEN_TYPE_MAP: Record<number, string> = {
@@ -81,7 +84,7 @@ const TOKEN_TYPE_MAP: Record<number, string> = {
   2: 'USAD',
 };
 
-// Average block time ~15 seconds on testnet
+// Average block time on mainnet (~3-4s real, using 15s for conservative UI timestamps)
 const BLOCK_TIME_SECONDS = 15;
 
 function parseAleoValue(val: string): string {
@@ -101,7 +104,7 @@ function blockHeightToCreatedTimestamp(createdBlock: number, currentBlock: numbe
 async function fetchMapping(mappingName: string, key: string, programId?: string): Promise<string | null> {
   try {
     const pid = programId || config.programId;
-    const url = `${config.aleoEndpoint}/testnet/program/${pid}/mapping/${mappingName}/${key}`;
+    const url = `${config.aleoEndpoint}/${config.aleoNetwork}/program/${pid}/mapping/${mappingName}/${key}`;
     const res = await fetch(url);
     if (!res.ok) return null;
     const text = await res.text();
@@ -118,7 +121,7 @@ async function fetchMapping(mappingName: string, key: string, programId?: string
 
 async function fetchCurrentBlockHeight(): Promise<number> {
   try {
-    const res = await fetch(`${config.aleoEndpoint}/testnet/block/height/latest`);
+    const res = await fetch(`${config.aleoEndpoint}/${config.aleoNetwork}/block/height/latest`);
     if (!res.ok) return 15044000;
     const text = await res.text();
     return parseInt(text, 10);

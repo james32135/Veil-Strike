@@ -7,12 +7,12 @@
         {
             "name": "credits.aleo",
             "location": "network",
-            "network": "testnet"
+            "network": "mainnet"
         },
         {
-            "name": "test_usdcx_stablecoin.aleo",
+            "name": "usdcx_stablecoin.aleo",
             "location": "network",
-            "network": "testnet"
+            "network": "mainnet"
         }
     ]
 }

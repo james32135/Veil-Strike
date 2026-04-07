@@ -4,7 +4,7 @@ import { buildCreateMarketTx, buildCreateMarketStableTx, generateNonce } from '@
 import { registerMarketFromTx } from '@/utils/marketRegistration';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { parseAleoInput } from '@/utils/format';
-import { STRIKE_ROUND_DURATIONS, ALEO_TESTNET_API } from '@/constants';
+import { STRIKE_ROUND_DURATIONS, ALEO_API } from '@/constants';
 import { useWalletStore } from '@/stores/walletStore';
 import { useMarketStore } from '@/stores/marketStore';
 import Button from '@/components/shared/Button';
@@ -29,7 +29,7 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
   useEffect(() => {
     const fetchHeight = async () => {
       try {
-        const res = await fetch(`${ALEO_TESTNET_API}/latest/height`);
+        const res = await fetch(`${ALEO_API}/block/height/latest`);
         if (res.ok) {
           const h = await res.json();
           setCurrentBlock(typeof h === 'number' ? h : parseInt(h, 10));
@@ -55,7 +55,7 @@ export default function CreateLightningForm({ onSuccess }: CreateLightningFormPr
     let block = currentBlock;
     if (!block) {
       try {
-        const res = await fetch(`${ALEO_TESTNET_API}/latest/height`);
+        const res = await fetch(`${ALEO_API}/block/height/latest`);
         if (res.ok) {
           const h = await res.json();
           block = typeof h === 'number' ? h : parseInt(h, 10);

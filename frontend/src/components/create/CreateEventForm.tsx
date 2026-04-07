@@ -4,7 +4,7 @@ import { buildCreateMarketTx, buildCreateMarketStableTx, generateNonce } from '@
 import { registerMarketFromTx } from '@/utils/marketRegistration';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
 import { parseAleoInput } from '@/utils/format';
-import { CATEGORIES, ALEO_TESTNET_API } from '@/constants';
+import { CATEGORIES, ALEO_API } from '@/constants';
 import { useWalletStore } from '@/stores/walletStore';
 import { useMarketStore } from '@/stores/marketStore';
 import Button from '@/components/shared/Button';
@@ -17,7 +17,7 @@ interface CreateEventFormProps {
 
 export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
   const [question, setQuestion] = useState('');
-  const [category, setCategory] = useState('crypto');
+  const [category, setCategory] = useState('Crypto');
   const [outcomes, setOutcomes] = useState(['Yes', 'No']);
   const [initialLiquidity, setInitialLiquidity] = useState('10');
   const [durationDays, setDurationDays] = useState('7');
@@ -31,7 +31,7 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
   useEffect(() => {
     const fetchHeight = async () => {
       try {
-        const res = await fetch(`${ALEO_TESTNET_API}/latest/height`);
+        const res = await fetch(`${ALEO_API}/block/height/latest`);
         if (res.ok) {
           const h = await res.json();
           setCurrentBlock(typeof h === 'number' ? h : parseInt(h, 10));
@@ -42,7 +42,7 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
   }, []);
 
   const handleAddOutcome = () => {
-    if (outcomes.length < 6) {
+    if (outcomes.length < 4) {
       setOutcomes([...outcomes, '']);
     }
   };
@@ -67,7 +67,7 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
     let block = currentBlock;
     if (!block) {
       try {
-        const res = await fetch(`${ALEO_TESTNET_API}/latest/height`);
+        const res = await fetch(`${ALEO_API}/block/height/latest`);
         if (res.ok) {
           const h = await res.json();
           block = typeof h === 'number' ? h : parseInt(h, 10);
@@ -82,8 +82,11 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
     const durationBlocks = parseInt(durationDays) * BLOCKS_PER_DAY;
 
     const questionHash = `${BigInt(Array.from(new TextEncoder().encode(question)).reduce((h, b) => h * 31n + BigInt(b), 0n)) % BigInt('0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001')}field`;
-    const categoryMap: Record<string, number> = { Crypto: 1, Sports: 3, Politics: 4, Science: 5, Entertainment: 6, Other: 7 };
-    const catNum = categoryMap[category] || 7;
+    const categoryMap: Record<string, number> = {
+      Crypto: 1, Privacy: 2, DeFi: 3, Governance: 4, 'Whale Watch': 5,
+      Geopolitics: 6, AI: 7, Sports: 8, Culture: 9, Other: 10,
+    };
+    const catNum = categoryMap[category] || 10;
     const blockDeadline = `${block + durationBlocks}u32`;
     const resolutionBlock = `${block + durationBlocks + 120960}u32`;
     const resolver = walletAddress || '';
@@ -190,7 +193,7 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
           Category
         </label>
         <div className="flex flex-wrap gap-2">
-          {CATEGORIES.filter((c) => c !== 'all').map((cat) => (
+          {CATEGORIES.filter((c) => c !== 'All').map((cat) => (
             <button
               key={cat}
               onClick={() => setCategory(cat)}
@@ -255,7 +258,7 @@ export default function CreateEventForm({ onSuccess }: CreateEventFormProps) {
             </div>
           ))}
         </div>
-        {outcomes.length < 6 && (
+        {outcomes.length < 4 && (
           <button
             onClick={handleAddOutcome}
             className="mt-2 text-xs text-teal hover:text-teal/80 transition-colors"

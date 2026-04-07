@@ -158,7 +158,7 @@ export async function autoResolveMarkets(): Promise<void> {
         // We need to fetch the raw market from chain to get the resolver address
         const pid = market.tokenType === 'USDCX' ? config.programIdCx
           : market.tokenType === 'USAD' ? config.programIdSd : config.programId;
-        const rawUrl = `${config.aleoEndpoint}/testnet/program/${pid}/mapping/markets/${id}`;
+        const rawUrl = `${config.aleoEndpoint}/${config.aleoNetwork}/program/${pid}/mapping/markets/${id}`;
         const rawRes = await fetch(rawUrl);
         if (!rawRes.ok) continue;
         let rawText = await rawRes.text();

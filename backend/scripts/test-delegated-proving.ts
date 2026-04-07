@@ -34,10 +34,10 @@ async function main() {
   console.log(`Private Key: ${privateKey.slice(0, 12)}...`);
 
   // Import SDK
-  const sdk = await import('@provablehq/sdk');
+  const sdk = await import('@provablehq/sdk/mainnet.js');
   const { ProgramManager, AleoNetworkClient, AleoKeyProvider, NetworkRecordProvider, Account } = sdk;
 
-  const endpoint = process.env.ALEO_ENDPOINT || 'https://api.explorer.provable.com/v1';
+  const endpoint = process.env.ALEO_ENDPOINT || 'https://api.provable.com/v2';
   const programId = 'veil_strike_v7.aleo';
 
   // Initialize
@@ -76,7 +76,7 @@ async function main() {
     console.log('\n--- Test 2: Submit to Provable DPS ---');
     console.log('   (This will fail for a fake market, but validates API connectivity)');
 
-    const DPS_URL = 'https://api.provable.com/prove/testnet';
+    const DPS_URL = 'https://api.provable.com/prove/mainnet/prove';
     const start2 = Date.now();
     const result = await networkClient.submitProvingRequestSafe({
       provingRequest,
@@ -103,7 +103,7 @@ async function main() {
   // Test 3: Check block height (basic API)
   console.log('\n--- Test 3: Block height check ---');
   try {
-    const res = await fetch(`${endpoint}/testnet/block/height/latest`);
+    const res = await fetch(`${endpoint}/mainnet/block/height/latest`);
     const height = await res.text();
     console.log(`✅ Current block height: ${height}`);
   } catch (err: any) {
@@ -113,7 +113,7 @@ async function main() {
   // Test 4: Check resolver balance
   console.log('\n--- Test 4: Account balance ---');
   try {
-    const res = await fetch(`${endpoint}/testnet/program/credits.aleo/mapping/account/${address}`);
+    const res = await fetch(`${endpoint}/mainnet/program/credits.aleo/mapping/account/${address}`);
     if (res.ok) {
       const balance = await res.text();
       const microcredits = parseInt(JSON.parse(balance).replace('u64', ''), 10);

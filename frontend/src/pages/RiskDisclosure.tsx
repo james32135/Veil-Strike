@@ -56,7 +56,7 @@ export default function RiskDisclosure() {
           <section>
             <h2 className="text-lg font-heading font-semibold text-white mb-3">Stablecoin Risk</h2>
             <ul className="list-disc pl-5 space-y-2">
-              <li>USDCx and USAD are testnet tokens and may not maintain their intended peg.</li>
+              <li>USDCx and USAD are stablecoins on Aleo and may not maintain their intended peg.</li>
               <li>Stablecoin transfers involve compliance records and merkle proofs that add complexity.</li>
               <li>Dispute bonds are always denominated in ALEO credits regardless of market token type.</li>
             </ul>

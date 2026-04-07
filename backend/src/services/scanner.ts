@@ -118,7 +118,7 @@ async function scanBlock(blockHeight: number): Promise<Array<{
   }> = [];
 
   try {
-    const res = await fetch(`${config.aleoEndpoint}/testnet/block/${blockHeight}`);
+    const res = await fetch(`${config.aleoEndpoint}/${config.aleoNetwork}/block/${blockHeight}`);
     if (!res.ok) return results;
 
     const block: any = await res.json();
@@ -171,7 +171,7 @@ async function scanBlock(blockHeight: number): Promise<Array<{
 export async function scanForNewMarkets(blocksToScan: number = 200): Promise<number> {
   try {
     // Get current block height
-    const heightRes = await fetch(`${config.aleoEndpoint}/testnet/block/height/latest`);
+    const heightRes = await fetch(`${config.aleoEndpoint}/${config.aleoNetwork}/block/height/latest`);
     if (!heightRes.ok) return 0;
     const currentHeight = parseInt(await heightRes.text(), 10);
 

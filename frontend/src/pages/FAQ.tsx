@@ -30,7 +30,7 @@ const faqs = [
   },
   {
     q: 'Is this on mainnet?',
-    a: 'Veil Strike is currently deployed on Aleo testnet (Wave 4). All tokens are testnet tokens with no real-world value. Mainnet deployment is planned after governance and privacy improvements are finalized.',
+    a: 'Yes! Veil Strike is deployed on Aleo mainnet. All trades use real ALEO, USDCx, and USAD tokens.',
   },
   {
     q: 'How do I provide liquidity?',
@@ -50,7 +50,7 @@ const faqs = [
   },
   {
     q: 'How do I get started?',
-    a: 'Install the Shield Wallet browser extension, connect to Aleo testnet, get testnet ALEO from the faucet, then navigate to Markets for event predictions or Rounds for Strike Rounds.',
+    a: 'Install the Shield Wallet browser extension, connect to Aleo mainnet, fund your wallet with ALEO, then navigate to Markets for event predictions or Rounds for Strike Rounds.',
   },
 ];
 

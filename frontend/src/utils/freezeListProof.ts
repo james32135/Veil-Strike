@@ -1,8 +1,8 @@
 const FREEZELIST_PROGRAMS: Record<string, string> = {
-  USDCX: 'test_usdcx_freezelist.aleo',
-  USAD: 'test_usad_freezelist.aleo',
+  USDCX: 'usdcx_freezelist.aleo',
+  USAD: 'usad_freezelist.aleo',
 };
-const ALEO_API = 'https://api.explorer.provable.com/v1/testnet';
+const ALEO_API = 'https://api.provable.com/v2/mainnet';
 
 function getFreezelistProgramId(tokenType: 'USDCX' | 'USAD' = 'USDCX'): string {
   return FREEZELIST_PROGRAMS[tokenType];

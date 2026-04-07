@@ -1,6 +1,6 @@
 #!/bin/bash
 # Veil Strike - Leo Contract Deployment Script
-# Deploys veil_strike_v4.aleo to Aleo testnet
+# Deploys veil_strike_v7.aleo to Aleo mainnet
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,8 +17,8 @@ if [ -z "${PRIVATE_KEY:-}" ]; then
   exit 1
 fi
 
-NETWORK="${NETWORK:-testnet}"
-ENDPOINT="${ENDPOINT:-https://api.explorer.provable.com/v1}"
+NETWORK="${NETWORK:-mainnet}"
+ENDPOINT="${ENDPOINT:-https://api.provable.com/v2}"
 
 echo "Network:  $NETWORK"
 echo "Endpoint: $ENDPOINT"
@@ -36,7 +36,7 @@ leo build
 echo "[2/3] Running Leo tests..."
 leo run initialize || echo "Skipping test run (may require valid input)"
 
-# Deploy to testnet
+# Deploy to network
 echo "[3/3] Deploying to $NETWORK..."
 snarkos developer deploy \
   veil_strike_v4.aleo \

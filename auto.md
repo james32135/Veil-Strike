@@ -134,7 +134,7 @@ File: `backend/.env`
 
 ```env
 PORT=3001
-ALEO_ENDPOINT=https://api.explorer.provable.com/v1
+ALEO_ENDPOINT=https://api.explorer.provable.com/v2
 CORS_ORIGIN=http://localhost:5173
 RESOLVER_PRIVATE_KEY=APrivateKey1zkp...
 
@@ -836,13 +836,13 @@ curl -X POST http://localhost:3001/api/lightning/bot/start
 
 ```bash
 # Check market status on-chain
-curl "https://api.explorer.provable.com/v1/testnet/program/veil_strike_v6.aleo/mapping/markets/MARKET_ID_FIELD"
+curl "https://api.explorer.provable.com/v2/testnet/program/veil_strike_v6.aleo/mapping/markets/MARKET_ID_FIELD"
 
 # Check pool volume
-curl "https://api.explorer.provable.com/v1/testnet/program/veil_strike_v6.aleo/mapping/amm_pools/MARKET_ID_FIELD"
+curl "https://api.explorer.provable.com/v2/testnet/program/veil_strike_v6.aleo/mapping/amm_pools/MARKET_ID_FIELD"
 
 # Check resolution
-curl "https://api.explorer.provable.com/v1/testnet/program/veil_strike_v6.aleo/mapping/market_resolutions/MARKET_ID_FIELD"
+curl "https://api.explorer.provable.com/v2/testnet/program/veil_strike_v6.aleo/mapping/market_resolutions/MARKET_ID_FIELD"
 ```
 
 ---

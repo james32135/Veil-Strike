@@ -39,7 +39,7 @@ program veil_strike_v6.aleo {
 
     const CHALLENGE_WINDOW: u32 = 2880u32;
     const MIN_TRADE_AMOUNT: u128 = 10_000u128;
-    const MIN_LIQUIDITY: u128 = 1_000_000u128;
+    const MIN_LIQUIDITY: u128 = 10_000u128;
     const MIN_DISPUTE_BOND: u128 = 5_000_000u128;
     const GOVERNANCE_QUORUM: u128 = 1u128;
 

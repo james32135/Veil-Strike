@@ -33,7 +33,7 @@ async function getOrCreatePM(privateKey: string, aleoEndpoint: string, programId
   const cacheKey = `${programId}:${aleoEndpoint}`;
   if (pmCache.has(cacheKey)) return pmCache.get(cacheKey);
 
-  const sdk = await importESM('@provablehq/sdk');
+  const sdk = await importESM('@provablehq/sdk/mainnet.js');
   const { ProgramManager, AleoNetworkClient, AleoKeyProvider, NetworkRecordProvider, Account } = sdk;
 
   const account = new Account({ privateKey });

@@ -2,8 +2,8 @@
 import { RecordCiphertext, ViewKey } from '@provablehq/sdk';
 
 const VIEW_KEY = 'AViewKey1ivG8cmW3atW8etvuBBNhYcTNrQyaXJNzAvFXx7UNq96K';
-const ENDPOINT = 'https://api.explorer.provable.com/v1/testnet';
-const PROGRAMS = ['test_usdcx_stablecoin.aleo', 'test_usad_stablecoin.aleo'];
+const ENDPOINT = 'https://api.provable.com/v2/mainnet';
+const PROGRAMS = ['usdcx_stablecoin.aleo', 'usad_stablecoin.aleo'];
 
 const vk = ViewKey.from_string(VIEW_KEY);
 

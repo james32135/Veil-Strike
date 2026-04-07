@@ -115,7 +115,7 @@ export default function Governance() {
   // Fetch current Aleo block height
   const fetchBlockHeight = useCallback(async () => {
     try {
-      const res = await fetch('https://api.explorer.provable.com/v1/testnet/latest/height');
+      const res = await fetch('https://api.provable.com/v2/mainnet/block/height/latest');
       if (res.ok) {
         const height = await res.json();
         setCurrentBlock(typeof height === 'number' ? height : parseInt(height, 10));
@@ -622,7 +622,7 @@ export default function Governance() {
                 >
                   {txStatus === 'broadcasting' ? 'Submitting...' : 'Submit Proposal'}
                 </Button>
-                <p className="text-[11px] text-gray-600 text-center mt-2">This will prompt your Leo Wallet to sign and broadcast a transaction on Aleo Testnet.</p>
+                <p className="text-[11px] text-gray-600 text-center mt-2">This will prompt your Leo Wallet to sign and broadcast a transaction on Aleo Mainnet.</p>
               </div>
             </div>
           </Card>

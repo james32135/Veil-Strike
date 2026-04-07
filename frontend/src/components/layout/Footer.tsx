@@ -41,7 +41,7 @@ export default function Footer() {
             </p>
             <div className="flex items-center gap-2 mt-5">
               <div className="w-2 h-2 rounded-full bg-accent-green animate-pulse" />
-              <span className="text-[10px] text-smoke/50 font-mono uppercase tracking-wider">Testnet Live</span>
+              <span className="text-[10px] text-smoke/50 font-mono uppercase tracking-wider">Mainnet Live</span>
             </div>
           </motion.div>
 

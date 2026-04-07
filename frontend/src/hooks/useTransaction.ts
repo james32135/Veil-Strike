@@ -1,11 +1,11 @@
 import { useState, useCallback } from 'react';
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { useNotificationStore } from '@/stores/notificationStore';
-import { PROGRAM_ID, PROGRAM_ID_CX, PROGRAM_ID_SD, ALEO_TESTNET_API } from '@/constants';
+import { PROGRAM_ID, PROGRAM_ID_CX, PROGRAM_ID_SD, ALEO_API } from '@/constants';
 import { resolveShieldTxId } from '@/utils/marketRegistration';
 import type { AleoTransaction } from '@/types';
 
-const EXPLORER_BASE = 'https://testnet.explorer.provable.com/transaction';
+const EXPLORER_BASE = 'https://explorer.provable.com/transaction';
 
 export interface ShareRecord {
   plaintext: string;
@@ -93,7 +93,7 @@ export function useTransaction() {
         addNotification('error', 'Wallet Not Connected', 'Please connect your Shield Wallet first.');
         return null;
       }
-      const programId = tokenType === 'USAD' ? 'test_usad_stablecoin.aleo' : 'test_usdcx_stablecoin.aleo';
+      const programId = tokenType === 'USAD' ? 'usad_stablecoin.aleo' : 'usdcx_stablecoin.aleo';
       const label = tokenType === 'USAD' ? 'USAD' : 'USDCx';
       try {
         const records = await requestRecords(programId, true);
@@ -279,7 +279,7 @@ export function useTransaction() {
     async (txId: string, maxAttempts = 40, intervalMs = 5000): Promise<string | null> => {
       for (let i = 0; i < maxAttempts; i++) {
         try {
-          const url = `${ALEO_TESTNET_API}/transaction/${txId}`;
+          const url = `${ALEO_API}/transaction/${txId}`;
           const res = await fetch(url);
           if (res.ok) {
             const data = await res.json();

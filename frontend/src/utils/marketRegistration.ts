@@ -1,4 +1,4 @@
-import { ALEO_TESTNET_API, API_BASE, ALL_PROGRAM_IDS } from '@/constants';
+import { ALEO_API, API_BASE, ALL_PROGRAM_IDS } from '@/constants';
 
 /**
  * Resolve a Shield wallet internal ID to a real Aleo at1... transaction ID.
@@ -17,7 +17,7 @@ export async function resolveShieldTxId(walletTxId: string): Promise<string | nu
     await new Promise(r => setTimeout(r, i === 0 ? 2_000 : 5_000));
     try {
       const res = await fetch(
-        `${ALEO_TESTNET_API}/find/transactionID/from_transition/${transitionId}`
+        `${ALEO_API}/find/transactionID/from_transition/${transitionId}`
       );
       if (res.ok) {
         const realTxId = (await res.json()) as string;
@@ -111,7 +111,7 @@ export async function registerMarketFromTx(params: MarketRegistrationParams): Pr
   for (let i = 0; i < maxRetries; i++) {
     try {
       await new Promise(r => setTimeout(r, 10_000));
-      const res = await fetch(`${ALEO_TESTNET_API}/transaction/${realTxId}`);
+      const res = await fetch(`${ALEO_API}/transaction/${realTxId}`);
       if (!res.ok) continue;
 
       const txData = await res.json();

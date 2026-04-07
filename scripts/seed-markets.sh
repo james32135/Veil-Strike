@@ -8,8 +8,8 @@ if [ -z "${PRIVATE_KEY:-}" ]; then
   exit 1
 fi
 
-NETWORK="${NETWORK:-testnet}"
-ENDPOINT="${ENDPOINT:-https://api.explorer.provable.com/v1}"
+NETWORK="${NETWORK:-mainnet}"
+ENDPOINT="${ENDPOINT:-https://api.provable.com/v2}"
 BROADCAST="$ENDPOINT/$NETWORK/transaction/broadcast"
 
 echo "Creating seed markets..."

@@ -10,7 +10,7 @@ const importESM = new Function('specifier', 'return import(specifier)') as (s: s
 let sdkCache: any = null;
 async function getSDK() {
   if (!sdkCache) {
-    sdkCache = await importESM('@provablehq/sdk');
+    sdkCache = await importESM('@provablehq/sdk/mainnet.js');
   }
   return sdkCache;
 }
@@ -32,7 +32,7 @@ async function fetchAccountBalance(): Promise<number> {
   try {
     const addr = resolverAddressCache;
     if (!addr) return 0;
-    const url = `${config.aleoEndpoint}/testnet/program/credits.aleo/mapping/account/${addr}`;
+    const url = `${config.aleoEndpoint}/${config.aleoNetwork}/program/credits.aleo/mapping/account/${addr}`;
     const res = await fetch(url);
     if (!res.ok) return 0;
     let text = await res.text();
@@ -288,7 +288,7 @@ export async function fetchResolution(marketId: string, tokenType?: string): Pro
 } | null> {
   try {
     const pid = getProgramId(tokenType);
-    const url = `${config.aleoEndpoint}/testnet/program/${pid}/mapping/market_resolutions/${marketId}`;
+    const url = `${config.aleoEndpoint}/${config.aleoNetwork}/program/${pid}/mapping/market_resolutions/${marketId}`;
     const res = await fetch(url);
     if (!res.ok) return null;
     let text = await res.text();
@@ -318,7 +318,7 @@ export async function fetchResolution(marketId: string, tokenType?: string): Pro
  */
 export async function fetchCurrentBlock(): Promise<number> {
   try {
-    const res = await fetch(`${config.aleoEndpoint}/testnet/block/height/latest`);
+    const res = await fetch(`${config.aleoEndpoint}/${config.aleoNetwork}/block/height/latest`);
     if (!res.ok) return 0;
     return parseInt(await res.text(), 10);
   } catch {

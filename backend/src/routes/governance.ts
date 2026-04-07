@@ -79,7 +79,7 @@ loadRegistry();
 // ---- Fetch proposal data from chain ----
 async function fetchProposalFromChain(proposalId: string) {
   try {
-    const url = `${config.aleoEndpoint}/testnet/program/${config.programId}/mapping/proposals/${proposalId}`;
+    const url = `${config.aleoEndpoint}/${config.aleoNetwork}/program/${config.programId}/mapping/proposals/${proposalId}`;
     const res = await fetch(url);
     if (!res.ok) return null;
     const text = await res.text();
@@ -93,7 +93,7 @@ async function fetchProposalFromChain(proposalId: string) {
  */
 async function resolveProposalIdFromTx(txId: string): Promise<string | null> {
   try {
-    const url = `${config.aleoEndpoint}/testnet/transaction/${txId}`;
+    const url = `${config.aleoEndpoint}/${config.aleoNetwork}/transaction/${txId}`;
     const res = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json() as Record<string, unknown>;
@@ -321,7 +321,7 @@ router.get('/:id/executable', async (req, res) => {
   // Fetch current block height
   let currentHeight = 0;
   try {
-    const hRes = await fetch(`${config.aleoEndpoint}/testnet/block/height/latest`);
+    const hRes = await fetch(`${config.aleoEndpoint}/${config.aleoNetwork}/block/height/latest`);
     if (hRes.ok) currentHeight = parseInt(await hRes.text(), 10);
   } catch {}
 
@@ -374,7 +374,7 @@ router.get('/resolvers/:address', async (req, res) => {
 });
 
 function fetchMapping(mappingName: string, key: string): Promise<string | null> {
-  return fetch(`${config.aleoEndpoint}/testnet/program/${config.programId}/mapping/${mappingName}/${key}`)
+  return fetch(`${config.aleoEndpoint}/${config.aleoNetwork}/program/${config.programId}/mapping/${mappingName}/${key}`)
     .then(r => r.ok ? r.text().then(t => { try { return JSON.parse(t); } catch { return t; } }) : null)
     .catch(() => null);
 }

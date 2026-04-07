@@ -11,7 +11,7 @@ import { useEffect } from 'react';
 const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'veil_strike_v7.aleo';
 const PROGRAM_ID_CX = 'veil_strike_v7_cx.aleo';
 const PROGRAM_ID_SD = 'veil_strike_v7_sd.aleo';
-const NETWORK = import.meta.env.VITE_NETWORK === 'mainnet' ? Network.MAINNET : Network.TESTNET;
+const NETWORK = import.meta.env.VITE_NETWORK === 'testnet' ? Network.TESTNET : Network.MAINNET;
 
 interface WalletProviderProps {
   children: ReactNode;
@@ -42,7 +42,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
       network={NETWORK}
       autoConnect
       decryptPermission={DecryptPermission.UponRequest}
-      programs={[PROGRAM_ID, PROGRAM_ID_CX, PROGRAM_ID_SD, 'credits.aleo', 'test_usdcx_stablecoin.aleo', 'test_usad_stablecoin.aleo']}
+      programs={[PROGRAM_ID, PROGRAM_ID_CX, PROGRAM_ID_SD, 'credits.aleo', 'usdcx_stablecoin.aleo', 'usad_stablecoin.aleo']}
     >
       <WalletModalProvider>
         <WalletSync>

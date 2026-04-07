@@ -4,14 +4,14 @@
 
 ### Privacy-First Prediction Markets on Aleo
 
-[![Aleo](https://img.shields.io/badge/Aleo-Testnet-00D4B8?style=for-the-badge)](https://testnet.aleoscan.io)
+[![Aleo](https://img.shields.io/badge/Aleo-Mainnet-00D4B8?style=for-the-badge)](https://explorer.provable.com)
 [![Leo](https://img.shields.io/badge/Leo-Smart%20Contract-E2B33E?style=for-the-badge)](https://leo-lang.org)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org)
 
 **Trade outcomes. Stay private. Win on-chain.**
 
-[🌐 Live App](https://veil-strike.netlify.app) · [🔍 Explorer](https://testnet.aleoscan.io/program?id=veil_strike_v7.aleo) · [⚡ API](https://veil-strike-api.onrender.com/api/health)
+[🌐 Live App](https://veil-strike.netlify.app) · [🔍 Explorer](https://explorer.provable.com/program/veil_strike_v7.aleo) · [⚡ API](https://veil-strike-api.onrender.com/api/health)
 
 </div>
 
@@ -55,7 +55,7 @@ Every trade generates a zero-knowledge proof. Your identity, position size, and 
 
 ## Smart Contracts
 
-Three independent Leo programs deployed on Aleo Testnet — split to stay under the 2.1M variable limit.
+Three independent Leo programs deployed on Aleo Mainnet — split to stay under the 2.1M variable limit.
 
 ### Program IDs
 
@@ -321,7 +321,7 @@ bash scripts/build.sh
 ### Required ENV (backend/.env)
 ```
 PORT=3001
-ALEO_ENDPOINT=https://api.explorer.provable.com/v1
+ALEO_ENDPOINT=https://api.provable.com/v2
 CORS_ORIGIN=http://localhost:5173
 RESOLVER_PRIVATE_KEY=APrivateKey1...
 ```
@@ -356,7 +356,7 @@ contract/
 ## Status & Roadmap
 
 **Deployed & Working:**
-- ✅ 3 Leo programs on Aleo Testnet (53 transitions, Leo v4 syntax)
+- ✅ 3 Leo programs on Aleo Mainnet (53 transitions, Leo v4 syntax)
 - ✅ Event prediction markets (2–4 outcomes, any category)
 - ✅ Strike Rounds — 15-minute auto-resolved cycles via delegated proving (3 slots: BTC, ETH, ALEO)
 - ✅ FPMM AMM with complete-set minting
@@ -379,11 +379,10 @@ contract/
 - 🔄 Admin UX: streamline resolution flow
 - 🔄 Full UI/UX redesign
 - 🔄 Stronger privacy: full USDCx/USAD deposit privacy via compliance proofs
-- 🔄 Mainnet deployment
-
+- ✅ Mainnet deployment
 ---
 
 <div align="center">
   Built for <strong>Aleo Developer Program — Wave 4</strong><br/>
-  <sub>All tokens are testnet tokens with no real-world value.</sub>
+  <sub>Deployed on Aleo Mainnet. Real tokens with real value — trade responsibly.</sub>
 </div>

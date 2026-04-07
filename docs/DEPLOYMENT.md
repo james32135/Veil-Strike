@@ -24,8 +24,8 @@
 ```bash
 # Set your private key
 export PRIVATE_KEY="APrivateKey1..."
-export NETWORK="testnet"
-export ENDPOINT="https://api.explorer.provable.com/v1"
+export NETWORK="mainnet"
+export ENDPOINT="https://api.provable.com/v2"
 ```
 
 ## Step 3: Build & Deploy Contract
@@ -121,7 +121,7 @@ npm start
 Set environment variables:
 ```
 PORT=3001
-ALEO_ENDPOINT=https://api.explorer.provable.com/v1
+ALEO_ENDPOINT=https://api.provable.com/v2
 CORS_ORIGIN=https://your-frontend-domain.com
 ```
 

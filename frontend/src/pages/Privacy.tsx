@@ -52,7 +52,7 @@ export default function Privacy() {
           <section>
             <h2 className="text-lg font-heading font-semibold text-white mb-3">Third-Party Services</h2>
             <ul className="list-disc pl-5 space-y-2">
-              <li><strong className="text-gray-300">Aleo Network:</strong> Transactions are broadcast to the Aleo testnet. Aleo's privacy features protect transaction details.</li>
+              <li><strong className="text-gray-300">Aleo Network:</strong> Transactions are broadcast to the Aleo mainnet. Aleo's privacy features protect transaction details.</li>
               <li><strong className="text-gray-300">Shield Wallet:</strong> Wallet interactions are handled by the Shield wallet extension. Refer to their privacy policy.</li>
               <li><strong className="text-gray-300">CoinGecko:</strong> Price data is fetched from CoinGecko's public API for oracle feeds.</li>
             </ul>

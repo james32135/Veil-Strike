@@ -13,7 +13,7 @@
 // ============================================================================
 
 import credits.aleo;
-import test_usdcx_stablecoin.aleo;
+import usdcx_stablecoin.aleo;
 
 program veil_strike_v6_cx.aleo {
 
@@ -37,7 +37,7 @@ program veil_strike_v6_cx.aleo {
     const TOKEN_USDCX: u8 = 1u8;
     const CHALLENGE_WINDOW: u32 = 2880u32;
     const MIN_TRADE_AMOUNT: u128 = 10_000u128;
-    const MIN_LIQUIDITY: u128 = 1_000_000u128;
+    const MIN_LIQUIDITY: u128 = 10_000u128;
     const MIN_DISPUTE_BOND: u128 = 5_000_000u128;
 
     // ========================================================================
@@ -174,9 +174,9 @@ program veil_strike_v6_cx.aleo {
         public resolver: address,
         private initial_liquidity: u128,
         private nonce: field,
-        private token_in: test_usdcx_stablecoin.aleo/Token,
+        private token_in: usdcx_stablecoin.aleo/Token,
         private proofs: [MerkleProof; 2],
-    ) -> (field, LPToken, test_usdcx_stablecoin.aleo/ComplianceRecord, test_usdcx_stablecoin.aleo/Token, Future) {
+    ) -> (field, LPToken, usdcx_stablecoin.aleo/ComplianceRecord, usdcx_stablecoin.aleo/Token, Future) {
         assert(num_outcomes >= 2u8 && num_outcomes <= 4u8);
         assert(initial_liquidity >= MIN_LIQUIDITY);
 
@@ -192,9 +192,9 @@ program veil_strike_v6_cx.aleo {
         };
 
         let (compliance_rec, change_token, transfer_future): (
-            test_usdcx_stablecoin.aleo/ComplianceRecord,
-            test_usdcx_stablecoin.aleo/Token, Future
-        ) = test_usdcx_stablecoin.aleo/transfer_private_to_public(
+            usdcx_stablecoin.aleo/ComplianceRecord,
+            usdcx_stablecoin.aleo/Token, Future
+        ) = usdcx_stablecoin.aleo/transfer_private_to_public(
             self.address, initial_liquidity, token_in, proofs
         );
 
@@ -246,9 +246,9 @@ program veil_strike_v6_cx.aleo {
         private market_id: field, private outcome: u8, private amount_in: u128,
         private expected_shares: u128, private min_shares_out: u128,
         private share_nonce: field,
-        private token_in: test_usdcx_stablecoin.aleo/Token,
+        private token_in: usdcx_stablecoin.aleo/Token,
         private proofs: [MerkleProof; 2],
-    ) -> (OutcomeShare, test_usdcx_stablecoin.aleo/ComplianceRecord, test_usdcx_stablecoin.aleo/Token, Future) {
+    ) -> (OutcomeShare, usdcx_stablecoin.aleo/ComplianceRecord, usdcx_stablecoin.aleo/Token, Future) {
         assert(outcome >= 1u8 && outcome <= 4u8);
         assert(amount_in >= MIN_TRADE_AMOUNT);
 
@@ -258,9 +258,9 @@ program veil_strike_v6_cx.aleo {
         };
 
         let (compliance_rec, change_token, transfer_future): (
-            test_usdcx_stablecoin.aleo/ComplianceRecord,
-            test_usdcx_stablecoin.aleo/Token, Future
-        ) = test_usdcx_stablecoin.aleo/transfer_private_to_public(
+            usdcx_stablecoin.aleo/ComplianceRecord,
+            usdcx_stablecoin.aleo/Token, Future
+        ) = usdcx_stablecoin.aleo/transfer_private_to_public(
             self.address, amount_in, token_in, proofs
         );
 
@@ -336,7 +336,7 @@ program veil_strike_v6_cx.aleo {
 
     async transition dispose_shares(
         private shares: OutcomeShare, private tokens_desired: u128, private max_shares_used: u128,
-    ) -> (OutcomeShare, test_usdcx_stablecoin.aleo/ComplianceRecord, test_usdcx_stablecoin.aleo/Token, Future) {
+    ) -> (OutcomeShare, usdcx_stablecoin.aleo/ComplianceRecord, usdcx_stablecoin.aleo/Token, Future) {
         assert(shares.owner == self.signer);
         assert(shares.token_type == TOKEN_USDCX);
         assert(tokens_desired >= MIN_TRADE_AMOUNT);
@@ -349,9 +349,9 @@ program veil_strike_v6_cx.aleo {
         let net_tokens: u128 = tokens_desired - protocol_fee - creator_fee - lp_fee;
 
         let (compliance_rec, payout_token, transfer_future): (
-            test_usdcx_stablecoin.aleo/ComplianceRecord,
-            test_usdcx_stablecoin.aleo/Token, Future
-        ) = test_usdcx_stablecoin.aleo/transfer_public_to_private(self.signer, net_tokens);
+            usdcx_stablecoin.aleo/ComplianceRecord,
+            usdcx_stablecoin.aleo/Token, Future
+        ) = usdcx_stablecoin.aleo/transfer_public_to_private(self.signer, net_tokens);
 
         let remainder: OutcomeShare = OutcomeShare {
             owner: self.signer, market_id: shares.market_id, outcome: shares.outcome,
@@ -459,18 +459,18 @@ program veil_strike_v6_cx.aleo {
     async transition fund_pool(
         private market_id: field, private amount: u128,
         private expected_lp_shares: u128, private lp_nonce: field,
-        private token_in: test_usdcx_stablecoin.aleo/Token,
+        private token_in: usdcx_stablecoin.aleo/Token,
         private proofs: [MerkleProof; 2],
-    ) -> (LPToken, test_usdcx_stablecoin.aleo/ComplianceRecord, test_usdcx_stablecoin.aleo/Token, Future) {
+    ) -> (LPToken, usdcx_stablecoin.aleo/ComplianceRecord, usdcx_stablecoin.aleo/Token, Future) {
         assert(amount >= MIN_LIQUIDITY);
         let lp_token: LPToken = LPToken {
             owner: self.signer, market_id: market_id, lp_shares: expected_lp_shares,
             lp_nonce: lp_nonce, token_type: TOKEN_USDCX,
         };
         let (compliance_rec, change_token, transfer_future): (
-            test_usdcx_stablecoin.aleo/ComplianceRecord,
-            test_usdcx_stablecoin.aleo/Token, Future
-        ) = test_usdcx_stablecoin.aleo/transfer_private_to_public(
+            usdcx_stablecoin.aleo/ComplianceRecord,
+            usdcx_stablecoin.aleo/Token, Future
+        ) = usdcx_stablecoin.aleo/transfer_private_to_public(
             self.address, amount, token_in, proofs
         );
         return (lp_token, compliance_rec, change_token, fund_pool_finalize(
@@ -732,7 +732,7 @@ program veil_strike_v6_cx.aleo {
 
     async transition harvest_winnings(
         private shares: OutcomeShare,
-    ) -> (test_usdcx_stablecoin.aleo/ComplianceRecord, test_usdcx_stablecoin.aleo/Token, Future) {
+    ) -> (usdcx_stablecoin.aleo/ComplianceRecord, usdcx_stablecoin.aleo/Token, Future) {
         assert(shares.owner == self.signer);
         assert(shares.token_type == TOKEN_USDCX);
         assert(shares.quantity > 0u128);
@@ -740,9 +740,9 @@ program veil_strike_v6_cx.aleo {
             market_id: shares.market_id, claimer: self.signer, share_nonce: shares.share_nonce,
         });
         let (compliance_rec, payout_token, transfer_future): (
-            test_usdcx_stablecoin.aleo/ComplianceRecord,
-            test_usdcx_stablecoin.aleo/Token, Future
-        ) = test_usdcx_stablecoin.aleo/transfer_public_to_private(self.signer, shares.quantity);
+            usdcx_stablecoin.aleo/ComplianceRecord,
+            usdcx_stablecoin.aleo/Token, Future
+        ) = usdcx_stablecoin.aleo/transfer_public_to_private(self.signer, shares.quantity);
         return (compliance_rec, payout_token, harvest_winnings_finalize(
             transfer_future, claim_key, shares.market_id, shares.outcome, shares.quantity, TOKEN_USDCX
         ));
@@ -776,7 +776,7 @@ program veil_strike_v6_cx.aleo {
 
     async transition harvest_refund(
         private shares: OutcomeShare,
-    ) -> (RefundClaim, test_usdcx_stablecoin.aleo/ComplianceRecord, test_usdcx_stablecoin.aleo/Token, Future) {
+    ) -> (RefundClaim, usdcx_stablecoin.aleo/ComplianceRecord, usdcx_stablecoin.aleo/Token, Future) {
         assert(shares.owner == self.signer);
         assert(shares.token_type == TOKEN_USDCX);
         assert(shares.quantity > 0u128);
@@ -788,9 +788,9 @@ program veil_strike_v6_cx.aleo {
             claim_nonce: shares.share_nonce, token_type: TOKEN_USDCX,
         };
         let (compliance_rec, payout_token, transfer_future): (
-            test_usdcx_stablecoin.aleo/ComplianceRecord,
-            test_usdcx_stablecoin.aleo/Token, Future
-        ) = test_usdcx_stablecoin.aleo/transfer_public_to_private(self.signer, shares.quantity);
+            usdcx_stablecoin.aleo/ComplianceRecord,
+            usdcx_stablecoin.aleo/Token, Future
+        ) = usdcx_stablecoin.aleo/transfer_public_to_private(self.signer, shares.quantity);
         return (refund, compliance_rec, payout_token, harvest_refund_finalize(
             transfer_future, claim_key, shares.market_id, shares.quantity, TOKEN_USDCX
         ));
@@ -821,7 +821,7 @@ program veil_strike_v6_cx.aleo {
 
     async transition withdraw_pool(
         private lp_token: LPToken, private min_tokens_out: u128,
-    ) -> (test_usdcx_stablecoin.aleo/ComplianceRecord, test_usdcx_stablecoin.aleo/Token, Future) {
+    ) -> (usdcx_stablecoin.aleo/ComplianceRecord, usdcx_stablecoin.aleo/Token, Future) {
         assert(lp_token.owner == self.signer);
         assert(lp_token.token_type == TOKEN_USDCX);
         assert(lp_token.lp_shares > 0u128);
@@ -830,9 +830,9 @@ program veil_strike_v6_cx.aleo {
             market_id: lp_token.market_id, claimer: self.signer, lp_nonce: lp_token.lp_nonce,
         });
         let (compliance_rec, payout_token, transfer_future): (
-            test_usdcx_stablecoin.aleo/ComplianceRecord,
-            test_usdcx_stablecoin.aleo/Token, Future
-        ) = test_usdcx_stablecoin.aleo/transfer_public_to_private(self.signer, min_tokens_out);
+            usdcx_stablecoin.aleo/ComplianceRecord,
+            usdcx_stablecoin.aleo/Token, Future
+        ) = usdcx_stablecoin.aleo/transfer_public_to_private(self.signer, min_tokens_out);
         return (compliance_rec, payout_token, withdraw_pool_finalize(
             transfer_future, claim_key, lp_token.market_id, lp_token.lp_shares, min_tokens_out, TOKEN_USDCX
         ));
@@ -880,7 +880,7 @@ program veil_strike_v6_cx.aleo {
 
     async transition harvest_fees(public market_id: field, public expected_amount: u128) -> Future {
         assert(expected_amount > 0u128);
-        let transfer_future: Future = test_usdcx_stablecoin.aleo/transfer_public(self.signer, expected_amount);
+        let transfer_future: Future = usdcx_stablecoin.aleo/transfer_public(self.signer, expected_amount);
         return harvest_fees_finalize(transfer_future, market_id, self.signer, expected_amount);
     }
 

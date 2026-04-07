@@ -1726,7 +1726,7 @@ curl -X POST https://api.provable.com/v2/mainnet/transaction/broadcast \
 
 Legacy API — still operational but v2 is recommended.
 
-**Base URL**: `https://api.provable.com/v1/{network}`
+**Base URL**: `https://api.provable.com/v2/{network}`
 
 ### Endpoints
 
@@ -1796,7 +1796,7 @@ Legacy API — still operational but v2 is recommended.
 ### Usage Example
 
 ```bash
-curl -L 'https://api.provable.com/v1/mainnet/latest/block'
+curl -L 'https://api.provable.com/v2/mainnet/latest/block'
 ```
 
 ---

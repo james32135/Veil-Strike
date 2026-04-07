@@ -6,7 +6,7 @@ export const PROGRAM_ID = 'veil_strike_v7.aleo';
 export const PROGRAM_ID_CX = 'veil_strike_v7_cx.aleo';
 export const PROGRAM_ID_SD = 'veil_strike_v7_sd.aleo';
 
-export const ALEO_TESTNET_API = 'https://api.explorer.provable.com/v1/testnet';
+export const ALEO_API = 'https://api.provable.com/v2/mainnet';
 
 export const DEPLOYER = 'aleo19za49scmhufst9q8lhwka5hmkvzx5ersrue3gjwcs705542daursptmx0r';
 
@@ -35,7 +35,7 @@ export const FEES = {
   TOTAL: 0.02,       // 2.0%
 } as const;
 
-export const MIN_LIQUIDITY = 1_000_000; // 1 ALEO in microcredits
+export const MIN_LIQUIDITY = 10_000; // 0.01 ALEO in microcredits
 export const MIN_TRADE = 10_000;        // 0.01 ALEO
 
 export const STATUS_MAP: Record<number, string> = {
@@ -48,12 +48,15 @@ export const STATUS_MAP: Record<number, string> = {
 
 export const CATEGORY_MAP: Record<number, string> = {
   1: 'Crypto',
-  2: 'Crypto',
-  3: 'Privacy',
-  4: 'DeFi',
-  5: 'Governance',
-  6: 'AI',
-  7: 'Other',
+  2: 'Privacy',
+  3: 'DeFi',
+  4: 'Governance',
+  5: 'Whale Watch',
+  6: 'Geopolitics',
+  7: 'AI',
+  8: 'Sports',
+  9: 'Culture',
+  10: 'Other',
 };
 
 export const TOKEN_TYPES: Record<number, string> = {

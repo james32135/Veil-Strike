@@ -7,7 +7,8 @@ const parseCorsOrigin = (origin?: string): string | string[] => {
 export const config = {
   port: parseInt(process.env.PORT || '3001', 10),
   databaseUrl: process.env.DATABASE_URL || '',
-  aleoEndpoint: process.env.ALEO_ENDPOINT || 'https://api.explorer.provable.com/v1',
+  aleoEndpoint: process.env.ALEO_ENDPOINT || 'https://api.provable.com/v2',
+  aleoNetwork: process.env.ALEO_NETWORK || 'mainnet',
   programId: 'veil_strike_v7.aleo',
   programIdCx: 'veil_strike_v7_cx.aleo',
   programIdSd: 'veil_strike_v7_sd.aleo',
@@ -22,5 +23,5 @@ export const config = {
   // Round bot
   roundDurationMinutes: parseInt(process.env.ROUND_DURATION_MINUTES || '15', 10),
   roundBotEnabled: process.env.ROUND_BOT_ENABLED !== 'false',
-  roundInitialLiquidity: parseInt(process.env.ROUND_INITIAL_LIQUIDITY || '1000000', 10), // 1 token in microcredits
+  roundInitialLiquidity: parseInt(process.env.ROUND_INITIAL_LIQUIDITY || '10000', 10), // 0.01 token in microcredits
 };

@@ -13,7 +13,7 @@
 // ============================================================================
 
 import credits.aleo;
-import test_usad_stablecoin.aleo;
+import usad_stablecoin.aleo;
 
 program veil_strike_v7_sd.aleo {
 
@@ -37,7 +37,7 @@ program veil_strike_v7_sd.aleo {
     const TOKEN_USAD: u8 = 2u8;
     const CHALLENGE_WINDOW: u32 = 2880u32;
     const MIN_TRADE_AMOUNT: u128 = 10_000u128;
-    const MIN_LIQUIDITY: u128 = 1_000_000u128;
+    const MIN_LIQUIDITY: u128 = 10_000u128;
     const MIN_DISPUTE_BOND: u128 = 5_000_000u128;
 
     // ========================================================================
@@ -174,9 +174,9 @@ program veil_strike_v7_sd.aleo {
         public resolver: address,
         private initial_liquidity: u128,
         private nonce: field,
-        private token_in: test_usad_stablecoin.aleo::Token,
-        private proofs: [test_usad_stablecoin.aleo::MerkleProof; 2],
-    ) -> (field, LPToken, test_usad_stablecoin.aleo::ComplianceRecord, test_usad_stablecoin.aleo::Token, Final) {
+        private token_in: usad_stablecoin.aleo::Token,
+        private proofs: [usad_stablecoin.aleo::MerkleProof; 2],
+    ) -> (field, LPToken, usad_stablecoin.aleo::ComplianceRecord, usad_stablecoin.aleo::Token, Final) {
         assert(num_outcomes >= 2u8 && num_outcomes <= 4u8);
         assert(initial_liquidity >= MIN_LIQUIDITY);
 
@@ -192,9 +192,9 @@ program veil_strike_v7_sd.aleo {
         };
 
         let (compliance_rec, change_token, transfer_f): (
-            test_usad_stablecoin.aleo::ComplianceRecord,
-            test_usad_stablecoin.aleo::Token, Final
-        ) = test_usad_stablecoin.aleo::transfer_private_to_public(
+            usad_stablecoin.aleo::ComplianceRecord,
+            usad_stablecoin.aleo::Token, Final
+        ) = usad_stablecoin.aleo::transfer_private_to_public(
             self.address, initial_liquidity, token_in, proofs
         );
 
@@ -216,9 +216,9 @@ program veil_strike_v7_sd.aleo {
         private market_id: field, private outcome: u8, private amount_in: u128,
         private expected_shares: u128, private min_shares_out: u128,
         private share_nonce: field,
-        private token_in: test_usad_stablecoin.aleo::Token,
-        private proofs: [test_usad_stablecoin.aleo::MerkleProof; 2],
-    ) -> (OutcomeShare, test_usad_stablecoin.aleo::ComplianceRecord, test_usad_stablecoin.aleo::Token, Final) {
+        private token_in: usad_stablecoin.aleo::Token,
+        private proofs: [usad_stablecoin.aleo::MerkleProof; 2],
+    ) -> (OutcomeShare, usad_stablecoin.aleo::ComplianceRecord, usad_stablecoin.aleo::Token, Final) {
         assert(outcome >= 1u8 && outcome <= 4u8);
         assert(amount_in >= MIN_TRADE_AMOUNT);
 
@@ -228,9 +228,9 @@ program veil_strike_v7_sd.aleo {
         };
 
         let (compliance_rec, change_token, transfer_f): (
-            test_usad_stablecoin.aleo::ComplianceRecord,
-            test_usad_stablecoin.aleo::Token, Final
-        ) = test_usad_stablecoin.aleo::transfer_private_to_public(
+            usad_stablecoin.aleo::ComplianceRecord,
+            usad_stablecoin.aleo::Token, Final
+        ) = usad_stablecoin.aleo::transfer_private_to_public(
             self.address, amount_in, token_in, proofs
         );
 
@@ -248,7 +248,7 @@ program veil_strike_v7_sd.aleo {
 
     fn dispose_shares(
         private shares: OutcomeShare, private tokens_desired: u128, private max_shares_used: u128,
-    ) -> (OutcomeShare, test_usad_stablecoin.aleo::ComplianceRecord, test_usad_stablecoin.aleo::Token, Final) {
+    ) -> (OutcomeShare, usad_stablecoin.aleo::ComplianceRecord, usad_stablecoin.aleo::Token, Final) {
         assert(shares.owner == self.signer);
         assert(shares.token_type == TOKEN_USAD);
         assert(tokens_desired >= MIN_TRADE_AMOUNT);
@@ -261,9 +261,9 @@ program veil_strike_v7_sd.aleo {
         let net_tokens: u128 = tokens_desired - protocol_fee - creator_fee - lp_fee;
 
         let (compliance_rec, payout_token, transfer_f): (
-            test_usad_stablecoin.aleo::ComplianceRecord,
-            test_usad_stablecoin.aleo::Token, Final
-        ) = test_usad_stablecoin.aleo::transfer_public_to_private(self.signer, net_tokens);
+            usad_stablecoin.aleo::ComplianceRecord,
+            usad_stablecoin.aleo::Token, Final
+        ) = usad_stablecoin.aleo::transfer_public_to_private(self.signer, net_tokens);
 
         let remainder: OutcomeShare = OutcomeShare {
             owner: self.signer, market_id: shares.market_id, outcome: shares.outcome,
@@ -289,18 +289,18 @@ program veil_strike_v7_sd.aleo {
     fn fund_pool(
         private market_id: field, private amount: u128,
         private expected_lp_shares: u128, private lp_nonce: field,
-        private token_in: test_usad_stablecoin.aleo::Token,
-        private proofs: [test_usad_stablecoin.aleo::MerkleProof; 2],
-    ) -> (LPToken, test_usad_stablecoin.aleo::ComplianceRecord, test_usad_stablecoin.aleo::Token, Final) {
+        private token_in: usad_stablecoin.aleo::Token,
+        private proofs: [usad_stablecoin.aleo::MerkleProof; 2],
+    ) -> (LPToken, usad_stablecoin.aleo::ComplianceRecord, usad_stablecoin.aleo::Token, Final) {
         assert(amount >= MIN_LIQUIDITY);
         let lp_token: LPToken = LPToken {
             owner: self.signer, market_id: market_id, lp_shares: expected_lp_shares,
             lp_nonce: lp_nonce, token_type: TOKEN_USAD,
         };
         let (compliance_rec, change_token, transfer_f): (
-            test_usad_stablecoin.aleo::ComplianceRecord,
-            test_usad_stablecoin.aleo::Token, Final
-        ) = test_usad_stablecoin.aleo::transfer_private_to_public(
+            usad_stablecoin.aleo::ComplianceRecord,
+            usad_stablecoin.aleo::Token, Final
+        ) = usad_stablecoin.aleo::transfer_private_to_public(
             self.address, amount, token_in, proofs
         );
         let f: Final = final {
@@ -405,7 +405,7 @@ program veil_strike_v7_sd.aleo {
 
     fn harvest_winnings(
         private shares: OutcomeShare,
-    ) -> (test_usad_stablecoin.aleo::ComplianceRecord, test_usad_stablecoin.aleo::Token, Final) {
+    ) -> (usad_stablecoin.aleo::ComplianceRecord, usad_stablecoin.aleo::Token, Final) {
         assert(shares.owner == self.signer);
         assert(shares.token_type == TOKEN_USAD);
         assert(shares.quantity > 0u128);
@@ -413,9 +413,9 @@ program veil_strike_v7_sd.aleo {
             market_id: shares.market_id, claimer: self.signer, share_nonce: shares.share_nonce,
         });
         let (compliance_rec, payout_token, transfer_f): (
-            test_usad_stablecoin.aleo::ComplianceRecord,
-            test_usad_stablecoin.aleo::Token, Final
-        ) = test_usad_stablecoin.aleo::transfer_public_to_private(self.signer, shares.quantity);
+            usad_stablecoin.aleo::ComplianceRecord,
+            usad_stablecoin.aleo::Token, Final
+        ) = usad_stablecoin.aleo::transfer_public_to_private(self.signer, shares.quantity);
         let s_mid: field = shares.market_id;
         let s_out: u8 = shares.outcome;
         let s_qty: u128 = shares.quantity;
@@ -433,7 +433,7 @@ program veil_strike_v7_sd.aleo {
 
     fn harvest_refund(
         private shares: OutcomeShare,
-    ) -> (RefundClaim, test_usad_stablecoin.aleo::ComplianceRecord, test_usad_stablecoin.aleo::Token, Final) {
+    ) -> (RefundClaim, usad_stablecoin.aleo::ComplianceRecord, usad_stablecoin.aleo::Token, Final) {
         assert(shares.owner == self.signer);
         assert(shares.token_type == TOKEN_USAD);
         assert(shares.quantity > 0u128);
@@ -445,9 +445,9 @@ program veil_strike_v7_sd.aleo {
             claim_nonce: shares.share_nonce, token_type: TOKEN_USAD,
         };
         let (compliance_rec, payout_token, transfer_f): (
-            test_usad_stablecoin.aleo::ComplianceRecord,
-            test_usad_stablecoin.aleo::Token, Final
-        ) = test_usad_stablecoin.aleo::transfer_public_to_private(self.signer, shares.quantity);
+            usad_stablecoin.aleo::ComplianceRecord,
+            usad_stablecoin.aleo::Token, Final
+        ) = usad_stablecoin.aleo::transfer_public_to_private(self.signer, shares.quantity);
         let s_market_id2: field = shares.market_id;
         let s_quantity2: u128 = shares.quantity;
         let f: Final = final {
@@ -462,7 +462,7 @@ program veil_strike_v7_sd.aleo {
 
     fn withdraw_pool(
         private lp_token: LPToken, private min_tokens_out: u128,
-    ) -> (test_usad_stablecoin.aleo::ComplianceRecord, test_usad_stablecoin.aleo::Token, Final) {
+    ) -> (usad_stablecoin.aleo::ComplianceRecord, usad_stablecoin.aleo::Token, Final) {
         assert(lp_token.owner == self.signer);
         assert(lp_token.token_type == TOKEN_USAD);
         assert(lp_token.lp_shares > 0u128);
@@ -471,9 +471,9 @@ program veil_strike_v7_sd.aleo {
             market_id: lp_token.market_id, claimer: self.signer, lp_nonce: lp_token.lp_nonce,
         });
         let (compliance_rec, payout_token, transfer_f): (
-            test_usad_stablecoin.aleo::ComplianceRecord,
-            test_usad_stablecoin.aleo::Token, Final
-        ) = test_usad_stablecoin.aleo::transfer_public_to_private(self.signer, min_tokens_out);
+            usad_stablecoin.aleo::ComplianceRecord,
+            usad_stablecoin.aleo::Token, Final
+        ) = usad_stablecoin.aleo::transfer_public_to_private(self.signer, min_tokens_out);
         let lp_mid: field = lp_token.market_id;
         let lp_sh: u128 = lp_token.lp_shares;
         let f: Final = final {
@@ -490,7 +490,7 @@ program veil_strike_v7_sd.aleo {
 
     fn harvest_fees(public market_id: field, public expected_amount: u128) -> Final {
         assert(expected_amount > 0u128);
-        let transfer_f: Final = test_usad_stablecoin.aleo::transfer_public(self.signer, expected_amount);
+        let transfer_f: Final = usad_stablecoin.aleo::transfer_public(self.signer, expected_amount);
         let caller: address = self.signer;
         let f: Final = final {
             harvest_fees_finalize(transfer_f, market_id, caller, expected_amount);

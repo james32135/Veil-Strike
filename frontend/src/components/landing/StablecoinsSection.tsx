@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import CryptoIcon from '@/components/shared/CryptoIcon';
 
 const stablecoins = [
   {
@@ -57,9 +58,9 @@ export default function StablecoinsSection() {
 
               <div className="p-8">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center font-heading font-bold text-lg text-white"
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
                     style={{ background: `${coin.color}15`, border: `1px solid ${coin.color}30` }}>
-                    {coin.name === 'USDCx' ? '$' : '₮'}
+                    <CryptoIcon symbol={coin.name} size={28} />
                   </div>
                   <div>
                     <h3 className="font-heading text-xl font-bold text-white">{coin.name}</h3>

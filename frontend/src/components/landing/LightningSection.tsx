@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import CryptoIcon from '@/components/shared/CryptoIcon';
 
 const rounds = [
   { asset: 'BTC', pair: 'BTC / USD', color: '#F7931A' },
@@ -80,9 +81,9 @@ export default function LightningSection() {
                   transition={{ delay: 0.3 + i * 0.1, duration: 0.5 }}
                   className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:border-white/[0.08] transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold"
-                      style={{ background: `${r.color}15`, color: r.color }}>
-                      {r.asset[0]}
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                      style={{ background: `${r.color}15` }}>
+                      <CryptoIcon symbol={r.asset} size={22} />
                     </div>
                     <div>
                       <p className="text-sm font-heading text-white/80">{r.pair}</p>

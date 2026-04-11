@@ -16,6 +16,7 @@ export default function LightningCard({ market }: LightningCardProps) {
   const prices = calculatePrices(market.reserves);
   const countdown = useCountdown(market.endTime);
   const isUrgent = countdown.days === 0 && countdown.hours === 0 && countdown.minutes < 10;
+  const tokenLabel = market.tokenType === 'USAD' ? 'USAD' : market.tokenType === 'USDCX' ? 'USDCx' : 'ALEO';
 
   return (
     <Link to={`/markets/${market.id}`}>
@@ -70,7 +71,7 @@ export default function LightningCard({ market }: LightningCardProps) {
         </div>
 
         <div className="flex items-center justify-between text-xs text-gray-500">
-          <span>Vol: {formatCompact(market.totalVolume / 1_000_000)} ALEO</span>
+          <span>Vol: {formatCompact(market.totalVolume / 1_000_000)} {tokenLabel}</span>
           <span className="flex items-center gap-1">
             <FireIcon className="w-3 h-3 text-amber-400" />
             {market.tradeCount} trades

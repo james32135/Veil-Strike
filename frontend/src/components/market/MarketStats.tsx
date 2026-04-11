@@ -11,6 +11,7 @@ interface MarketStatsProps {
 
 export default function MarketStats({ market }: MarketStatsProps) {
   const prices = calculatePrices(market.reserves);
+  const tokenLabel = market.tokenType === 'USAD' ? 'USAD' : market.tokenType === 'USDCX' ? 'USDCx' : 'ALEO';
 
   return (
     <div className="space-y-4">
@@ -18,12 +19,12 @@ export default function MarketStats({ market }: MarketStatsProps) {
         <StatCard
           label="Volume"
           value={formatCompact(market.totalVolume / 1_000_000)}
-          suffix="ALEO"
+          suffix={tokenLabel}
         />
         <StatCard
           label="Liquidity"
           value={formatCompact(market.totalLiquidity / 1_000_000)}
-          suffix="ALEO"
+          suffix={tokenLabel}
         />
         <StatCard
           label="Trades"
@@ -71,7 +72,7 @@ export default function MarketStats({ market }: MarketStatsProps) {
           {market.outcomes.map((outcome, i) => (
             <div key={i} className="flex justify-between text-sm">
               <span className="text-gray-500">{outcome}</span>
-              <span className="font-mono text-gray-300">{formatAleo(market.reserves[i])} ALEO</span>
+              <span className="font-mono text-gray-300">{formatAleo(market.reserves[i])} {tokenLabel}</span>
             </div>
           ))}
         </div>

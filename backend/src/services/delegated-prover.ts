@@ -8,6 +8,18 @@ import { config } from '../config';
 const PRIVATE_KEY = process.env.RESOLVER_PRIVATE_KEY || process.env.PRIVATE_KEY || '';
 const PRIORITY_FEE = 10_000; // 0.01 ALEO in microcredits
 const DPS_URL = 'https://api.provable.com/prove/mainnet/prove'; // Delegated Proving Service
+const SDK_TIMEOUT_MS = 120_000; // 2 min timeout for SDK calls (proving request + submission)
+
+// Wrap a promise with a timeout to prevent permanent hangs
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`[DelegatedProver] ${label} timed out after ${ms}ms`)), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
 
 // Real ESM import() — TSC compiles dynamic import() to require() in CJS mode,
 // which fails for ESM packages with top-level await (Node 22+)
@@ -94,7 +106,7 @@ export async function delegatedExecute(
 
     // Build the proving request (authorization + fee authorization bundled)
     // useFeeMaster=true: DPS pays the fee, we only authorize the execution
-    const provingRequest = await pm.provingRequest({
+    const provingRequest = await withTimeout(pm.provingRequest({
       programName: programId,
       functionName,
       inputs,
@@ -102,17 +114,30 @@ export async function delegatedExecute(
       privateFee: false,
       useFeeMaster: true,
       broadcast: true, // Provable broadcasts the tx after proving
-    });
+    }), SDK_TIMEOUT_MS, 'provingRequest');
 
     console.log(`[DelegatedProver] Submitting to Provable for remote proving...`);
 
     // Submit to Provable DPS — they prove remotely (~15-30s) and broadcast
-    const result = await networkClient.submitProvingRequestSafe({
+    let result: any = await withTimeout(networkClient.submitProvingRequestSafe({
       provingRequest,
       url: DPS_URL,
       apiKey: config.provableApiKey,
       consumerId: config.provableConsumerId,
-    });
+    }), SDK_TIMEOUT_MS, 'submitProvingRequestSafe');
+
+    // Retry once on 401 — the SDK's internal JWT may have expired
+    if (!result.ok && result.status === 401) {
+      console.warn(`[DelegatedProver] 401 from DPS — refreshing network client and retrying...`);
+      networkClientCache = null;
+      const freshClient = await getNetworkClient();
+      result = await withTimeout(freshClient.submitProvingRequestSafe({
+        provingRequest,
+        url: DPS_URL,
+        apiKey: config.provableApiKey,
+        consumerId: config.provableConsumerId,
+      }), SDK_TIMEOUT_MS, 'submitProvingRequestSafe retry');
+    }
 
     const durationMs = Date.now() - start;
 
@@ -176,10 +201,12 @@ export async function delegatedCreateMarket(
   initialLiquidity: number,
   nonce: string,
   tokenType?: string,
+  tokenRecord?: string,
+  proofs?: string,
 ): Promise<DelegatedResult> {
   const programId = getProgramId(tokenType);
   console.log(`[DelegatedProver] open_market hash=${questionHash.slice(0, 20)}... program=${programId}`);
-  return delegatedExecute(programId, 'open_market', [
+  const inputs: string[] = [
     questionHash,
     `${category}u8`,
     `${numOutcomes}u8`,
@@ -188,7 +215,11 @@ export async function delegatedCreateMarket(
     resolver,
     `${initialLiquidity}u128`,
     nonce,
-  ]);
+  ];
+  if (tokenRecord && proofs) {
+    inputs.push(tokenRecord, proofs);
+  }
+  return delegatedExecute(programId, 'open_market', inputs);
 }
 
 /**

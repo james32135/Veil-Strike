@@ -3,6 +3,7 @@
 // Empty rounds (no bets) get a virtual reset at zero on-chain cost.
 
 import { config } from '../config';
+import { fetchWithTimeout } from './fetch-timeout';
 import { getCachedPrices } from './oracle';
 import { registerMarket, persistRegistry, clearStaleLightningFlags, getCachedMarkets } from './indexer';
 import { savePendingMeta, deletePendingMeta } from './scanner';
@@ -10,6 +11,8 @@ import { delegatedSettle, delegatedCreateMarket, isDelegatedProvingAvailable, ge
 import { fetchCurrentBlock } from './chain-executor';
 import { query } from './db';
 import { assetToSeriesId, updateSeriesStats } from './db';
+import { findUsdcxRecord } from './record-scanner';
+import { getUsdcxProofs } from './freeze-list';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -33,6 +36,8 @@ interface MarketSlot {
   error: string | null;
   lastSettleTxId: string | null;
   settleRetries: number;         // settle failure counter (max 3 before skip)
+  createRetries: number;         // create failure counter
+  nextCreateAttempt: number;     // unix ms — earliest time to retry create
 }
 
 interface BotState {
@@ -51,14 +56,13 @@ const TICK_INTERVAL_MS = 15_000;      // Check every 15s
 const COOLDOWN_MS = 30_000;           // Wait 30s after settle before creating next
 const TX_CONFIRM_TIMEOUT_MS = 120_000; // 2 min to confirm
 const TX_POLL_INTERVAL_MS = 10_000;
+const MAX_CREATE_RETRIES = 3;          // Max create retries before longer cooldown
+const CREATE_RETRY_BACKOFF_MS = 60_000; // 1 min backoff between create retries
 
 const SLOT_DEFINITIONS: { id: string; asset: Asset; tokenType: TokenType }[] = [
-  { id: 'BTC-ALEO',  asset: 'BTC',  tokenType: 'ALEO'  },
-  { id: 'ETH-ALEO',  asset: 'ETH',  tokenType: 'ALEO'  },
-  { id: 'ALEO-ALEO', asset: 'ALEO', tokenType: 'ALEO'  },
-  // CX/SD variants disabled — open_market requires private Token records + MerkleProofs
-  // { id: 'BTC-USDCX', asset: 'BTC',  tokenType: 'USDCX' },
-  // { id: 'ETH-USAD',  asset: 'ETH',  tokenType: 'USAD'  },
+  { id: 'BTC-USDCX',  asset: 'BTC',  tokenType: 'USDCX' },
+  { id: 'ETH-USDCX',  asset: 'ETH',  tokenType: 'USDCX' },
+  { id: 'ALEO-USDCX', asset: 'ALEO', tokenType: 'USDCX' },
 ];
 
 // ─── State ───────────────────────────────────────────────────────────────────
@@ -159,6 +163,8 @@ async function loadState(): Promise<BotState | null> {
         error: r.error || null,
         lastSettleTxId: r.last_settle_tx_id || null,
         settleRetries: r.settle_retries || 0,
+        createRetries: 0,
+        nextCreateAttempt: 0,
       })),
     };
   } catch (err) {
@@ -256,6 +262,28 @@ async function createMarketForSlot(slot: MarketSlot): Promise<void> {
     createdAt: Date.now(),
   });
 
+  // For USDCX/USAD, fetch a private Token record and compute MerkleProofs
+  let tokenRecord: string | undefined;
+  let proofs: string | undefined;
+  if (slot.tokenType !== 'ALEO') {
+    try {
+      tokenRecord = await findUsdcxRecord(config.roundInitialLiquidity) ?? undefined;
+      if (!tokenRecord) {
+        slot.error = `No ${slot.tokenType} Token record with sufficient balance`;
+        slot.state = 'idle';
+        console.error(`[RoundBot] ${slot.id} no ${slot.tokenType} record found`);
+        return;
+      }
+      proofs = await getUsdcxProofs(slot.tokenType as 'USDCX' | 'USAD');
+      console.log(`[RoundBot] ${slot.id} fetched Token record + MerkleProofs for ${slot.tokenType}`);
+    } catch (err) {
+      slot.error = `Failed to fetch ${slot.tokenType} record/proofs: ${err}`;
+      slot.state = 'idle';
+      console.error(`[RoundBot] ${slot.id} record/proof fetch failed:`, err);
+      return;
+    }
+  }
+
   const result = await delegatedCreateMarket(
     questionHash,
     1, // category: Crypto
@@ -266,6 +294,8 @@ async function createMarketForSlot(slot: MarketSlot): Promise<void> {
     config.roundInitialLiquidity,
     nonce,
     slot.tokenType === 'ALEO' ? undefined : slot.tokenType,
+    tokenRecord,
+    proofs,
   );
 
   if (result.success && result.txId) {
@@ -307,6 +337,8 @@ async function createMarketForSlot(slot: MarketSlot): Promise<void> {
       slot.endTime = Date.now() + ROUND_DURATION_MS;
       slot.state = 'open';
       slot.totalVolume = 0;
+      slot.createRetries = 0;
+      slot.nextCreateAttempt = 0;
       botState!.totalRoundsCreated++;
 
       // Attach series metadata to the market for the API
@@ -324,12 +356,16 @@ async function createMarketForSlot(slot: MarketSlot): Promise<void> {
     } else {
       slot.error = 'Transaction not confirmed in time';
       slot.state = 'idle';
+      slot.createRetries++;
+      slot.nextCreateAttempt = Date.now() + CREATE_RETRY_BACKOFF_MS;
       console.error(`[RoundBot] ${slot.id} tx not confirmed: ${result.txId}`);
     }
   } else {
     slot.error = result.error || 'Create failed';
     slot.state = 'idle';
-    console.error(`[RoundBot] ${slot.id} creation failed: ${result.error}`);
+    slot.createRetries++;
+    slot.nextCreateAttempt = Date.now() + CREATE_RETRY_BACKOFF_MS;
+    console.error(`[RoundBot] ${slot.id} creation failed (retry ${slot.createRetries}/${MAX_CREATE_RETRIES}): ${result.error}`);
   }
 
   saveState();
@@ -342,15 +378,12 @@ async function settleSlot(slot: MarketSlot): Promise<void> {
     // Try to find market from cache using the txId or question
     const marketId = await findMarketIdForSlot(slot);
     if (!marketId) {
-      console.warn(`[RoundBot] ${slot.id} no market_id found, moving to cooldown`);
-      slot.state = 'cooldown';
+      console.warn(`[RoundBot] ${slot.id} no market_id found, skipping round`);
+      slot.state = 'idle';
       slot.marketId = null;
       slot.txId = null;
-      setTimeout(() => {
-        slot.roundNumber++;
-        slot.state = 'idle';
-        saveState();
-      }, COOLDOWN_MS);
+      slot.roundNumber++;
+      saveState();
       return;
     }
     slot.marketId = marketId;
@@ -389,29 +422,21 @@ async function settleSlot(slot: MarketSlot): Promise<void> {
     // Update series cumulative stats
     updateSeriesStats(seriesId, slot.totalVolume).catch(() => {});
 
-    // Cooldown before creating next round
-    slot.state = 'cooldown';
+    // Move to idle so batch-create can pick it up
+    slot.state = 'idle';
     slot.marketId = null;
     slot.txId = null;
-    setTimeout(() => {
-      slot.roundNumber++;
-      slot.state = 'idle';
-      saveState();
-    }, COOLDOWN_MS);
+    slot.roundNumber++;
   } else {
     slot.settleRetries = (slot.settleRetries || 0) + 1;
     if (slot.settleRetries >= 3) {
       console.error(`[RoundBot] ${slot.id} settle failed ${slot.settleRetries} times — skipping round`);
-      slot.state = 'cooldown';
+      slot.state = 'idle';
       slot.marketId = null;
       slot.txId = null;
       slot.settleRetries = 0;
+      slot.roundNumber++;
       botState!.totalRoundsSkipped++;
-      setTimeout(() => {
-        slot.roundNumber++;
-        slot.state = 'idle';
-        saveState();
-      }, COOLDOWN_MS);
     } else {
       slot.error = result.error || 'Settle failed';
       console.error(`[RoundBot] ${slot.id} settle failed (attempt ${slot.settleRetries}/3): ${result.error}`);
@@ -427,7 +452,7 @@ async function fetchPoolVolume(marketId: string, tokenType: TokenType): Promise<
   try {
     const programId = getProgramId(tokenType);
     const url = `${config.aleoEndpoint}/${config.aleoNetwork}/program/${programId}/mapping/amm_pools/${marketId}`;
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url, {}, 10_000);
     if (!res.ok) return 0;
     const text = await res.text();
     let raw: string;
@@ -461,7 +486,7 @@ async function waitForTxConfirmation(txId: string): Promise<boolean> {
   while (Date.now() < deadline) {
     try {
       const url = `${config.aleoEndpoint}/${config.aleoNetwork}/transaction/${txId}`;
-      const res = await fetch(url);
+      const res = await fetchWithTimeout(url, {}, 10_000);
       if (res.ok) return true;
     } catch { /* not yet */ }
     await sleep(TX_POLL_INTERVAL_MS);
@@ -496,35 +521,66 @@ async function tick(): Promise<void> {
   tickBusy = true;
 
   try {
+    // ── Phase 1: Settle any expired open slots ──
     for (const slot of botState.slots) {
       if (!running) break;
+      if (slot.state === 'open' && Date.now() >= slot.endTime) {
+        await settleSlot(slot);
+      }
+      if (slot.state === 'settling' && slot.error) {
+        console.log(`[RoundBot] ${slot.id} retrying settle after error...`);
+        slot.error = null;
+        await settleSlot(slot);
+      }
+    }
 
-      switch (slot.state) {
-        case 'idle': {
-          // Create a new market for this slot
-          await createMarketForSlot(slot);
-          break;
-        }
-        case 'open': {
-          // Check if round expired
-          if (Date.now() >= slot.endTime) {
-            await settleSlot(slot);
+    // ── Phase 2: Batch-create — only start when ALL slots are idle ──
+    const allIdle = botState.slots.every(
+      (s) => s.state === 'idle'
+    );
+    if (allIdle) {
+      // Check backoff on any slot
+      const backoffSlot = botState.slots.find(
+        (s) => s.nextCreateAttempt && Date.now() < s.nextCreateAttempt
+      );
+      if (backoffSlot) {
+        // Still in backoff — skip this tick
+      } else {
+        // Check retry limits
+        const maxedOut = botState.slots.find(
+          (s) => s.createRetries >= MAX_CREATE_RETRIES
+        );
+        if (maxedOut) {
+          maxedOut.nextCreateAttempt = Date.now() + 5 * 60_000;
+          maxedOut.createRetries = 0;
+          console.warn(`[RoundBot] ${maxedOut.id} hit max create retries — cooling down 5min`);
+        } else {
+          // Create all 3 markets sequentially, then align endTime
+          const createdSlots: MarketSlot[] = [];
+          for (const slot of botState.slots) {
+            if (!running) break;
+            await createMarketForSlot(slot);
+            if (slot.state === 'open') {
+              createdSlots.push(slot);
+            } else {
+              // One slot failed — don't continue (to avoid partial rounds)
+              break;
+            }
           }
-          break;
-        }
-        case 'settling': {
-          // Retry settle if previous attempt failed
-          if (slot.error) {
-            console.log(`[RoundBot] ${slot.id} retrying settle after error...`);
-            slot.error = null;
-            await settleSlot(slot);
+
+          // Align all endTimes to the LAST created slot's endTime
+          if (createdSlots.length === botState.slots.length) {
+            const latestEnd = Math.max(...createdSlots.map((s) => s.endTime));
+            for (const slot of createdSlots) {
+              slot.endTime = latestEnd;
+            }
+            console.log(`[RoundBot] All ${createdSlots.length} rounds synced — expire together at ${new Date(latestEnd).toISOString()}`);
+          } else if (createdSlots.length > 0) {
+            // Partial batch — the created slots will expire naturally and be settled
+            // by the normal tick loop, then the next allIdle cycle will create all 3
+            console.warn(`[RoundBot] Partial batch: ${createdSlots.length}/${botState.slots.length} created — will settle orphans next cycle`);
           }
-          break;
-        }
-        case 'creating':
-        case 'cooldown': {
-          // Wait for async operation to complete
-          break;
+          saveState();
         }
       }
     }
@@ -564,7 +620,9 @@ export async function startRoundBot(): Promise<void> {
 
   // Try to restore state from database
   const saved = await loadState();
-  if (saved && saved.slots.length === SLOT_DEFINITIONS.length) {
+  const savedSlotIdsMatch = saved && saved.slots.length === SLOT_DEFINITIONS.length &&
+    SLOT_DEFINITIONS.every((def) => saved.slots.some((s) => s.id === def.id));
+  if (saved && savedSlotIdsMatch) {
     botState = saved;
     botState.resolverAddress = resolverAddress;
     console.log(`[RoundBot] Restored state: ${saved.totalRoundsCreated} created, ${saved.totalRoundsSettled} settled, ${saved.totalRoundsSkipped} skipped`);
@@ -603,18 +661,20 @@ export async function startRoundBot(): Promise<void> {
     }
     // Settle expired slots after the main loop starts (async, won't block startup)
     if (expiredSlotsToSettle.length > 0) {
-      setTimeout(async () => {
-        for (const slot of expiredSlotsToSettle) {
-          try {
-            await settleSlot(slot);
-          } catch (err) {
-            console.error(`[RoundBot] Failed to settle expired ${slot.id}:`, err);
-            slot.state = 'idle';
-            slot.marketId = null;
-            slot.roundNumber++;
+      setTimeout(() => {
+        (async () => {
+          for (const slot of expiredSlotsToSettle) {
+            try {
+              await settleSlot(slot);
+            } catch (err) {
+              console.error(`[RoundBot] Failed to settle expired ${slot.id}:`, err);
+              slot.state = 'idle';
+              slot.marketId = null;
+              slot.roundNumber++;
+            }
           }
-        }
-        await saveState();
+          saveState();
+        })().catch((err) => console.error('[RoundBot] Expired slot settle error:', err));
       }, 5_000); // 5s delay to let other init finish
     }
 
@@ -627,39 +687,45 @@ export async function startRoundBot(): Promise<void> {
     );
     if (orphanedExpired.length > 0) {
       console.log(`[RoundBot] Found ${orphanedExpired.length} orphaned expired market(s) — settling...`);
-      setTimeout(async () => {
-        for (const market of orphanedExpired) {
-          try {
-            const q = market.question.toUpperCase();
-            const asset: Asset = q.includes('BTC') || q.includes('BITCOIN') ? 'BTC' : q.includes('ETH') || q.includes('ETHEREUM') ? 'ETH' : 'ALEO';
-            const tokenType: TokenType = market.tokenType === 'USDCX' ? 'USDCX' : market.tokenType === 'USAD' ? 'USAD' : 'ALEO';
-            const tmpSlot: MarketSlot = {
-              id: `orphan-${market.id.slice(0, 8)}`,
-              asset,
-              tokenType,
-              programId: tokenType === 'USDCX' ? 'veil_strike_v7_cx.aleo' : tokenType === 'USAD' ? 'veil_strike_v7_sd.aleo' : 'veil_strike_v7.aleo',
-              state: 'open',
-              marketId: market.id,
-              txId: null,
-              startPrice: market.startPrice || 0,
-              startTime: market.endTime - ROUND_DURATION_MS,
-              endTime: market.endTime,
-              roundNumber: market.roundNumber || 0,
-              totalVolume: 0,
-              error: null,
-              lastSettleTxId: null,
-              settleRetries: 0,
-            };
-            console.log(`[RoundBot] Settling orphan ${asset} market ${market.id.slice(0, 12)}...`);
-            await settleSlot(tmpSlot);
-          } catch (err) {
-            console.error(`[RoundBot] Failed to settle orphan ${market.id.slice(0, 12)}:`, err);
+      setTimeout(() => {
+        (async () => {
+          for (const market of orphanedExpired) {
+            try {
+              const q = market.question.toUpperCase();
+              const asset: Asset = q.includes('BTC') || q.includes('BITCOIN') ? 'BTC' : q.includes('ETH') || q.includes('ETHEREUM') ? 'ETH' : 'ALEO';
+              const tokenType: TokenType = market.tokenType === 'USDCX' ? 'USDCX' : market.tokenType === 'USAD' ? 'USAD' : 'ALEO';
+              const tmpSlot: MarketSlot = {
+                id: `orphan-${market.id.slice(0, 8)}`,
+                asset,
+                tokenType,
+                programId: tokenType === 'USDCX' ? 'veil_strike_v7_cx.aleo' : tokenType === 'USAD' ? 'veil_strike_v7_sd.aleo' : 'veil_strike_v7.aleo',
+                state: 'open',
+                marketId: market.id,
+                txId: null,
+                startPrice: market.startPrice || 0,
+                startTime: market.endTime - ROUND_DURATION_MS,
+                endTime: market.endTime,
+                roundNumber: market.roundNumber || 0,
+                totalVolume: 0,
+                error: null,
+                lastSettleTxId: null,
+                settleRetries: 0,
+                createRetries: 0,
+                nextCreateAttempt: 0,
+              };
+              console.log(`[RoundBot] Settling orphan ${asset} market ${market.id.slice(0, 12)}...`);
+              await settleSlot(tmpSlot);
+            } catch (err) {
+              console.error(`[RoundBot] Failed to settle orphan ${market.id.slice(0, 12)}:`, err);
+            }
           }
-        }
+        })().catch((err) => console.error('[RoundBot] Orphan settle error:', err));
       }, 10_000); // 10s delay — after expired slots settled
     }
   } else {
-    // Fresh start
+    // Fresh start — clear old slots from DB
+    await query('DELETE FROM round_bot_slots').catch(() => {});
+    await query('DELETE FROM round_bot_state').catch(() => {});
     botState = {
       slots: SLOT_DEFINITIONS.map((def) => ({
         id: def.id,
@@ -677,6 +743,8 @@ export async function startRoundBot(): Promise<void> {
         error: null,
         lastSettleTxId: null,
         settleRetries: 0,
+        createRetries: 0,
+        nextCreateAttempt: 0,
       })),
       resolverAddress,
       startedAt: Date.now(),
@@ -852,17 +920,15 @@ export async function forceSettleSlot(slotId: string, winningOutcome: 1 | 2): Pr
   if (result.success) {
     slot.lastSettleTxId = result.txId || null;
     botState.totalRoundsSettled++;
-    slot.state = 'cooldown';
+    slot.state = 'idle';
     slot.marketId = null;
-    setTimeout(() => {
-      slot.roundNumber++;
-      slot.state = 'idle';
-      saveState();
-    }, COOLDOWN_MS);
+    slot.roundNumber++;
+    slot.settleRetries = 0;
     saveState();
     return { success: true };
   } else {
     slot.state = 'open';
+    slot.settleRetries = 0;
     return { success: false, error: result.error };
   }
 }

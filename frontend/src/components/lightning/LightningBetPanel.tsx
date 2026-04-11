@@ -19,6 +19,7 @@ export default function LightningBetPanel({ market }: LightningBetPanelProps) {
   const [amount, setAmount] = useState('');
   const { status, execute, fetchCreditsRecord } = useTransaction();
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
+  const tokenLabel = market.tokenType === 'USAD' ? 'USAD' : market.tokenType === 'USDCX' ? 'USDCx' : 'ALEO';
 
   const prices = calculatePrices(market.reserves);
   const amountMicro = parseAleoInput(amount);
@@ -113,7 +114,7 @@ export default function LightningBetPanel({ market }: LightningBetPanelProps) {
       {/* Summary */}
       {amountMicro > 0 && (
         <div className="flex justify-between text-xs text-gray-500 mb-4 px-1">
-          <span>Est. Return: <span className="text-teal font-mono">{formatAleo(estimatedShares)} ALEO</span></span>
+          <span>Est. Return: <span className="text-teal font-mono">{formatAleo(estimatedShares)} {tokenLabel}</span></span>
           <span>Fee: <span className="font-mono">{formatAleo(totalFee)}</span></span>
         </div>
       )}

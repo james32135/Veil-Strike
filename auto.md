@@ -38,7 +38,7 @@ Key facts:
 - **15-minute rounds** with automatic creation → settlement → next round
 - **Delegated proving** via Provable API (ZK proofs generated remotely in ~15-30s)
 - **On-chain settlement** via `flash_settle` for ALL markets (including empty ones)
-- **Program**: `veil_strike_v6.aleo` on Aleo testnet
+- **Program**: `veil_strike_v7_cx.aleo` on Aleo mainnet
 
 ---
 
@@ -46,7 +46,7 @@ Key facts:
 
 ```
 ┌──────────────┐    Provable DPS     ┌──────────────────┐
-│  Round Bot   │ ──── prove+broadcast ──→ │  Aleo Testnet    │
+│  Round Bot   │ ──── prove+broadcast ──→ │  Aleo Mainnet    │
 │  (round-bot) │                      │  (on-chain state) │
 │              │ ←── tx confirmed ─── │                    │
 └──────┬───────┘                      └────────┬───────────┘
@@ -178,7 +178,7 @@ The main state machine. Manages 3 market slots, each cycling through:
 
 Handles ZK proof generation via Provable's remote proving service.
 
-- URL: `https://api.provable.com/prove/testnet`
+- URL: `https://api.provable.com/prove/mainnet/prove`
 - `useFeeMaster: true` — Provable pays the on-chain fee
 - Authorization built locally (~1s), proving done remotely (~15-30s)
 - Exposes: `delegatedCreateMarket()`, `delegatedSettle()`, `delegatedExecute()`
@@ -282,8 +282,8 @@ for (const slot of botState.slots) {
 ### How It Works
 
 1. **Local authorization** (~1s): `pm.provingRequest()` builds the execution authorization using the private key
-2. **Remote proving** (~15-30s): Sent to `https://api.provable.com/prove/testnet` where Provable generates the ZK proof
-3. **Broadcast**: Provable broadcasts the proven transaction to Aleo testnet
+2. **Remote proving** (~15-30s): Sent to `https://api.provable.com/prove/mainnet/prove` where Provable generates the ZK proof
+3. **Broadcast**: Provable broadcasts the proven transaction to Aleo mainnet
 
 ### Key Configuration
 
@@ -300,7 +300,7 @@ const provingRequest = await pm.provingRequest({
 
 const result = await networkClient.submitProvingRequestSafe({
   provingRequest,
-  url: 'https://api.provable.com/prove/testnet',  // Must be explicit
+  url: 'https://api.provable.com/prove/mainnet/prove',  // Must be explicit
   apiKey: config.provableApiKey,
   consumerId: config.provableConsumerId,
 });
@@ -312,13 +312,13 @@ Without it, the resolver wallet needs enough ALEO balance to cover the fee. With
 
 ### Why explicit `url`?
 
-The SDK's `submitProvingRequestSafe` defaults to the explorer API URL (`api.explorer.provable.com`) which returns 404 for proving requests. The DPS URL `https://api.provable.com/prove/testnet` must be set explicitly.
+The SDK's `submitProvingRequestSafe` defaults to the explorer API URL (`api.explorer.provable.com`) which returns 404 for proving requests. The DPS URL `https://api.provable.com/prove/mainnet/prove` must be set explicitly.
 
 ---
 
 ## On-Chain Contract
 
-Program: `veil_strike_v6.aleo`
+Program: `veil_strike_v7_cx.aleo`
 
 ### Key Transitions Used by Bot
 
@@ -394,14 +394,14 @@ Backup for when `extractMarketIdFromTx` fails:
 
 ### The Problem
 
-Aleo testnet block time is ~4-5 seconds, NOT 15 seconds. Using wrong block time causes:
+Aleo block time is ~4-5 seconds, NOT 15 seconds. Using wrong block time causes:
 - Deadline too far in future (173 days instead of 15 minutes)
 - Deadline arriving too early (4 min instead of 15 min)
 
 ### The Fix
 
 ```typescript
-const ACTUAL_BLOCK_TIME_S = 5;  // Aleo testnet: ~4-5s per block
+const ACTUAL_BLOCK_TIME_S = 5;  // Aleo: ~4-5s per block
 const roundBlocks = Math.ceil(config.roundDurationMinutes * 60 / ACTUAL_BLOCK_TIME_S) + 30;
 // For 15 min: ceil(900/5) + 30 = 180 + 30 = 210 blocks
 const deadline = currentBlock + roundBlocks;
@@ -670,7 +670,7 @@ The contract enforces `assert(current_height <= market.deadline)` in `acquire_sh
 
 ### 3. Block Time Variability
 
-Aleo testnet block time ranges from ~3s to ~6s. We use `ACTUAL_BLOCK_TIME_S = 5` which gives a 210-block deadline for 15-min rounds (~17.5 min at 5s/block). The `botEndTime` wall-clock timestamp ensures the frontend countdown is accurate regardless of actual block timing.
+Aleo mainnet block time ranges from ~3s to ~6s. We use `ACTUAL_BLOCK_TIME_S = 5` which gives a 210-block deadline for 15-min rounds (~17.5 min at 5s/block). The `botEndTime` wall-clock timestamp ensures the frontend countdown is accurate regardless of actual block timing.
 
 ### 4. DPS Proving Latency
 
@@ -730,7 +730,7 @@ This should no longer happen after the virtual-reset removal. All markets get `f
 
 The SDK defaults to the explorer API for proving. Must explicitly set URL:
 ```typescript
-url: 'https://api.provable.com/prove/testnet'
+url: 'https://api.provable.com/prove/mainnet/prove'
 ```
 
 ### Fee Verification Failed
@@ -796,7 +796,7 @@ After 15 minutes:
 ### 3. Test Bet Placement (Frontend)
 
 1. Open `http://localhost:5173/rounds`
-2. Connect wallet (Leo Wallet / Puzzle Wallet)
+2. Connect wallet (Shield Wallet)
 3. Select a market (e.g., BTC Strike Round)
 4. Choose UP or DOWN
 5. Enter amount and submit
@@ -836,13 +836,13 @@ curl -X POST http://localhost:3001/api/lightning/bot/start
 
 ```bash
 # Check market status on-chain
-curl "https://api.explorer.provable.com/v2/testnet/program/veil_strike_v6.aleo/mapping/markets/MARKET_ID_FIELD"
+curl "https://api.provable.com/v2/mainnet/program/veil_strike_v7_cx.aleo/mapping/markets/MARKET_ID_FIELD"
 
 # Check pool volume
-curl "https://api.explorer.provable.com/v2/testnet/program/veil_strike_v6.aleo/mapping/amm_pools/MARKET_ID_FIELD"
+curl "https://api.provable.com/v2/mainnet/program/veil_strike_v7_cx.aleo/mapping/amm_pools/MARKET_ID_FIELD"
 
 # Check resolution
-curl "https://api.explorer.provable.com/v2/testnet/program/veil_strike_v6.aleo/mapping/market_resolutions/MARKET_ID_FIELD"
+curl "https://api.provable.com/v2/mainnet/program/veil_strike_v7_cx.aleo/mapping/market_resolutions/MARKET_ID_FIELD"
 ```
 
 ---
@@ -875,12 +875,12 @@ curl "https://api.explorer.provable.com/v2/testnet/program/veil_strike_v6.aleo/m
 ## Lessons Learned
 
 ### 1. DPS URL Must Be Explicit
-The `@provablehq/sdk` defaults `submitProvingRequestSafe` to the explorer API URL, which returns 404 for proving. Always pass `url: 'https://api.provable.com/prove/testnet'`.
+The `@provablehq/sdk` defaults `submitProvingRequestSafe` to the explorer API URL, which returns 404 for proving. Always pass `url: 'https://api.provable.com/prove/mainnet/prove'`.
 
 ### 2. `useFeeMaster: true` Is Required
 Without it, the resolver wallet needs enough ALEO to cover the fee. DPS's fee master pays it for you.
 
-### 3. Block Time Is ~5s on Testnet (Not 15s)
+### 3. Block Time Is ~5s (Not 15s)
 Using wrong block time makes deadlines arrive 3x too early or too late. Always verify actual block time empirically.
 
 ### 4. Wall-Clock `botEndTime` > Block-Height Conversion

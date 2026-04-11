@@ -103,12 +103,12 @@ export default function Docs() {
           <div className="text-sm text-gray-400 space-y-3 leading-relaxed">
             <p>
               Strike Rounds are 15-minute price prediction markets where you bet UP or DOWN
-              on BTC, ETH, or ALEO prices. Three concurrent slots run — all denominated in ALEO.
+              on BTC, ETH, or ALEO prices. Three concurrent slots run — all denominated in USDCx.
             </p>
             <p>
               The <strong className="text-white">Round Bot</strong> automates the full lifecycle using
               <strong className="text-teal"> delegated proving</strong> (~30s per transaction via Provable API).
-              Every 15 minutes the bot creates 3 markets (BTC-ALEO, ETH-ALEO, ALEO-ALEO), waits for the
+              Every 15 minutes the bot creates 3 markets (BTC-USDCx, ETH-USDCx, ALEO-USDCx), waits for the
               timer to expire, compares oracle start vs end price, and calls
               <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs mx-1">flash_settle</code>
               on-chain for every market — including empty ones (ensures clean on-chain state). After settlement
@@ -160,6 +160,99 @@ export default function Docs() {
               ensure compatibility with Shield&apos;s proving infrastructure. The smart contract is
               designed so that only the user&apos;s records require private input, while all global
               state updates happen in finalize.
+            </p>
+          </div>
+        </Card>
+
+        {/* Stablecoins */}
+        <Card className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <ShieldIcon className="w-6 h-6 text-teal" />
+            <h2 className="text-lg font-heading font-bold text-white">Stablecoins &mdash; USDCx &amp; USAD</h2>
+          </div>
+          <div className="text-sm text-gray-400 space-y-3 leading-relaxed">
+            <p>
+              Veil Strike supports two privacy-native stablecoins on Aleo, both backed 1:1 by real-world reserves:
+            </p>
+            <ul className="space-y-2 ml-4">
+              <li className="flex items-start gap-2">
+                <span className="text-blue-400 mt-1">•</span>
+                <span><span className="text-white">USDCx</span> &mdash; Backed 1:1 by USDC held in Circle xReserve. Bridge USDC from Ethereum to Aleo at <a href="https://usdcx.aleo.org" target="_blank" rel="noopener noreferrer" className="text-teal hover:underline">usdcx.aleo.org</a>. Program: <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">usdcx_stablecoin.aleo</code></span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-green-400 mt-1">•</span>
+                <span><span className="text-white">USAD</span> &mdash; Backed 1:1 by USDG (Global Dollar Network) via Paxos Trust Company. Bridge USDG from Ethereum at <a href="https://usad.aleo.org" target="_blank" rel="noopener noreferrer" className="text-teal hover:underline">usad.aleo.org</a>. Program: <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">usad_stablecoin.aleo</code></span>
+              </li>
+            </ul>
+            <p>
+              Both stablecoins have <span className="text-white">encrypted balances and transfers by default</span> on Aleo. Your holdings are invisible to everyone except you. Strike Rounds use USDCx for all bets.
+            </p>
+          </div>
+        </Card>
+
+        {/* Governance */}
+        <Card className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <PoolIcon className="w-6 h-6 text-teal" />
+            <h2 className="text-lg font-heading font-bold text-white">On-Chain Governance</h2>
+          </div>
+          <div className="text-sm text-gray-400 space-y-3 leading-relaxed">
+            <p>
+              Veil Strike features fully on-chain governance with executable proposals:
+            </p>
+            <ul className="space-y-2 ml-4">
+              <li className="flex items-start gap-2">
+                <span className="text-teal mt-1">1.</span>
+                <span><span className="text-white">Submit Proposal</span> &mdash; Bond 5 ALEO to create a governance proposal (fee change, resolver approval, treasury withdrawal)</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-teal mt-1">2.</span>
+                <span><span className="text-white">Vote</span> &mdash; Community members cast votes. Minimum quorum: 3 votes</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-teal mt-1">3.</span>
+                <span><span className="text-white">Timelock</span> &mdash; 480 blocks (~2 hours) must pass after vote deadline before execution</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-teal mt-1">4.</span>
+                <span><span className="text-white">Execute</span> &mdash; <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">execute_proposal</code> or <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">execute_treasury</code> applies the approved action on-chain</span>
+              </li>
+            </ul>
+            <p>
+              <span className="text-white font-medium">Resolver Registry:</span> Resolvers must stake 10 ALEO via <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">register_resolver</code> to be authorized for market settlement. They can withdraw via <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">withdraw_resolver_stake</code>.
+            </p>
+            <p>
+              <span className="text-white font-medium">Dispute System:</span> Any user can dispute a resolution by bonding 5 ALEO via <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">contest_verdict</code> within the 12-hour challenge window. Bonds are recoverable via <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">recover_bond</code> after finalization.
+            </p>
+          </div>
+        </Card>
+
+        {/* Token Flow */}
+        <Card className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <ChartIcon className="w-6 h-6 text-teal" />
+            <h2 className="text-lg font-heading font-bold text-white">Token Flow &amp; Bridge</h2>
+          </div>
+          <div className="text-sm text-gray-400 space-y-3 leading-relaxed">
+            <p>
+              <span className="text-white font-medium">Getting Tokens:</span>
+            </p>
+            <ul className="space-y-2 ml-4">
+              <li className="flex items-start gap-2">
+                <span className="text-teal mt-1">•</span>
+                <span><span className="text-white">ALEO</span> &mdash; Purchase on exchanges (Coinbase, OKX, Gate.io) and send to your Shield Wallet address</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-teal mt-1">•</span>
+                <span><span className="text-white">USDCx</span> &mdash; Deposit USDC on Ethereum → mint USDCx on Aleo via <a href="https://usdcx.aleo.org" target="_blank" rel="noopener noreferrer" className="text-teal hover:underline">Circle xReserve bridge</a></span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-teal mt-1">•</span>
+                <span><span className="text-white">USAD</span> &mdash; Deposit USDG on Ethereum → mint USAD on Aleo via <a href="https://usad.aleo.org" target="_blank" rel="noopener noreferrer" className="text-teal hover:underline">Paxos bridge</a></span>
+              </li>
+            </ul>
+            <p>
+              <span className="text-white font-medium">On Veil Strike:</span> When you bet, your tokens flow through <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">transfer_private_to_public</code> into the market pool. Your transaction generates a ZK proof &mdash; only you hold the private <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">OutcomeShare</code> record. When you win, <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">harvest_winnings</code> sends tokens back via <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs">transfer_public_to_private</code> &mdash; the recipient is hidden.
             </p>
           </div>
         </Card>

@@ -5,19 +5,11 @@
 - [Leo CLI](https://developer.aleo.org/leo/) (latest version)
 - [snarkOS](https://github.com/AleoHQ/snarkOS) (for deployment commands)
 - [Node.js](https://nodejs.org/) v18+
-- Aleo testnet private key with sufficient credits
+- Aleo private key with sufficient ALEO credits
 
-## Step 1: Get Testnet Credits
+## Step 1: Get ALEO Credits
 
-```bash
-# Option 1: Aleo Faucet
-# Visit: https://faucet.aleo.org/
-
-# Option 2: Discord Faucet Bot
-# Join: https://discord.gg/aleo
-# Channel: #faucet
-# Command: /sendcredits <your_address>
-```
+Purchase ALEO from supported exchanges and transfer to your wallet address.
 
 ## Step 2: Configure Environment
 
@@ -39,7 +31,7 @@ leo build
 cd ../veil_strike_v7_sd
 leo build
 
-# Deploy to testnet
+# Deploy to mainnet
 cd ../../..
 ./scripts/deploy.sh
 ```
@@ -90,8 +82,8 @@ Open http://localhost:5173 in your browser.
 
 1. Install Shield Wallet browser extension
 2. Create or import an Aleo account
-3. Switch to testnet
-4. Fund your account with testnet credits
+3. Switch to mainnet
+4. Fund your account with ALEO credits
 5. Click "Connect Wallet" on the Veil Strike app
 
 ## Production Deployment
@@ -107,7 +99,7 @@ npm run build
 Set environment variables:
 ```
 VITE_API_BASE=https://your-api-domain.com/api
-VITE_PROGRAM_ID=veil_strike_v4.aleo
+VITE_PROGRAM_ID=veil_strike_v7.aleo
 ```
 
 ### Backend (Railway/Render/VPS)

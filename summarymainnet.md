@@ -398,3 +398,56 @@ All 3 USDCX rounds created, synced, settled, and re-created successfully:
 - `contract/veil_strike_v6/` (entire directory)
 - `contract/veil_strike_v6_cx/` (entire directory)
 - `contract/veil_strike_v6_sd/` (entire directory)
+
+---
+
+## Phase 16: Elite Landing Page Redesign + Docs Overhaul ✅
+
+Complete redesign of the landing page with professional animations, new educational content sections, and full testnet→mainnet docs cleanup.
+
+### New Landing Components Created
+| Component | Description |
+|---|---|
+| `SpotlightCursor.tsx` | Mouse-following radial gradient spotlight (framer-motion spring physics, desktop only) |
+| `WhyAleoSection.tsx` | 4 numbered cards: ZK Proofs, Encrypted Records, No Front-Running, Mainnet Live |
+| `StablecoinsSection.tsx` | USDCx (Circle) + USAD (Paxos) explanation with bridge info, mint links, feature badges |
+
+### Redesigned Landing Components (9 total)
+- **HeroSection** — Parallax scrolling, "Live on Aleo Mainnet" badge, scrolling ticker marquee, 40 particles with glow
+- **FeaturesSection** — Stagger animations, per-card badges, glass-border-beam hover, USDCx/Paxos descriptions
+- **PrivacySection** — 2-column: privacy cards + flow diagram | 7-row privacy matrix table
+- **LightningSection** — Strike Rounds USDCx focus, chart mockup, 4 feature cards
+- **HowItWorksSection** — 4-step staggered cards with detail text
+- **ComparisonSection** — 10-row table vs Polymarket vs Azuro
+- **ArchitectureSection** — 4-layer horizontal cards (User, Protocol, Execution, Blockchain)
+- **TechStackSection** — 8 tech badges with hover animations
+- **CTASection** — "Predict the Future. Privately." + trust badges
+
+### Landing Page: 13 Sections
+SpotlightCursor → Hero → Live Markets → Features → Why Aleo → Stablecoins → Lightning → How It Works → Privacy → Comparison → Architecture → Tech Stack → CTA
+
+### Docs Testnet→Mainnet Fixes
+- `docs/ARCHITECTURE.md` — "Aleo Blockchain (Testnet)" → "Mainnet"
+- `docs/DEPLOYMENT.md` — Testnet credits/wallet/deploy → mainnet throughout, v4→v7
+- `auto.md` — v6→v7_cx, all testnet URLs → mainnet, DPS/explorer/mapping paths updated
+- `about.md` — Complete rewrite for mainnet (v7 contracts, stablecoins, architecture)
+- `README.md` — Removed "Full UI/UX redesign" from planned, removed Wave 4 footer
+
+## Phase 17: Production Polish + Wallet Standardization ✅
+
+### Wallet Name Standardization
+- Unified all user-facing references to **"Shield Wallet"** (the correct product name)
+- Fixed "Shielded Wallet" → "Shield Wallet" in: `ARCHITECTURE.md`, `ArchitectureSection.tsx`, `HowItWorksSection.tsx`, `FAQ.tsx`, `Docs.tsx`, `Governance.tsx`
+- Fixed "Leo Wallet / Puzzle Wallet" → "Shield Wallet" in: `auto.md`
+- **NOT touched**: hooks (`useTransaction.ts`), utils (`transactions.ts`, `marketRegistration.ts`), technical components (`TradePanel.tsx`, `Footer.tsx`) — these already had "Shield Wallet" and changing them risks runtime errors
+
+### HeroSection Encoding Fix
+- `HeroSection.tsx` had full content duplicated (652 lines → 327) with corrupted encoding in the second half (`Ã¢â€â‚¬`, `Ã‚Â·`, etc.)
+- Truncated to clean first 327 lines — all encoding corruption removed
+
+### README.md Messaging Enhancement
+- Added "The Problem / The Solution" framing to the intro — explains why public prediction markets (Polymarket, Azuro) are problematic and how Veil Strike solves it with ZK privacy
+
+### about.md Professional Rewrite
+- Expanded from 2,655 → 5,789 characters (target: 5,700–5,900)
+- Full coverage: Privacy Architecture table, Why Aleo, 53 transitions, USDCx/USAD with mint links, Strike Rounds, Governance, Architecture, 14+ pages, all working features

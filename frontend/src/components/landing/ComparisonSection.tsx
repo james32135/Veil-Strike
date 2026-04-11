@@ -1,52 +1,76 @@
 import { motion } from 'framer-motion';
 
-const comparisons = [
-  { feature: 'Bet Privacy', veilStrike: 'Full ZK', polymarket: 'Public', azuro: 'Public' },
-  { feature: 'Identity Hidden', veilStrike: 'Yes', polymarket: 'No', azuro: 'Pseudo' },
-  { feature: 'Position Privacy', veilStrike: 'Encrypted Records', polymarket: 'On-chain', azuro: 'On-chain' },
-  { feature: 'Front-Running', veilStrike: 'Impossible', polymarket: 'Possible', azuro: 'Possible' },
-  { feature: 'Strike Rounds (24h–30d)', veilStrike: 'Yes', polymarket: 'No', azuro: 'No' },
-  { feature: 'Private Payouts', veilStrike: 'Yes', polymarket: 'No', azuro: 'No' },
-  { feature: 'On-Chain FPMM', veilStrike: 'Yes', polymarket: 'No', azuro: 'Yes' },
+const columns = ['Feature', 'Veil Strike', 'Polymarket', 'Azuro'];
+
+const rows = [
+  { feature: 'Privacy', vs: ['Full ZK privacy', 'None — public', 'None — public'] },
+  { feature: 'Identity', vs: ['No KYC required', 'KYC required', 'Wallet-linked'] },
+  { feature: 'Blockchain', vs: ['Aleo (ZK-native)', 'Polygon', 'Gnosis Chain'] },
+  { feature: 'Bet Visibility', vs: ['Encrypted on-chain', 'Public on-chain', 'Public on-chain'] },
+  { feature: 'Balance Privacy', vs: ['Hidden by default', 'Visible to all', 'Visible to all'] },
+  { feature: 'Fast Rounds', vs: ['15-min Strike Rounds', 'None', 'None'] },
+  { feature: 'Stablecoins', vs: ['USDCx + USAD (private)', 'USDC (public)', 'xDAI (public)'] },
+  { feature: 'Market Maker', vs: ['FPMM on-chain', 'Central order book', 'FPMM on-chain'] },
+  { feature: 'Proof System', vs: ['Delegated ZK proofs', 'N/A', 'N/A'] },
+  { feature: 'Governance', vs: ['On-chain DAO', 'Off-chain', 'Off-chain'] },
 ];
 
 export default function ComparisonSection() {
   return (
-    <section className="py-28 px-4">
-      <div className="max-w-4xl mx-auto">
-        <motion.div initial={{ opacity: 0, y: 25 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-14">
-          <h2 className="section-title mb-4">Privacy Comparison</h2>
-          <p className="text-smoke/60 max-w-xl mx-auto">See how Veil Strike compares to existing prediction markets.</p>
+    <section className="py-28 px-4 relative">
+      <div className="max-w-5xl mx-auto">
+        <motion.div initial={{ opacity: 0, y: 25 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+          className="text-center mb-14">
+          <span className="inline-block text-[11px] font-heading text-teal uppercase tracking-[0.3em] mb-4">Comparison</span>
+          <h2 className="section-title mb-4">
+            Why <span className="gradient-text">Veil Strike</span>?
+          </h2>
+          <p className="text-smoke/55 max-w-lg mx-auto leading-relaxed">
+            Every prediction market reveals your bets, balance, and identity. Veil Strike is the only protocol where all of that is encrypted.
+          </p>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 25 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="glass-card overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-teal/20 to-transparent" />
+        {/* Table */}
+        <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          className="glass-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[500px]">
+            <table className="w-full text-left">
               <thead>
-                <tr className="border-b border-white/[0.04]">
-                  <th className="px-6 py-5 text-left text-[10px] font-heading font-semibold text-smoke/40 uppercase tracking-wider">Feature</th>
-                  <th className="px-6 py-5 text-center text-[10px] font-heading font-semibold text-teal uppercase tracking-wider">
-                    <span className="flex items-center justify-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-teal animate-pulse" />Veil Strike</span>
-                  </th>
-                  <th className="px-6 py-5 text-center text-[10px] font-heading font-semibold text-smoke/30 uppercase tracking-wider">Polymarket</th>
-                  <th className="px-6 py-5 text-center text-[10px] font-heading font-semibold text-smoke/30 uppercase tracking-wider">Azuro</th>
+                <tr className="border-b border-white/[0.06]">
+                  {columns.map((col, i) => (
+                    <th key={col}
+                      className={`px-6 py-4 text-xs font-heading uppercase tracking-wider ${
+                        i === 1 ? 'text-teal bg-teal/[0.03]' : 'text-smoke/40'
+                      }`}>
+                      {col}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {comparisons.map((row, i) => (
-                  <motion.tr key={row.feature} className="border-b border-white/[0.03] last:border-0 hover:bg-teal/[0.02] transition-colors"
-                    initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ delay: i * 0.05 + 0.2 }}>
-                    <td className="px-6 py-4 text-sm text-smoke">{row.feature}</td>
-                    <td className="px-6 py-4 text-center text-sm font-medium text-teal"><span className="text-accent-green text-xs mr-1">✓</span>{row.veilStrike}</td>
-                    <td className="px-6 py-4 text-center text-sm text-smoke/40">{row.polymarket}</td>
-                    <td className="px-6 py-4 text-center text-sm text-smoke/40">{row.azuro}</td>
+                {rows.map((row, i) => (
+                  <motion.tr key={row.feature}
+                    initial={{ opacity: 0 }}
+                    whileInView={{ opacity: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: i * 0.04, duration: 0.3 }}
+                    className="border-b border-white/[0.03] hover:bg-white/[0.01] transition-colors">
+                    <td className="px-6 py-3.5 text-sm font-heading font-medium text-white/60">{row.feature}</td>
+                    <td className="px-6 py-3.5 text-sm text-accent-green bg-teal/[0.02]">{row.vs[0]}</td>
+                    <td className="px-6 py-3.5 text-sm text-smoke/35">{row.vs[1]}</td>
+                    <td className="px-6 py-3.5 text-sm text-smoke/35">{row.vs[2]}</td>
                   </motion.tr>
                 ))}
               </tbody>
             </table>
           </div>
         </motion.div>
+
+        <motion.p initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
+          className="text-center text-xs text-smoke/25 mt-6">
+          Comparison based on publicly available documentation and on-chain data. Updated June 2025.
+        </motion.p>
       </div>
     </section>
   );

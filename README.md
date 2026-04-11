@@ -19,7 +19,11 @@
 
 ## What is Veil Strike?
 
-Veil Strike is a **zero-knowledge prediction market protocol** built on **Aleo**. Users bet on real-world outcomes — crypto prices, sports, politics, science — with **full privacy** powered by ZK proofs. The protocol uses a **Fixed Product Market Maker (FPMM)**, supports three tokens (ALEO, USDCx, USAD), features **Strike Rounds** with 15-minute auto-resolved cycles (3 concurrent slots: BTC-ALEO, ETH-ALEO, ALEO-ALEO) using delegated proving, and includes a 12-hour dispute window for event markets.
+Veil Strike is a **zero-knowledge prediction market protocol** built on **Aleo** — the only Layer-1 blockchain with native ZK privacy. Users bet on real-world outcomes — crypto prices, sports, politics, science — with **complete on-chain privacy** powered by zero-knowledge proofs.
+
+**The Problem:** On Polymarket and Azuro, every bet you place is public. Anyone can see your wallet, your positions, your PnL. Whales get front-run. Strategies get copied. Your financial activity is permanently visible on-chain.
+
+**The Solution:** Veil Strike encrypts everything. Your identity, bet sizes, positions, and payouts are invisible to everyone — including validators, other traders, and MEV bots. The protocol uses a **Fixed Product Market Maker (FPMM)**, supports three tokens (ALEO, USDCx, USAD), features **Strike Rounds** with 15-minute auto-resolved cycles (3 concurrent slots: BTC, ETH, ALEO) using delegated proving, and includes a 12-hour dispute window for event markets.
 
 Every trade generates a zero-knowledge proof. Your identity, position size, and payout are encrypted on-chain — only you can decrypt them.
 
@@ -377,12 +381,11 @@ contract/
 **In Progress / Planned:**
 - 🔄 Governance: quorum rules, timelock, stronger execution guards
 - 🔄 Admin UX: streamline resolution flow
-- 🔄 Full UI/UX redesign
 - 🔄 Stronger privacy: full USDCx/USAD deposit privacy via compliance proofs
-- ✅ Mainnet deployment
+
 ---
 
 <div align="center">
-  Built for <strong>Aleo Developer Program — Wave 4</strong><br/>
+  Built for the <strong>Aleo Developer Program</strong><br/>
   <sub>Deployed on Aleo Mainnet. Real tokens with real value — trade responsibly.</sub>
 </div>

@@ -622,7 +622,7 @@ export default function Governance() {
                 >
                   {txStatus === 'broadcasting' ? 'Submitting...' : 'Submit Proposal'}
                 </Button>
-                <p className="text-[11px] text-gray-600 text-center mt-2">This will prompt your Leo Wallet to sign and broadcast a transaction on Aleo Mainnet.</p>
+                <p className="text-[11px] text-gray-600 text-center mt-2">This will prompt your Shield Wallet to sign and broadcast a transaction on Aleo Mainnet.</p>
               </div>
             </div>
           </Card>

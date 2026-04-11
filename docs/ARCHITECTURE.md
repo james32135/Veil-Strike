@@ -20,7 +20,7 @@ Veil Strike is a three-tier application:
              │                         │
              ▼                         ▼
 ┌─────────────────────────────────────────────────────────┐
-│              Aleo Blockchain (Testnet)                   │
+│              Aleo Blockchain (Mainnet)                   │
 │                                                         │
 │  ┌─────────────────────────────────────────────────────┐│
 │  │  veil_strike_v7.aleo      (23 transitions)          ││

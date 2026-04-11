@@ -1,128 +1,130 @@
-# ⚔️ VEIL STRIKE — Privacy-First Prediction Markets on Aleo
+﻿# ⚔️ VEIL STRIKE
 
-> **Wave 4 Submission · Aleo Developer Program**
-> 🌐 Live: https://veil-strike.netlify.app · ⚡ API: https://veil-strike-api.onrender.com/api/health
-
----
-
-## 🧠 The Problem
-
-Every major prediction market — Polymarket, Augur, Azuro — leaks everything on-chain: your wallet, position, bet size, payout, strategy. This enables front-running, whale-watching, and identity correlation. **Financial privacy is a fundamental right.**
+> 🌐 **Live on Aleo Mainnet** · [Launch App](https://veil-strike.netlify.app) · [Explorer](https://explorer.provable.com/program/veil_strike_v7.aleo)
 
 ---
 
-## 💡 The Solution — Veil Strike
+## 💡 What Is Veil Strike?
 
-Veil Strike is a **zero-knowledge prediction market protocol** on **Aleo**. Every trade, every position, and every payout is protected by ZK proofs. No one — not even the protocol — can see what you bet, how much you hold, or what you won.
+Veil Strike is a **zero-knowledge prediction market protocol** deployed on **Aleo Mainnet**. Users trade outcomes on real-world events — crypto prices, sports, politics, science, entertainment — with **complete on-chain privacy** powered by zero-knowledge proofs.
 
-**What makes it different:**
-- 🔒 Positions stored as **encrypted on-chain records** — only the holder can decrypt
-- 📊 **FPMM AMM** — no order books, no front-running possible
-- ⚡ **Strike Rounds** — 15-minute auto-resolved price prediction rounds (UP/DOWN on BTC, ETH, ALEO)
-- 🏩 **On-chain Governance** — propose, vote, and execute protocol changes
-- 🎯 **Multi-outcome markets** — 2, 3, or 4 outcomes per market
-- 💰 **Triple token support** — ALEO, USDCx, USAD
-- ⚖️ **Automated resolution** — Round Bot uses delegated proving to auto-resolve rounds via oracle prices
+Unlike existing prediction markets (Polymarket, Azuro), **every bet, position, and payout on Veil Strike is encrypted**. No one can see what you bet, how much you bet, or how much you won. The protocol uses Aleo's native ZK architecture so privacy isn't an add-on — it's the foundation.
 
----
-
-## 📜 Smart Contracts (Wave 4)
-
-**3 Leo programs deployed on Aleo Testnet** — split to overcome Aleo's 2.1M variable limit:
-
-| Program | Token | TX |
-|---------|-------|----|
-| `veil_strike_v6.aleo` | ALEO + Governance (17 transitions) | `at1459u3ehmatrnk8huk5wj4dtfw668fml6kga62rkw0m4wpnfrxvqs79ey84` |
-| `veil_strike_v6_cx.aleo` | USDCx (15 transitions) | `at1g4py5xd8htpnalkm07axnahp5gyxj57jgm5cj9dqfxeeqckdzs8qpguzw9` |
-| `veil_strike_v6_sd.aleo` | USAD (15 transitions) | `at1yupukl8wynnu748u95scnqztqk33nwema3lxy7dfw7jm694cucyshswksx` |
-
-**Total: 47 transitions · 3,110,926 variables · 2,856 statements**
-
-**Key transitions:** `open_market` (create) · `acquire_shares` (private buy) · `dispose_shares` (private sell) · `fund_pool` (LP) · `flash_settle` (instant Strike resolution) · `render_verdict` / `ratify_verdict` (event resolution) · `contest_verdict` (dispute with 5 ALEO bond) · `harvest_winnings` (private payout) · `submit_proposal` + `cast_vote` (governance)
+**No KYC. No wallet tracking. No public bet history. Just markets and privacy.**
 
 ---
 
 ## 🔒 Privacy Architecture
 
+Veil Strike delivers **four layers of privacy** that no other prediction market offers:
+
+| Layer | Privacy Level | How It Works |
+|-------|:---:|---|
+| 🟢 **Identity** | Private | ZK-encrypted — your address never appears on-chain |
+| 🟢 **Positions** | Private | Encrypted `OutcomeShare` records only you can decrypt |
+| 🟢 **Payouts** | Private | Winnings delivered via ZK private transfer |
+| 🟢 **LP Tokens** | Private | Encrypted `LPToken` records for liquidity providers |
+| 🔴 **Market State** | Public | Required for fair AMM pricing and transparency |
+
+**Why does this matter?** On Polymarket, anyone can see your wallet, your bets, and your PnL. Whales get front-run. Positions get copied. On Veil Strike, you're invisible.
+
+---
+
+## 🔗 Why Aleo?
+
+Aleo is the only Layer-1 blockchain built natively for zero-knowledge proofs. Unlike Ethereum rollups or privacy mixers, Aleo encrypts **all state by default**. Every record, every transfer, every computation happens inside a ZK circuit.
+
+Veil Strike leverages this to deliver:
+- **Encrypted records** — bets and payouts stored as private Aleo records
+- **No front-running** — position data is invisible to validators and MEV bots
+- **Compliance-ready** — users can optionally share view keys for auditing
+- **Sub-minute proving** — delegated proving via Provable API (~15-30s per tx)
+
+---
+
+## 📜 Smart Contracts — 53 On-Chain Transitions
+
+Three Leo v4 programs deployed on Aleo Mainnet, split to stay under the 2.1M variable limit:
+
+| Program | Purpose | Transitions |
+|---------|---------|:-----------:|
+| `veil_strike_v7.aleo` | ALEO markets + Governance + Resolver Registry | 23 |
+| `veil_strike_v7_cx.aleo` | USDCx stablecoin markets | 15 |
+| `veil_strike_v7_sd.aleo` | USAD stablecoin markets | 15 |
+
+**Key transitions:** `open_market` · `acquire_shares` · `dispose_shares` · `flash_settle` · `harvest_winnings` · `submit_proposal` · `cast_vote` · `execute_proposal` · `register_resolver` · `contest_verdict` · `emergency_pause`
+
+---
+
+## 💵 Stablecoins — USDCx & USAD
+
+Trade with **privacy-native stablecoins** on Aleo:
+
+🔵 **USDCx** — Backed 1:1 by USDC via Circle xReserve. Bridge USDC from Ethereum to Aleo.
+Mint at [usdcx.aleo.org](https://usdcx.aleo.org) · [Learn more](https://aleo.org/usdcx/)
+
+🟢 **USAD** — Backed 1:1 by USDG via Paxos Labs (Global Dollar Network). Bridge USDG from Ethereum.
+Mint at [usad.aleo.org](https://usad.aleo.org) · [Learn more](https://aleo.org/usad/)
+
+Both stablecoins feature **encrypted balances and transfers** by default on Aleo. Your holdings are invisible to everyone except you.
+
+---
+
+## ⚡ Strike Rounds — 15-Minute Lightning Markets
+
+The flagship feature: **automated 15-minute prediction rounds** on BTC, ETH, and ALEO prices.
+
+- 🤖 Bot creates 3 concurrent USDCx rounds automatically
+- ⏱️ Each round locks after 15 minutes, settles via oracle price comparison
+- 🔄 Settlement + next round creation is fully automated 24/7
+- 🛡️ Delegated proving handles ZK proofs (~15-30s per transaction)
+- 📊 Oracle feeds from 7 sources with automatic fallback chain
+
+**How it works:** Bet UP or DOWN on whether BTC/ETH/ALEO price will rise or fall in 15 minutes. If you're right, claim your encrypted winnings instantly.
+
+---
+
+## 🏛️ On-Chain Governance
+
+Fully decentralized governance with on-chain execution:
+
+- 📝 Submit proposals with 5 ALEO bond
+- 🗳️ Community votes with quorum of 3
+- ⏳ 2-hour timelock after vote deadline before execution
+- ⚙️ Execute approved actions: fee changes, resolver approvals, treasury withdrawals
+- 🔒 Emergency pause/unpause for deployer-only circuit breaker
+
+---
+
+## 🏗️ Architecture
+
 ```
-Buy:   private credits → transfer_private_to_public → encrypted OutcomeShare record
-Sell:  OutcomeShare record → AMM → transfer_public_to_private → private credits
-Claim: OutcomeShare (winning) → harvest_winnings → private credits
+Frontend  → React 18 + Vite + TypeScript + Tailwind + Framer Motion
+Backend   → Express + PostgreSQL (10 tables) + 7-source oracle
+Services  → Delegated Prover · Round Bot · Record Scanner · Chain Executor
+Contracts → 3 Leo v4 programs on Aleo Mainnet (53 transitions)
+Wallet    → Shield Wallet (Aleo native)
 ```
 
-| Layer | Privacy |
-|-------|---------|
-| Trader identity | 🟢 Fully private (ZK-encrypted) |
-| Position sizes | 🟢 Encrypted record — invisible on-chain |
-| LP + Dispute bonds | 🟢 Encrypted LPToken / DisputeBondReceipt records |
-| All payouts | 🟢 Private credits via ZK transfer |
-| Market state / outcome | 🔴 Public (required for fair AMM) |
+## 🖥️ Platform (14+ Pages)
+
+Landing · Markets · Trade · Strike Rounds · Series Charts · Portfolio · Create Market · Governance · Leaderboard · Pools · Stats · Admin · Docs · FAQ
+
+## ✅ What's Working
+
+- 53 on-chain transitions on Aleo Mainnet (Leo v4)
+- USDCx Strike Rounds — 15-min auto cycles with delegated proving
+- FPMM AMM with complete-set minting and dynamic fees
+- 12-hour dispute window with 5 ALEO bond
+- Executable governance (quorum 3, timelock 2h)
+- Resolver registry with 10 ALEO staking requirement
+- Emergency pause/unpause controls
+- Polymarket-style series with live candlestick charts
+- 7-source oracle fallback chain (CoinGecko → OKX → KuCoin → Gate.io → Binance → CoinCap → CryptoCompare)
+- Delegated proving via Provable API (~15-30s per tx)
+- Production stability hardening (fetch timeouts, WASM cache, graceful recovery)
+- Elite animated landing page with parallax, spotlight cursor, glass-morphism
 
 ---
 
-## 🏗️ Full-Stack Architecture
-
-```
-Frontend  →  React 18 + Vite + TypeScript + Tailwind + Zustand + Shield Wallet
-Backend   →  Express + Node.js
-               ├── 7-source oracle fallback (CoinGecko → OKX → Binance → CoinCap → ...)
-               ├── Auto-indexer + chain scanner (new market detection every 60s)
-               ├── Delegated prover (Provable API, ~30s per tx)
-               ├── Round Bot (automated 15-min Strike Rounds: 3 slots, all settled on-chain)
-               └── Lightning Manager (tracks rounds, admin manual override)
-Contracts →  3 Leo programs on Aleo Testnet (47 transitions)
-```
-
----
-
-## 🖥️ All Working Pages (14 total)
-
-`/` Landing · `/markets` Browse · `/markets/:id` Trade · `/rounds` Strike Rounds · `/portfolio` Positions · `/create` Create Market · `/governance` Proposals+Voting · `/leaderboard` · `/pools` LP · `/stats` Analytics · `/admin` Resolver · `/docs` · `/faq` · `/privacy`
-
----
-
-## ⚡ Strike Rounds — Full Flow (Automated)
-
-1. **Round Bot** creates 3 concurrent markets via delegated proving (~30s each): BTC/ALEO, ETH/ALEO, ALEO/ALEO.
-2. User bets UP or DOWN → private `OutcomeShare` record on-chain.
-   - 40-second cooldown between bets prevents UTXO reuse errors across markets.
-3. Round timer expires (15 minutes). UI shows "Settling..." with progress info.
-4. Bot compares oracle start vs end price → `flash_settle` via delegated proving for ALL markets (including empty ones — ensures clean on-chain state).
-5. Bot creates the next round automatically (new nonce, fresh start price).
-6. Winner calls `harvest_winnings` → receives private credits 1:1.
-7. **Smart Recovery**: On restart, the bot adopts existing active rounds instead of creating duplicates. Expired/transient slots reset to idle. Max 3 settle retries before skipping.
-
-> Admin can still override any round manually via `/admin` + wallet `flash_settle`.
-
----
-
-## 🏛️ Governance (Live, Evolving)
-
-On-chain via `submit_proposal` + `cast_vote`. Supported: approve resolvers, treasury withdrawals, fee updates, market overrides. Governance receipts are encrypted on-chain. Quorum, timelock, and stronger execution guards planned for future waves.
-
----
-
-## 🚀 Wave 4 New Features
-
-- 🆕 3-program v6 architecture (v5 was single-program, hit variable limit at 2.1M)
-- 🆕 USAD stablecoin — 3rd token with own program
-- 🆕 On-chain governance (`submit_proposal` + `cast_vote` with `GovernanceReceipt`)
-- 🆕 Strike Rounds redesigned: 15-minute auto-resolved cycles with 3 concurrent slots (BTC, ETH, ALEO)
-- 🆕 All rounds settled on-chain via `flash_settle` (no virtual reset)
-- 🆕 Smart recovery: bot adopts existing active rounds on restart, prevents duplicates
-- 🆕 Bet cooldown (40s) — prevents UTXO reuse errors when betting across multiple markets
-- 🆕 Settling UX — clear "Settling..." status with time estimate when rounds expire
-- 🆕 Portfolio win/loss states — proper Won/Lost/Claimable display for resolved markets
-- 🆕 Friendly error messages for common wallet issues (spent records, insufficient balance)
-- 🆕 Admin panel: oracle startPrice vs endPrice comparison, resolve via wallet with `flash_settle`
-- 🆕 7-source oracle fallback chain (CoinGecko → OKX → Binance → CoinCap → ...)
-- 🆕 Portfolio PnL visualization + history
-- 🆕 Full UI/UX redesign (glassmorphism, 3D cards, animated landing)
-
----
-
-> 🔮 **Roadmap:** Stronger USDCx/USAD deposit privacy · Governance quorum + timelock · Mainnet deployment
-
----
-
-*Aleo Developer Program — Wave 4 · All tokens are testnet tokens with no real-world value.*
+*⚔️ Aleo Mainnet · Real tokens · Trade responsibly*

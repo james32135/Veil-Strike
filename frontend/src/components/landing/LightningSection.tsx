@@ -1,72 +1,125 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { BoltIcon, ClockIcon, FireIcon } from '@/components/icons';
+
+const rounds = [
+  { asset: 'BTC', pair: 'BTC / USD', color: '#F7931A' },
+  { asset: 'ETH', pair: 'ETH / USD', color: '#627EEA' },
+  { asset: 'ALEO', pair: 'ALEO / USD', color: '#FF6B35' },
+];
+
+const features = [
+  { title: 'Auto-Resolved', desc: 'Every round resolves automatically after 15 minutes via on-chain oracles. No waiting.' },
+  { title: 'USDCx Bets', desc: 'Bet with USDCx — private, backed 1:1 by USDC. Your balance stays encrypted.' },
+  { title: 'Delegated Proving', desc: 'Our prover network handles ZK proof generation. You just click and bet.' },
+  { title: 'Non-Stop', desc: 'Rounds open 24/7. As soon as one ends, the next begins. Always a live round.' },
+];
 
 export default function LightningSection() {
   return (
     <section className="py-28 px-4 relative">
-      <div className="max-w-5xl mx-auto">
-        <motion.div initial={{ opacity: 0, y: 25 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="glass-card p-10 md:p-14 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-teal/30 to-transparent" />
-          <motion.div className="absolute top-0 right-0 w-60 h-60 rounded-full" style={{ background: 'radial-gradient(circle, rgba(255, 107, 53, 0.08), transparent 70%)', filter: 'blur(40px)' }} animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 6, repeat: Infinity }} />
+      {/* Gradient accent */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-1/2 left-1/4 w-96 h-96 bg-teal/5 rounded-full blur-[120px] -translate-y-1/2" />
+      </div>
 
-          <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
-            <div>
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-5" style={{ background: 'rgba(255, 107, 53, 0.08)', border: '1px solid rgba(255, 107, 53, 0.15)' }}>
-                <BoltIcon className="w-4 h-4 text-teal" />
-                <span className="text-sm text-teal font-heading font-medium">Strike Rounds</span>
-              </div>
+      <div className="max-w-6xl mx-auto relative z-10">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          {/* Left — Info */}
+          <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}>
+            <span className="inline-block text-[11px] font-heading text-teal uppercase tracking-[0.3em] mb-4">Strike Rounds</span>
+            <h2 className="section-title mb-4">
+              15-Minute{' '}
+              <span className="gradient-text">Lightning Rounds</span>
+            </h2>
+            <p className="text-smoke/55 leading-relaxed mb-8 max-w-md">
+              Predict whether BTC, ETH, or ALEO will go up or down in 15 minutes. 
+              Each round locks automatically, resolves via oracle price feeds, and pays winners instantly — all on-chain, all private.
+            </p>
 
-              <h2 className="font-heading text-3xl md:text-4xl font-bold text-white mb-5">
-                Predict Crypto Prices,{' '}
-                <span className="gradient-text">Win Privately</span>
-              </h2>
-
-              <p className="text-smoke/60 leading-relaxed mb-8">
-                Strike Rounds let you bet UP or DOWN on BTC, ETH, and ALEO in 15-minute rounds — auto-resolved by oracle price feeds with zero-knowledge privacy using delegated proving.
-              </p>
-
-              <Link to="/rounds" className="btn-primary inline-flex items-center gap-2">
-                View Rounds
-                <motion.span animate={{ x: [0, 3, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>→</motion.span>
-              </Link>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+              {features.map((f, i) => (
+                <motion.div key={f.title}
+                  initial={{ opacity: 0, y: 15 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.1 + i * 0.08, duration: 0.5 }}
+                  className="group">
+                  <h4 className="text-sm font-heading font-semibold text-white/80 mb-1">{f.title}</h4>
+                  <p className="text-xs text-smoke/40 leading-relaxed">{f.desc}</p>
+                </motion.div>
+              ))}
             </div>
 
-            {/* Glass chart mockup */}
-            <motion.div
-              className="glass-card p-5 relative"
-              style={{ boxShadow: '0 0 40px -10px rgba(255, 107, 53, 0.1), 0 20px 40px -12px rgba(0, 0, 0, 0.6)' }}
-              animate={{ y: [0, -8, 0] }}
-              transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-            >
-              {/* Tab bar */}
-              <div className="flex items-center gap-2 mb-4">
-                {['15M', 'BTC', 'ETH', 'ALEO'].map((t, i) => (
-                  <span key={t} className={`px-2.5 py-1 rounded-full text-[10px] font-mono ${i === 0 ? 'bg-teal text-white' : 'text-smoke/40'}`}>{t}</span>
-                ))}
-              </div>
+            <Link to="/rounds" className="btn-primary inline-flex items-center gap-2 text-sm">
+              <span>⚡</span> Enter Strike Rounds
+            </Link>
+          </motion.div>
 
-              {/* Chart */}
-              <div className="relative h-28 mb-3">
-                <svg viewBox="0 0 300 100" className="w-full h-full" preserveAspectRatio="none">
-                  <defs>
-                    <linearGradient id="lgChartGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" style={{ stopColor: '#FF6B35', stopOpacity: 0.15 }} />
-                      <stop offset="100%" style={{ stopColor: '#FF6B35', stopOpacity: 0 }} />
-                    </linearGradient>
-                  </defs>
-                  <path d="M0 70 Q50 50 80 65 T160 35 T240 55 T300 20" fill="none" stroke="#FF6B35" strokeWidth="2.5" />
-                  <path d="M0 70 Q50 50 80 65 T160 35 T240 55 T300 20 V100 H0 Z" fill="url(#lgChartGrad)" />
-                </svg>
+          {/* Right — Live Round Mockup */}
+          <motion.div initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="glass-card p-6 relative overflow-hidden">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-accent-green animate-pulse" />
+                <span className="text-xs font-heading text-white/60">LIVE ROUND</span>
               </div>
+              <span className="text-[10px] text-smoke/30 font-mono">15:00 DURATION</span>
+            </div>
 
-              <div className="flex items-center justify-between text-[10px]">
-                <span className="text-smoke/30">Your balance</span>
-                <span className="font-mono text-white">0.000000 ETH</span>
-              </div>
-            </motion.div>
-          </div>
-        </motion.div>
+            {/* Rounds */}
+            <div className="space-y-3">
+              {rounds.map((r, i) => (
+                <motion.div key={r.asset}
+                  initial={{ opacity: 0, x: 20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.3 + i * 0.1, duration: 0.5 }}
+                  className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:border-white/[0.08] transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold"
+                      style={{ background: `${r.color}15`, color: r.color }}>
+                      {r.asset[0]}
+                    </div>
+                    <div>
+                      <p className="text-sm font-heading text-white/80">{r.pair}</p>
+                      <p className="text-[10px] text-smoke/30">15-min round</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="px-3 py-1.5 rounded-lg text-[10px] font-heading font-semibold bg-accent-green/10 text-accent-green border border-accent-green/20 hover:bg-accent-green/20 transition-colors">
+                      UP ↑
+                    </button>
+                    <button className="px-3 py-1.5 rounded-lg text-[10px] font-heading font-semibold bg-neon-red/10 text-neon-red border border-neon-red/20 hover:bg-neon-red/20 transition-colors">
+                      DOWN ↓
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Chart mockup */}
+            <div className="mt-6 h-24 rounded-lg bg-white/[0.01] border border-white/[0.04] flex items-end justify-around px-4 pb-2 overflow-hidden">
+              {Array.from({ length: 30 }).map((_, i) => {
+                const h = 15 + Math.sin(i * 0.5) * 30 + Math.random() * 20;
+                return (
+                  <motion.div key={i}
+                    initial={{ height: 0 }}
+                    whileInView={{ height: `${h}%` }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.5 + i * 0.02, duration: 0.4 }}
+                    className="w-1 rounded-full"
+                    style={{ background: h > 50 ? '#00D46E' : '#FF3D00', opacity: 0.4 + (i / 30) * 0.6 }}
+                  />
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-smoke/20 text-center mt-2 font-mono">Price movement — last 30 ticks</p>
+          </motion.div>
+        </div>
       </div>
     </section>
   );

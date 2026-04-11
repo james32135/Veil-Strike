@@ -1,29 +1,42 @@
 import { motion } from 'framer-motion';
 
-const techStack = [
-  { name: 'Aleo', description: 'Layer 1 privacy blockchain' },
-  { name: 'Leo', description: 'ZK smart contract language' },
-  { name: 'snarkVM', description: 'Zero-knowledge proving engine' },
-  { name: 'Shield Wallet', description: 'Delegated proving wallet' },
-  { name: 'FPMM', description: 'Automated market maker' },
-  { name: 'credits.aleo', description: 'Native token program' },
+const tech = [
+  { name: 'Aleo', desc: 'ZK-native L1 blockchain', color: '#FF6B35' },
+  { name: 'Leo', desc: 'Smart contract language', color: '#00D46E' },
+  { name: 'React', desc: 'Frontend framework', color: '#61DAFB' },
+  { name: 'TypeScript', desc: 'Full-stack type safety', color: '#3178C6' },
+  { name: 'Framer Motion', desc: 'Animation engine', color: '#FF0050' },
+  { name: 'Tailwind', desc: 'Utility-first CSS', color: '#38BDF8' },
+  { name: 'USDCx', desc: 'Private stablecoin (Circle)', color: '#2775CA' },
+  { name: 'USAD', desc: 'Private stablecoin (Paxos)', color: '#00D4AA' },
 ];
 
 export default function TechStackSection() {
   return (
-    <section className="py-28 px-4 relative">
-      <div className="max-w-4xl mx-auto">
-        <motion.div initial={{ opacity: 0, y: 25 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-14">
-          <h2 className="section-title mb-4">Built on <span className="gradient-text">Proven Technology</span></h2>
-          <p className="text-smoke/60 max-w-xl mx-auto">Every component is designed for privacy and security.</p>
+    <section className="py-20 px-4 relative">
+      <div className="max-w-5xl mx-auto">
+        <motion.div initial={{ opacity: 0, y: 25 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+          className="text-center mb-12">
+          <span className="inline-block text-[11px] font-heading text-teal uppercase tracking-[0.3em] mb-4">Tech Stack</span>
+          <h2 className="section-title">
+            Built With the <span className="gradient-text">Best</span>
+          </h2>
         </motion.div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {techStack.map((tech, i) => (
-            <motion.div key={tech.name} initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }} whileHover={{ y: -3 }} className="glass-card p-6 text-center relative overflow-hidden group">
-              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-teal/15 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <p className="font-heading font-semibold text-white mb-1.5 text-lg">{tech.name}</p>
-              <p className="text-xs text-smoke/40">{tech.description}</p>
+        <div className="flex flex-wrap justify-center gap-3">
+          {tech.map((t, i) => (
+            <motion.div key={t.name}
+              initial={{ opacity: 0, scale: 0.8 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.05, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{ scale: 1.05, y: -2 }}
+              className="glass-card px-5 py-3 flex items-center gap-3 cursor-default">
+              <div className="w-2 h-2 rounded-full" style={{ background: t.color }} />
+              <div>
+                <span className="text-sm font-heading font-semibold text-white/75">{t.name}</span>
+                <span className="text-[10px] text-smoke/30 ml-2">{t.desc}</span>
+              </div>
             </motion.div>
           ))}
         </div>

@@ -535,67 +535,40 @@ async function tick(): Promise<void> {
   tickBusy = true;
 
   try {
-    // ── Phase 1: Settle any expired open slots ──
+    // ── Per-slot interleaved settle + create ──
+    // Each slot settles and creates independently — no more waiting for ALL
+    // slots to be idle. This eliminates the 3-5 min gap where zero rounds
+    // are active and ensures ETH/BTC/ALEO don't stall on each other.
     for (const slot of botState.slots) {
       if (!running) break;
+
+      // Settle expired open rounds
       if (slot.state === 'open' && Date.now() >= slot.endTime) {
         await settleSlot(slot);
       }
+
+      // Retry failed settlements
       if (slot.state === 'settling' && slot.error) {
         console.log(`[RoundBot] ${slot.id} retrying settle after error...`);
         slot.error = null;
         await settleSlot(slot);
       }
-    }
 
-    // ── Phase 2: Batch-create — only start when ALL slots are idle ──
-    const allIdle = botState.slots.every(
-      (s) => s.state === 'idle'
-    );
-    if (allIdle) {
-      // Check backoff on any slot
-      const backoffSlot = botState.slots.find(
-        (s) => s.nextCreateAttempt && Date.now() < s.nextCreateAttempt
-      );
-      if (backoffSlot) {
-        // Still in backoff — skip this tick
-      } else {
+      // Create next round for idle slots immediately
+      if (slot.state === 'idle') {
+        // Respect backoff timer
+        if (slot.nextCreateAttempt && Date.now() < slot.nextCreateAttempt) continue;
+
         // Check retry limits
-        const maxedOut = botState.slots.find(
-          (s) => s.createRetries >= MAX_CREATE_RETRIES
-        );
-        if (maxedOut) {
-          maxedOut.nextCreateAttempt = Date.now() + 5 * 60_000;
-          maxedOut.createRetries = 0;
-          console.warn(`[RoundBot] ${maxedOut.id} hit max create retries — cooling down 5min`);
-        } else {
-          // Create all 3 markets sequentially, then align endTime
-          const createdSlots: MarketSlot[] = [];
-          for (const slot of botState.slots) {
-            if (!running) break;
-            await createMarketForSlot(slot);
-            if (slot.state === 'open') {
-              createdSlots.push(slot);
-            } else {
-              // One slot failed — don't continue (to avoid partial rounds)
-              break;
-            }
-          }
-
-          // Align all endTimes to the LAST created slot's endTime
-          if (createdSlots.length === botState.slots.length) {
-            const latestEnd = Math.max(...createdSlots.map((s) => s.endTime));
-            for (const slot of createdSlots) {
-              slot.endTime = latestEnd;
-            }
-            console.log(`[RoundBot] All ${createdSlots.length} rounds synced — expire together at ${new Date(latestEnd).toISOString()}`);
-          } else if (createdSlots.length > 0) {
-            // Partial batch — the created slots will expire naturally and be settled
-            // by the normal tick loop, then the next allIdle cycle will create all 3
-            console.warn(`[RoundBot] Partial batch: ${createdSlots.length}/${botState.slots.length} created — will settle orphans next cycle`);
-          }
-          saveState();
+        if (slot.createRetries >= MAX_CREATE_RETRIES) {
+          slot.nextCreateAttempt = Date.now() + 5 * 60_000;
+          slot.createRetries = 0;
+          console.warn(`[RoundBot] ${slot.id} hit max create retries — cooling down 5min`);
+          continue;
         }
+
+        await createMarketForSlot(slot);
+        saveState();
       }
     }
   } catch (err) {

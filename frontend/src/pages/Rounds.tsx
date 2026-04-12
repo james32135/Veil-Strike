@@ -159,13 +159,13 @@ export default function Rounds() {
     fetchPrices();
     fetchAllRounds();
     fetchHistory();
-    if (markets.length === 0) fetchMarkets();
+    fetchMarkets();
 
     // Connect SSE for real-time prices
     connectSSE();
 
-    const marketInterval = setInterval(fetchMarkets, 15_000);
-    const roundInterval = setInterval(fetchAllRounds, 10_000);
+    const marketInterval = setInterval(fetchMarkets, 10_000);
+    const roundInterval = setInterval(fetchAllRounds, 8_000);
     const historyInterval = setInterval(fetchHistory, 30_000);
 
     return () => {
@@ -174,7 +174,7 @@ export default function Rounds() {
       clearInterval(roundInterval);
       clearInterval(historyInterval);
     };
-  }, [fetchPrices, fetchMarkets, fetchAllRounds, fetchHistory, connectSSE, disconnectSSE, markets.length]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Expire stale PENDING bets on mount only
   useEffect(() => {
@@ -205,16 +205,10 @@ export default function Rounds() {
     }
   }, [allRounds, bets, markets, resolveBets]);
 
-  // Count active rounds per asset
-  const activeByAsset = useMemo(() => {
-    const counts: Record<string, number> = { BTC: 0, ETH: 0, ALEO: 0 };
-    for (const r of allRounds) {
-      if (r.status === 'open') counts[r.asset] = (counts[r.asset] || 0) + 1;
-    }
-    return counts;
-  }, [allRounds]);
-
-  const totalActive = allRounds.filter((r) => r.status === 'open').length;
+  // Count active rounds from market store (consistent with ActiveRounds component)
+  const totalActive = useMemo(() => {
+    return markets.filter((m) => m.isLightning && m.status === 'active' && m.question.toLowerCase().includes('strike round')).length;
+  }, [markets]);
 
   return (
     <div className="space-y-6">

@@ -716,28 +716,31 @@ interface ActiveRoundsProps {
 export default function ActiveRounds({ }: ActiveRoundsProps) {
   const allMarkets = useMarketStore((s) => s.markets);
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
-  const [loading, setLoading] = useState(true);
+  const storeLoading = useMarketStore((s) => s.loading);
   const { fetchShareRecords } = useTransaction();
   const [shareRecords, setShareRecords] = useState<ShareRecord[]>([]);
 
-  const loadShareRecords = useCallback(async () => {
+  // Use ref for share record loader to avoid effect re-runs on identity change
+  const loadShareRecordsRef = useRef<() => Promise<void>>();
+  loadShareRecordsRef.current = async () => {
     const records = await fetchShareRecords();
     setShareRecords(records);
-  }, [fetchShareRecords]);
+  };
 
   useEffect(() => {
-    fetchMarkets().then(() => setLoading(false));
-    loadShareRecords();
-    const marketId = setInterval(fetchMarkets, 30_000);
-    const shareId  = setInterval(loadShareRecords, 30_000);
-    return () => { clearInterval(marketId); clearInterval(shareId); };
-  }, [fetchMarkets, loadShareRecords]);
+    // Only fetch markets if store is empty (parent Rounds handles polling)
+    if (allMarkets.length === 0) fetchMarkets().catch(() => {});
+    loadShareRecordsRef.current?.();
+    const shareId = setInterval(() => loadShareRecordsRef.current?.(), 30_000);
+    return () => { clearInterval(shareId); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const strikeMarkets  = allMarkets.filter((m) => m.isLightning && m.question.toLowerCase().includes('strike round'));
   const activeMarkets  = strikeMarkets.filter((m) => m.status === 'active');
   const resolvedMarkets = strikeMarkets.filter((m) => m.status === 'resolved').slice(0, 6);
 
-  if (loading) {
+  // Loading skeleton only on first load with zero data
+  if (storeLoading && allMarkets.length === 0) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[1, 2, 3].map((i) => (
@@ -757,8 +760,8 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
         <div className="w-16 h-16 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mx-auto mb-4">
           <BoltIcon className="w-8 h-8 text-gray-600" />
         </div>
-        <p className="text-gray-400 font-heading">No active Strike Rounds</p>
-        <p className="text-xs text-gray-600 mt-1">Create a Strike Round to get started</p>
+        <p className="text-gray-400 font-heading">Waiting for Strike Rounds</p>
+        <p className="text-xs text-gray-600 mt-1">Rounds will appear automatically when the bot creates them</p>
       </motion.div>
     );
   }
@@ -766,8 +769,26 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
   return (
     <div className="space-y-8">
       <div className="flex justify-end">
-        <RefreshButton onRefresh={async () => { await fetchMarkets(); await loadShareRecords(); }} label="Refresh" />
+        <RefreshButton onRefresh={async () => { await fetchMarkets(); await loadShareRecordsRef.current?.(); }} label="Refresh" />
       </div>
+
+      {activeMarkets.length === 0 && resolvedMarkets.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="py-6 rounded-xl border border-teal/10 bg-teal/[0.03] text-center"
+        >
+          <div className="flex items-center justify-center gap-2 mb-1.5">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+              className="w-4 h-4 rounded-full border-2 border-teal/30 border-t-teal"
+            />
+            <span className="text-sm font-heading text-teal/80">Creating next rounds...</span>
+          </div>
+          <p className="text-[10px] text-gray-600">New rounds appear automatically every 5 minutes</p>
+        </motion.div>
+      )}
 
       {activeMarkets.length > 0 && (
         <div>
@@ -786,7 +807,7 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
             {activeMarkets.map((market) => (
-              <StrikeRoundCard key={market.id} market={market} shareRecords={shareRecords} onClaimed={loadShareRecords} />
+              <StrikeRoundCard key={market.id} market={market} shareRecords={shareRecords} onClaimed={() => loadShareRecordsRef.current?.()} />
             ))}
           </motion.div>
         </div>
@@ -805,7 +826,7 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
             {resolvedMarkets.map((market) => (
-              <StrikeRoundCard key={market.id} market={market} shareRecords={shareRecords} onClaimed={loadShareRecords} />
+              <StrikeRoundCard key={market.id} market={market} shareRecords={shareRecords} onClaimed={() => loadShareRecordsRef.current?.()} />
             ))}
           </motion.div>
         </div>

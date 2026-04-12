@@ -6,21 +6,31 @@ const { Pool } = pg;
 export const pool = new Pool({
   connectionString: config.databaseUrl,
   ssl: config.databaseUrl.includes('render.com') ? { rejectUnauthorized: false } : undefined,
-  max: 10,
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 10_000,
+  max: 5,                        // Reduced for Render free tier (was 10)
+  idleTimeoutMillis: 20_000,     // Release idle connections faster
+  connectionTimeoutMillis: 15_000, // Slightly more patient
+  allowExitOnIdle: true,         // Let pool shrink to zero when idle
 });
 
 pool.on('error', (err) => {
   console.error('[DB] Unexpected pool error:', err);
 });
 
-/** Run a single parameterised query */
+/** Run a single parameterised query with auto-retry on timeout */
 export async function query<T extends pg.QueryResultRow = any>(
   text: string,
   params?: unknown[],
 ): Promise<pg.QueryResult<T>> {
-  return pool.query<T>(text, params);
+  try {
+    return await pool.query<T>(text, params);
+  } catch (err: any) {
+    // Retry once on connection timeout
+    if (err.message?.includes('timeout') || err.code === 'ECONNREFUSED') {
+      console.warn('[DB] Query timeout, retrying once...');
+      return pool.query<T>(text, params);
+    }
+    throw err;
+  }
 }
 
 /** Auto-create all tables on first run */

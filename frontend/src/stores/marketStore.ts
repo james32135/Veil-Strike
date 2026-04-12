@@ -22,6 +22,21 @@ interface MarketState {
 // SSE subscription singleton — set up once
 let sseInitialized = false;
 
+/**
+ * Merge fresh market data with previous cache.
+ * Keeps active/pending markets that were in the old set but missing from
+ * the new set (Aleo API flakiness can drop markets from partial responses).
+ */
+function mergeMarkets(prev: Market[], fresh: Market[]): Market[] {
+  if (prev.length === 0) return fresh;
+  if (fresh.length === 0) return prev;
+  const freshIds = new Set(fresh.map((m) => m.id));
+  const preserved = prev.filter(
+    (m) => !freshIds.has(m.id) && (m.status === 'active' || m.status === 'pending_resolution'),
+  );
+  return [...fresh, ...preserved];
+}
+
 export const useMarketStore = create<MarketState>((set, get) => ({
   markets: [],
   loading: false,
@@ -35,8 +50,12 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     const isFirstLoad = get().markets.length === 0;
     if (isFirstLoad) set({ loading: true });
     try {
-      const markets = await fetchRealMarkets();
-      set({ markets, loading: false });
+      const fresh = await fetchRealMarkets();
+      // Merge: never drop active/pending markets that the backend omitted
+      // (Aleo API can return partial results under load)
+      const prev = get().markets;
+      const merged = mergeMarkets(prev, fresh);
+      set({ markets: merged, loading: false });
     } catch {
       if (isFirstLoad) set({ loading: false });
     }
@@ -46,7 +65,9 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       sseInitialized = true;
       subscribeSSE('markets', (data) => {
         if (Array.isArray(data)) {
-          set({ markets: data as Market[] });
+          const prev = get().markets;
+          const merged = mergeMarkets(prev, data as Market[]);
+          set({ markets: merged });
         }
       });
     }

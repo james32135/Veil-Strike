@@ -24,6 +24,11 @@ export interface MarketMeta {
 /** Load all market metadata from PostgreSQL on startup */
 export async function loadRegistryFromDB(): Promise<void> {
   try {
+    // Remove known test/dev event markets that were created during local testing
+    await query(
+      `DELETE FROM markets WHERE question ILIKE '%US forces enter Iran%' OR question ILIKE '%Fed Decision in June%'`
+    );
+
     const { rows } = await query('SELECT * FROM markets');
     for (const row of rows) {
       MARKET_REGISTRY[row.id] = {
@@ -294,8 +299,34 @@ export function getCachedMarkets(): MarketInfo[] {
   return marketsCache;
 }
 
+/**
+ * Update the market cache by merging new data instead of blindly replacing.
+ * The Aleo mapping API is flaky and can return partial results (35 instead of 66).
+ * If the new fetch is missing active/pending markets that exist in the old cache,
+ * we keep them so active Strike Rounds never vanish from the frontend.
+ */
 export function setCachedMarkets(markets: MarketInfo[]): void {
-  marketsCache = markets;
+  if (marketsCache.length === 0 || markets.length === 0) {
+    // First load or empty result — just set directly
+    marketsCache = markets;
+    return;
+  }
+
+  const newById = new Map(markets.map((m) => [m.id, m]));
+
+  // Preserve active / pending_resolution markets from old cache that are missing
+  // from the new fetch (likely dropped by a partial Aleo API response).
+  const preserved: MarketInfo[] = [];
+  for (const old of marketsCache) {
+    if (!newById.has(old.id) && (old.status === 'active' || old.status === 'pending_resolution')) {
+      preserved.push(old);
+    }
+  }
+
+  marketsCache = [...markets, ...preserved];
+  if (preserved.length > 0) {
+    console.log(`[Indexer] Preserved ${preserved.length} active market(s) missing from chain fetch`);
+  }
 }
 
 export function registerMarket(marketId: string, meta: MarketMeta): boolean {

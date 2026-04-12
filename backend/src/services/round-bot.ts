@@ -84,12 +84,27 @@ function getAssetPrice(asset: Asset): number {
 
 // ─── Persistence ─────────────────────────────────────────────────────────────
 
+let saveDebounce: ReturnType<typeof setTimeout> | null = null;
+
 function saveState(): void {
   if (!botState) return;
-  // Persist to DB (fire-and-forget async)
+  // Debounce rapid saves — wait 2s before persisting (merges burst calls)
+  if (saveDebounce) clearTimeout(saveDebounce);
+  saveDebounce = setTimeout(() => {
+    saveDebounce = null;
+    _doSaveState();
+  }, 2_000);
+}
+
+function _doSaveState(): void {
+  if (!botState) return;
+  // Persist to DB in a single transaction (fire-and-forget async)
   (async () => {
+    const client = await (await import('./db')).pool.connect();
     try {
-      await query(
+      await client.query('BEGIN');
+
+      await client.query(
         `UPDATE round_bot_state SET
           resolver_address = $1, started_at = $2,
           total_rounds_created = $3, total_rounds_settled = $4,
@@ -104,9 +119,8 @@ function saveState(): void {
         ],
       );
 
-      // Upsert all slots
       for (const s of botState!.slots) {
-        await query(
+        await client.query(
           `INSERT INTO round_bot_slots
             (slot_id, asset, token_type, program_id, state, market_id, tx_id,
              start_price, start_time, end_time, round_number, total_volume,
@@ -126,8 +140,13 @@ function saveState(): void {
           ],
         );
       }
+
+      await client.query('COMMIT');
     } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
       console.error('[RoundBot] Failed to save state to DB:', err);
+    } finally {
+      client.release();
     }
   })();
 }
@@ -311,7 +330,8 @@ async function createMarketForSlot(slot: MarketSlot): Promise<void> {
       slot.marketId = marketId;
       console.log(`[RoundBot] ${slot.id} extracted market_id: ${marketId.slice(0, 20)}...`);
       const botEndTime = Date.now() + ROUND_DURATION_MS;
-      // Register directly with the real market_id
+      // Register with startPrice immediately so the frontend never shows "—"
+      const earlyStartPrice = getAssetPrice(slot.asset);
       registerMarket(marketId, {
         questionHash,
         question,
@@ -319,6 +339,10 @@ async function createMarketForSlot(slot: MarketSlot): Promise<void> {
         isLightning: true,
         tokenType: slot.tokenType === 'ALEO' ? undefined : slot.tokenType,
         botEndTime,
+        startPrice: earlyStartPrice,
+        seriesId: assetToSeriesId(slot.asset),
+        roundNumber: slot.roundNumber,
+        timeSlot: buildTimeSlotLabel(Date.now(), Date.now() + ROUND_DURATION_MS),
       });
       // Delete pending meta so scanner won't tag old markets with same questionHash as lightning
       deletePendingMeta(questionHash);

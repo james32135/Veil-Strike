@@ -1,7 +1,8 @@
-// On-chain transaction executor using @provablehq/sdk
-// Handles seal_market, judge_market, confirm_verdict, settle_round for auto-resolution
+// On-chain transaction executor — delegates heavy proof work to Provable API
+// Handles lock_market, render_verdict, ratify_verdict for auto-resolution
 
 import { config } from '../config';
+import { delegatedExecute } from './delegated-prover';
 
 // Real ESM import() — TSC compiles dynamic import() to require() in CJS mode,
 // which fails for ESM packages with top-level await (Node 22+)
@@ -121,19 +122,19 @@ export async function executeCloseMarket(marketId: string, tokenType?: string): 
   if (!(await hasMinBalance())) return null;
   executionBusy = true;
   try {
-    const pm = await getProgramManager();
     console.log(`[ChainExecutor] Locking market ${marketId.slice(0, 20)}...`);
-
-    const txId = await pm.execute({
-      programName: getProgramId(tokenType),
-      functionName: 'lock_market',
-      inputs: [marketId],
-      priorityFee: PRIORITY_FEE,
-      privateFee: false,
-    });
-
-    console.log(`[ChainExecutor] lock_market tx: ${txId}`);
-    return txId;
+    const result = await delegatedExecute(
+      getProgramId(tokenType),
+      'lock_market',
+      [marketId],
+      PRIORITY_FEE,
+    );
+    if (result.success && result.txId) {
+      console.log(`[ChainExecutor] lock_market tx: ${result.txId}`);
+      return result.txId;
+    }
+    console.error(`[ChainExecutor] lock_market failed:`, result.error);
+    return null;
   } catch (err: any) {
     console.error(`[ChainExecutor] lock_market failed:`, err?.message || err);
     return null;
@@ -155,19 +156,19 @@ export async function executeResolveMarket(
   if (!(await hasMinBalance())) return null;
   executionBusy = true;
   try {
-    const pm = await getProgramManager();
     console.log(`[ChainExecutor] Rendering verdict ${marketId.slice(0, 20)}... outcome=${winningOutcome}`);
-
-    const txId = await pm.execute({
-      programName: getProgramId(tokenType),
-      functionName: 'render_verdict',
-      inputs: [marketId, `${winningOutcome}u8`],
-      priorityFee: PRIORITY_FEE,
-      privateFee: false,
-    });
-
-    console.log(`[ChainExecutor] render_verdict tx: ${txId}`);
-    return txId;
+    const result = await delegatedExecute(
+      getProgramId(tokenType),
+      'render_verdict',
+      [marketId, `${winningOutcome}u8`],
+      PRIORITY_FEE,
+    );
+    if (result.success && result.txId) {
+      console.log(`[ChainExecutor] render_verdict tx: ${result.txId}`);
+      return result.txId;
+    }
+    console.error(`[ChainExecutor] render_verdict failed:`, result.error);
+    return null;
   } catch (err: any) {
     console.error(`[ChainExecutor] render_verdict failed:`, err?.message || err);
     return null;
@@ -184,19 +185,19 @@ export async function executeFinalizeResolution(marketId: string, tokenType?: st
   if (!(await hasMinBalance())) return null;
   executionBusy = true;
   try {
-    const pm = await getProgramManager();
     console.log(`[ChainExecutor] Ratifying verdict for ${marketId.slice(0, 20)}...`);
-
-    const txId = await pm.execute({
-      programName: getProgramId(tokenType),
-      functionName: 'ratify_verdict',
-      inputs: [marketId],
-      priorityFee: PRIORITY_FEE,
-      privateFee: false,
-    });
-
-    console.log(`[ChainExecutor] ratify_verdict tx: ${txId}`);
-    return txId;
+    const result = await delegatedExecute(
+      getProgramId(tokenType),
+      'ratify_verdict',
+      [marketId],
+      PRIORITY_FEE,
+    );
+    if (result.success && result.txId) {
+      console.log(`[ChainExecutor] ratify_verdict tx: ${result.txId}`);
+      return result.txId;
+    }
+    console.error(`[ChainExecutor] ratify_verdict failed:`, result.error);
+    return null;
   } catch (err: any) {
     console.error(`[ChainExecutor] ratify_verdict failed:`, err?.message || err);
     return null;

@@ -31,11 +31,11 @@ Complete technical reference for the auto-round system: architecture, setup, cod
 
 ## Overview
 
-Strike Rounds are automated 15-minute prediction markets on asset prices (BTC, ETH, ALEO). A backend bot creates markets on the Aleo blockchain, waits for the round to expire, compares start/end prices, and settles the market (UP or DOWN). Users bet during the round window using the frontend Rounds page.
+Strike Rounds are automated 5-minute prediction markets on asset prices (BTC, ETH, ALEO). A backend bot creates markets on the Aleo blockchain, waits for the round to expire, compares start/end prices, and settles the market (UP or DOWN). Users bet during the round window using the frontend Rounds page.
 
 Key facts:
 - **3 active slots**: BTC-ALEO, ETH-ALEO, ALEO-ALEO
-- **15-minute rounds** with automatic creation → settlement → next round
+- **5-minute rounds** with automatic creation → settlement → next round
 - **Delegated proving** via Provable API (ZK proofs generated remotely in ~15-30s)
 - **On-chain settlement** via `flash_settle` for ALL markets (including empty ones)
 - **Program**: `veil_strike_v7_cx.aleo` on Aleo mainnet
@@ -395,19 +395,19 @@ Backup for when `extractMarketIdFromTx` fails:
 ### The Problem
 
 Aleo block time is ~4-5 seconds, NOT 15 seconds. Using wrong block time causes:
-- Deadline too far in future (173 days instead of 15 minutes)
-- Deadline arriving too early (4 min instead of 15 min)
+- Deadline too far in future (173 days instead of 5 minutes)
+- Deadline arriving too early (2 min instead of 5 min)
 
 ### The Fix
 
 ```typescript
 const ACTUAL_BLOCK_TIME_S = 5;  // Aleo: ~4-5s per block
 const roundBlocks = Math.ceil(config.roundDurationMinutes * 60 / ACTUAL_BLOCK_TIME_S) + 30;
-// For 15 min: ceil(900/5) + 30 = 180 + 30 = 210 blocks
+// For 5 min: ceil(300/5) + 30 = 60 + 30 = 90 blocks
 const deadline = currentBlock + roundBlocks;
 ```
 
-At 5s/block, 210 blocks ≈ 17.5 minutes (15 min + 2.5 min buffer).
+At 5s/block, 90 blocks ≈ 7.5 minutes (5 min + 2.5 min buffer).
 
 ### botEndTime (Wall-Clock Timestamp)
 
@@ -662,7 +662,7 @@ After the bot extracts the real market_id from the DPS transaction response, it 
 
 ### 1. CX/SD Stablecoin Slots Disabled
 
-The `veil_strike_v6_cx.aleo` and `veil_strike_v6_sd.aleo` contracts require private Token records + MerkleProofs as the 9th and 10th inputs to `open_market`. These cannot be constructed via the current delegated proving flow. Only the base `veil_strike_v6.aleo` (ALEO-denominated) works.
+The `veil_strike_v7_cx.aleo` and `veil_strike_v7_sd.aleo` contracts require private Token records + MerkleProofs as the 9th and 10th inputs to `open_market`. These cannot be constructed via the current delegated proving flow. Only the base `veil_strike_v7.aleo` (ALEO-denominated) works.
 
 ### 2. Bets Near Deadline May Be Rejected
 
@@ -670,7 +670,7 @@ The contract enforces `assert(current_height <= market.deadline)` in `acquire_sh
 
 ### 3. Block Time Variability
 
-Aleo mainnet block time ranges from ~3s to ~6s. We use `ACTUAL_BLOCK_TIME_S = 5` which gives a 210-block deadline for 15-min rounds (~17.5 min at 5s/block). The `botEndTime` wall-clock timestamp ensures the frontend countdown is accurate regardless of actual block timing.
+Aleo mainnet block time ranges from ~3s to ~6s. We use `ACTUAL_BLOCK_TIME_S = 5` which gives a 90-block deadline for 5-min rounds (~7.5 min at 5s/block). The `botEndTime` wall-clock timestamp ensures the frontend countdown is accurate regardless of actual block timing.
 
 ### 4. DPS Proving Latency
 
@@ -777,16 +777,16 @@ npm run dev
 
 Watch logs for:
 ```
-[RoundBot] Started — 3 slots, 15min rounds
+[RoundBot] Started — 3 slots, 5min rounds
 [RoundBot] Creating BTC-ALEO round #1: "BTC Strike Round #1"
-[DelegatedProver] Building proving request: veil_strike_v6.aleo.open_market(...)
+[DelegatedProver] Building proving request: veil_strike_v7_cx.aleo.open_market(...)
 [DelegatedProver] Submitting to Provable for remote proving...
 [DelegatedProver] Success: tx=at1... broadcast=Accepted (25000ms)
 [RoundBot] BTC-ALEO extracted market_id: 12345...field
 [RoundBot] BTC-ALEO round #1 OPEN. Start price: $103500
 ```
 
-After 15 minutes:
+After 5 minutes:
 ```
 [RoundBot] BTC-ALEO round #1 SETTLING. Start=$103500 End=$103800 → UP
 [DelegatedProver] flash_settle market=12345...field outcome=1
@@ -828,7 +828,7 @@ curl -X POST http://localhost:3001/api/lightning/bot/start
 
 1. Start bot, wait for markets to be created
 2. Do NOT place any bets
-3. Wait for round to expire (15 min)
+3. Wait for round to expire (5 min)
 4. Watch logs: should show `EMPTY settled tx=...` (not virtual reset)
 5. Verify frontend: market should move to RESOLVED, not stay as "AWAITING RESOLVE"
 
@@ -868,7 +868,7 @@ curl "https://api.provable.com/v2/mainnet/program/veil_strike_v7_cx.aleo/mapping
 | `frontend/src/pages/Rounds.tsx` | Rounds page (bet + claim UI) |
 | `frontend/src/stores/lightningBetStore.ts` | Bet storage + expiry (zustand + localStorage) |
 | `frontend/src/components/lightning/ActiveRounds.tsx` | Active rounds display component |
-| `contract/veil_strike_v6/src/main.leo` | On-chain contract (17 transitions) |
+| `contract/veil_strike_v6/src/main.leo` | On-chain contract (23 transitions) |
 
 ---
 

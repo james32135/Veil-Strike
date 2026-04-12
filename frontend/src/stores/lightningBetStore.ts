@@ -11,6 +11,7 @@ export interface LightningBet {
   timestamp: number;
   startPrice: number;
   tokenType?: 'aleo' | 'usdcx' | 'usad';
+  txId?: string; // wallet TX ID for rejection tracking
   // Filled when round resolves
   endPrice?: number;
   result?: 'up' | 'down';
@@ -21,6 +22,7 @@ export interface LightningBet {
 interface LightningBetState {
   bets: LightningBet[];
   addBet: (bet: LightningBet) => void;
+  removeBet: (txId: string) => void;
   resolveBets: (roundId: string, result: 'up' | 'down', endPrice: number) => void;
   expireStaleBets: (maxAgeMs: number) => void;
   getBetsForRound: (roundId: string) => LightningBet[];
@@ -34,6 +36,10 @@ export const useLightningBetStore = create<LightningBetState>()(
 
       addBet: (bet) => {
         set((state) => ({ bets: [bet, ...state.bets].slice(0, 200) }));
+      },
+
+      removeBet: (txId) => {
+        set((state) => ({ bets: state.bets.filter((b) => b.txId !== txId) }));
       },
 
       resolveBets: (roundId, result, endPrice) => {

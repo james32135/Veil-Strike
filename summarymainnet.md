@@ -451,3 +451,49 @@ SpotlightCursor → Hero → Live Markets → Features → Why Aleo → Stableco
 ### about.md Professional Rewrite
 - Expanded from 2,655 → 5,789 characters (target: 5,700–5,900)
 - Full coverage: Privacy Architecture table, Why Aleo, 53 transitions, USDCx/USAD with mint links, Strike Rounds, Governance, Architecture, 14+ pages, all working features
+
+---
+
+## Phase 18: 5-Minute Strike Rounds + SSE Price Streaming ✅
+
+### Round Duration: 15 min → 5 min
+- `backend/src/config.ts` — `roundDurationMinutes` default `'15'` → `'5'`
+- `backend/src/services/round-bot.ts` — `TICK_INTERVAL_MS` 15s → 5s, `COOLDOWN_MS` 30s → 10s (faster cycle for 5-min rounds)
+- `backend/src/services/db.ts` — All 3 series seeds: `duration_seconds` 900 → 300, `subtitle` "15 Minutes" → "5 Minutes", descriptions updated, `ON CONFLICT` clause now also updates `subtitle`, `duration_seconds`, `description`
+- `backend/src/index.ts` — Oracle cron changed from `*/${config.oracleIntervalMinutes} * * * *` (1 min) to `*/15 * * * * *` (every 15 seconds) for tighter price feeds
+
+### SSE Price Streaming
+- **`backend/src/routes/oracle.ts`** — New SSE endpoint `GET /oracle/stream` with `broadcastPrices()` function. Pushes `{ btc, eth, aleo, timestamp }` to all connected clients every 15s via cron hook. Proper SSE headers, `X-Accel-Buffering: no`, initial snapshot on connect, auto-cleanup on disconnect.
+- **`backend/src/index.ts`** — Imports `broadcastPrices` and calls it after every oracle price refresh
+- **`frontend/src/stores/oracleStore.ts`** — Added `connectSSE()` / `disconnectSSE()` / `connected` state. Module-level `EventSource` singleton with auto-reconnect.
+- **`frontend/src/components/charts/LivePriceChart.tsx`** — Replaced REST polling with SSE `EventSource`. Fallback to REST if SSE fails. Added live price ticker overlay with up/down color flash (green/red transitions). New props: `showTicker`.
+- **`frontend/src/pages/SeriesDetail.tsx`** — Uses `connectSSE`/`disconnectSSE` for real-time prices, `showTicker` enabled on chart, polling intervals tightened to 10s
+
+### Rounds Page Redesign
+- **`frontend/src/pages/Rounds.tsx`** — Complete redesign from simple wrapper to 3-column live dashboard:
+  - 3-column price cards (BTC amber / ETH blue / ALEO teal) with live delta percentage
+  - 3-column mini charts with SSE-powered `LivePriceChart` + live price ticker
+  - Animated tabs (Active Rounds / History) with `AnimatePresence`
+  - Live badge with ping animation
+  - Active rounds counter
+  - `connectSSE`/`disconnectSSE` lifecycle on mount/unmount
+  - Price history fetching for chart data
+
+### Text Updates (15 → 5 minutes)
+All user-facing "15-minute" / "15 min" references updated to "5-minute" / "5 min":
+- `frontend/src/components/landing/HeroSection.tsx` — badge "5min"
+- `frontend/src/components/landing/FeaturesSection.tsx` — description
+- `frontend/src/components/landing/HowItWorksSection.tsx` — step description
+- `frontend/src/components/landing/LightningSection.tsx` — heading, subtitle, feature card, mock card
+- `frontend/src/components/landing/ComparisonSection.tsx` — comparison table
+- `frontend/src/pages/CreateMarket.tsx` — helper text
+- `frontend/src/pages/Docs.tsx` — Strike Rounds section
+- `frontend/src/pages/FAQ.tsx` — 4 Q&A entries
+- `frontend/src/pages/Admin.tsx` — bot description
+- `about.md` — Strike Rounds section
+- `README.md` — intro, flow, pages table, bot description, status
+
+### Files Modified (25 total)
+**Backend (6):** `config.ts`, `index.ts`, `round-bot.ts`, `db.ts`, `oracle.ts`, `auto-resolver.ts`, `lightning-manager.ts`
+**Frontend (16):** `Rounds.tsx`, `SeriesDetail.tsx`, `Docs.tsx`, `FAQ.tsx`, `Admin.tsx`, `CreateMarket.tsx`, `Markets.tsx`, `LivePriceChart.tsx`, `oracleStore.ts`, `ActiveRounds.tsx`, `CreateLightningForm.tsx`, `HeroSection.tsx`, `FeaturesSection.tsx`, `HowItWorksSection.tsx`, `LightningSection.tsx`, `CTASection.tsx`, `ComparisonSection.tsx`, `ArchitectureSection.tsx`
+**Docs (3):** `about.md`, `README.md`, `summarymainnet.md`

@@ -6,18 +6,24 @@ interface OracleState {
   prices: OraclePrices;
   lastUpdated: number | null;
   loading: boolean;
+  connected: boolean;
   fetchPrices: () => Promise<void>;
+  connectSSE: () => void;
+  disconnectSSE: () => void;
 }
 
-export const useOracleStore = create<OracleState>((set) => ({
+let sseInstance: EventSource | null = null;
+
+export const useOracleStore = create<OracleState>((set, get) => ({
   prices: {
-    btc: 68_000,
-    eth: 3_400,
-    aleo: 0.5,
-    timestamp: Date.now(),
+    btc: 0,
+    eth: 0,
+    aleo: 0,
+    timestamp: 0,
   },
-  lastUpdated: Date.now(),
-  loading: false,
+  lastUpdated: null,
+  loading: true,
+  connected: false,
 
   fetchPrices: async () => {
     set({ loading: true });
@@ -31,6 +37,30 @@ export const useOracleStore = create<OracleState>((set) => ({
       }
     } catch {
       set({ loading: false });
+    }
+  },
+
+  connectSSE: () => {
+    if (sseInstance) return;
+    const es = new EventSource(`${API_BASE}/oracle/stream`);
+    es.onmessage = (event) => {
+      try {
+        const prices = JSON.parse(event.data);
+        set({ prices, lastUpdated: Date.now(), connected: true });
+      } catch { /* ignore */ }
+    };
+    es.onerror = () => {
+      set({ connected: false });
+      // Auto-reconnect handled by EventSource
+    };
+    sseInstance = es;
+  },
+
+  disconnectSSE: () => {
+    if (sseInstance) {
+      sseInstance.close();
+      sseInstance = null;
+      set({ connected: false });
     }
   },
 }));

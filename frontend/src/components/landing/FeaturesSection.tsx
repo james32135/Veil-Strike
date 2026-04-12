@@ -11,7 +11,7 @@ const features = [
   {
     icon: <BoltIcon className="w-7 h-7" />,
     title: 'Strike Rounds',
-    description: '15-minute auto-resolved crypto price predictions on BTC, ETH, and ALEO. Bet with USDCx stablecoins. The Round Bot creates, settles, and repeats every cycle via delegated proving.',
+    description: '5-minute Strike Rounds — auto-resolved crypto price predictions on BTC, ETH, and ALEO. Bet with USDCx stablecoins. The Round Bot creates, settles, and repeats every cycle via delegated proving.',
     badge: 'Auto-Resolved',
   },
   {

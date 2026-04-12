@@ -1,17 +1,17 @@
-// Round Bot — automated 15-min Strike Round lifecycle.
+// Round Bot — automated 5-min Strike Round lifecycle.
 // State machine per market slot: IDLE → CREATING → OPEN → SETTLING → IDLE
 // Empty rounds (no bets) get a virtual reset at zero on-chain cost.
 
 import { config } from '../config';
 import { fetchWithTimeout } from './fetch-timeout';
 import { getCachedPrices } from './oracle';
-import { registerMarket, persistRegistry, clearStaleLightningFlags, getCachedMarkets } from './indexer';
+import { registerMarket, persistRegistry, clearStaleLightningFlags, getCachedMarkets, updateMarketMeta } from './indexer';
 import { savePendingMeta, deletePendingMeta } from './scanner';
 import { delegatedSettle, delegatedCreateMarket, isDelegatedProvingAvailable, getResolverAddressFromKey } from './delegated-prover';
 import { fetchCurrentBlock } from './chain-executor';
 import { query } from './db';
 import { assetToSeriesId, updateSeriesStats } from './db';
-import { findUsdcxRecord } from './record-scanner';
+import { findUsdcxRecord, markRecordSpent } from './record-scanner';
 import { getUsdcxProofs } from './freeze-list';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -52,8 +52,8 @@ interface BotState {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const ROUND_DURATION_MS = config.roundDurationMinutes * 60 * 1000;
-const TICK_INTERVAL_MS = 15_000;      // Check every 15s
-const COOLDOWN_MS = 30_000;           // Wait 30s after settle before creating next
+const TICK_INTERVAL_MS = 5_000;       // Check every 5s (faster for 5-min rounds)
+const COOLDOWN_MS = 10_000;           // Wait 10s after settle before creating next
 const TX_CONFIRM_TIMEOUT_MS = 120_000; // 2 min to confirm
 const TX_POLL_INTERVAL_MS = 10_000;
 const MAX_CREATE_RETRIES = 3;          // Max create retries before longer cooldown
@@ -302,6 +302,9 @@ async function createMarketForSlot(slot: MarketSlot): Promise<void> {
     console.log(`[RoundBot] ${slot.id} market tx submitted: ${result.txId} (${result.durationMs}ms)`);
     slot.txId = result.txId;
 
+    // Mark the token record as spent so the next slot won't reuse it
+    if (tokenRecord) markRecordSpent(tokenRecord);
+
     // Try to extract the real market_id from the transaction response
     const marketId = extractMarketIdFromTx(result.transaction);
     if (marketId) {
@@ -345,11 +348,13 @@ async function createMarketForSlot(slot: MarketSlot): Promise<void> {
       const seriesId = assetToSeriesId(slot.asset);
       const timeSlot = buildTimeSlotLabel(slot.startTime, slot.endTime);
       if (slot.marketId) {
-        // Update the DB market row with series linkage
-        query(
-          `UPDATE markets SET series_id = $1, round_number = $2, start_price = $3, time_slot = $4 WHERE id = $5`,
-          [seriesId, slot.roundNumber, slot.startPrice, timeSlot, slot.marketId],
-        ).catch(() => {});
+        // Update both in-memory registry and DB so API returns startPrice immediately
+        updateMarketMeta(slot.marketId, {
+          startPrice: slot.startPrice,
+          seriesId,
+          roundNumber: slot.roundNumber,
+          timeSlot,
+        });
       }
 
       console.log(`[RoundBot] ${slot.id} round #${slot.roundNumber} OPEN. Start price: $${slot.startPrice}`);
@@ -366,6 +371,15 @@ async function createMarketForSlot(slot: MarketSlot): Promise<void> {
     slot.createRetries++;
     slot.nextCreateAttempt = Date.now() + CREATE_RETRY_BACKOFF_MS;
     console.error(`[RoundBot] ${slot.id} creation failed (retry ${slot.createRetries}/${MAX_CREATE_RETRIES}): ${result.error}`);
+
+    // If rejection was due to a stale record whose input ID is already on-chain,
+    // blacklist that record so the next retry picks a fresh one.
+    // Use a short backoff since the next record should work.
+    if (tokenRecord && result.error && result.error.includes('already exists')) {
+      markRecordSpent(tokenRecord);
+      slot.nextCreateAttempt = Date.now() + 5_000; // retry in 5s (not 60s)
+      console.log(`[RoundBot] ${slot.id} blacklisted stale record — fast retry in 5s`);
+    }
   }
 
   saveState();
@@ -648,6 +662,7 @@ export async function startRoundBot(): Promise<void> {
       } else if (slot.state === 'open' && slot.marketId && slot.endTime <= Date.now()) {
         // Round EXPIRED during restart — queue it for settling
         console.log(`[RoundBot] ${slot.id} round #${slot.roundNumber} expired during downtime — will settle now`);
+        slot.state = 'settling'; // Mark immediately so tick() won't double-settle
         expiredSlotsToSettle.push(slot);
       } else if (slot.state !== 'idle') {
         console.log(`[RoundBot] Reset slot ${slot.id} from '${slot.state}' (round #${slot.roundNumber}) → idle`);

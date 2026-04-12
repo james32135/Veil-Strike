@@ -12,7 +12,7 @@ import type { ShareRecord } from '@/hooks/useTransaction';
 import { useCountdown } from '@/hooks/useCountdown';
 import { buildBuySharesPrivateTx, buildBuySharesStableTx, buildRedeemSharesTx, generateNonce } from '@/utils/transactions';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
-import { estimateBuySharesExact, estimateSellTokensOut, calculateFees } from '@/utils/fpmm';
+import { estimateBuySharesExact } from '@/utils/fpmm';
 import { formatUSD, formatAleo } from '@/utils/format';
 import LivePriceChart from '@/components/charts/LivePriceChart';
 import ProbabilityGauge from '@/components/shared/ProbabilityGauge';
@@ -80,6 +80,8 @@ export default function SeriesDetail() {
   const { currentSeries, loading, fetchSeriesBySlug } = useSeriesStore();
   const prices = useOracleStore((s) => s.prices);
   const fetchPrices = useOracleStore((s) => s.fetchPrices);
+  const connectSSE = useOracleStore((s) => s.connectSSE);
+  const disconnectSSE = useOracleStore((s) => s.disconnectSSE);
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
   const allMarkets = useMarketStore((s) => s.markets);
 
@@ -89,6 +91,7 @@ export default function SeriesDetail() {
   const { status: txStatus, execute, fetchCreditsRecord, fetchUsdcxRecord } = useTransaction();
   const addTrade = useTradeStore((s) => s.addTrade);
   const addBet = useLightningBetStore((s) => s.addBet);
+  const removeBet = useLightningBetStore((s) => s.removeBet);
   const allBets = useLightningBetStore((s) => s.bets);
   const startCooldown = useBetCooldownStore((s) => s.startCooldown);
   const isOnCooldown = useBetCooldownStore((s) => s.isOnCooldown);
@@ -126,10 +129,11 @@ export default function SeriesDetail() {
     if (slug) fetchSeriesBySlug(slug);
     fetchPrices();
     fetchMarkets();
-    const i1 = setInterval(() => slug && fetchSeriesBySlug(slug), 15_000);
-    const i2 = setInterval(fetchPrices, 15_000);
-    return () => { clearInterval(i1); clearInterval(i2); };
-  }, [slug, fetchSeriesBySlug, fetchPrices, fetchMarkets]);
+    connectSSE();
+    const i1 = setInterval(() => slug && fetchSeriesBySlug(slug), 10_000);
+    const i2 = setInterval(fetchPrices, 10_000);
+    return () => { clearInterval(i1); clearInterval(i2); disconnectSSE(); };
+  }, [slug, fetchSeriesBySlug, fetchPrices, fetchMarkets, connectSSE, disconnectSSE]);
 
   // Load share records
   const loadShareRecords = useCallback(async () => {
@@ -223,7 +227,7 @@ export default function SeriesDetail() {
   const liveReserves = round?.reserves || [1_000_000, 1_000_000];
 
   const handleBet = async (direction: 'up' | 'down') => {
-    if (!round) return;
+    if (!round || onCooldown) return;
     setPendingDirection(direction);
     const amountMicro = Math.floor(parseFloat(betAmount) * 1_000_000);
     if (amountMicro < 1000) return;
@@ -258,14 +262,16 @@ export default function SeriesDetail() {
       .then(() => fetchMarkets())
       .catch(() => fetchMarkets());
 
-    const txId = await execute(tx, refreshChain);
+    startCooldown();
+    const txId = await execute(tx, refreshChain, (rejectedId) => {
+      removeBet(rejectedId);
+    });
     if (txId) {
-      startCooldown();
       // Immediately record the bet so panel switches to "Your Bet" view
       addBet({
         roundId: round.id, marketId: round.id, asset: asset as 'BTC' | 'ETH' | 'ALEO', direction,
         amount: amountMicro, shares: Number(exactShares),
-        timestamp: Date.now(), startPrice: currentPrice, tokenType: marketToken,
+        timestamp: Date.now(), startPrice: currentPrice, tokenType: marketToken, txId,
       });
       addTrade({
         marketId: round.id, type: 'buy',
@@ -346,7 +352,7 @@ export default function SeriesDetail() {
             </Card>
           </motion.div>
 
-          {/* Price Chart — live real-time */}
+          {/* Price Chart — live real-time with SSE ticker */}
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
             <LivePriceChart
               data={priceHistory}
@@ -354,6 +360,7 @@ export default function SeriesDetail() {
               asset={asset}
               color={asset === 'BTC' ? '#F59E0B' : asset === 'ETH' ? '#60A5FA' : '#00D4B8'}
               height={340}
+              showTicker
             />
           </motion.div>
 
@@ -486,11 +493,7 @@ export default function SeriesDetail() {
                   <div className="flex items-center justify-between text-xs mt-1">
                     <span className="text-gray-500">Potential Win</span>
                     <span className="font-mono text-teal">
-                      {(() => {
-                        const out = userBet.direction === 'up' ? 0 : 1;
-                        const { tokensOut } = estimateSellTokensOut(liveReserves, out, userBet.shares);
-                        return formatAleo(calculateFees(tokensOut).amountAfterFee);
-                      })()} {tokenLabel}
+                      {formatAleo(userBet.shares)} {tokenLabel}
                     </span>
                   </div>
                 </div>

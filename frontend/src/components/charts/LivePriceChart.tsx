@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { createChart, ColorType, LineStyle, type IChartApi, type ISeriesApi } from 'lightweight-charts';
 import { CHART_COLORS, API_BASE } from '@/constants';
 
@@ -12,6 +12,8 @@ interface LivePriceChartProps {
   /** Chart accent color */
   color?: string;
   height?: number;
+  /** Show live price ticker overlay */
+  showTicker?: boolean;
 }
 
 export default function LivePriceChart({
@@ -20,12 +22,17 @@ export default function LivePriceChart({
   asset,
   color = CHART_COLORS.teal,
   height = 320,
+  showTicker = false,
 }: LivePriceChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Area'> | null>(null);
   const liveDataRef = useRef<{ time: number; price: number }[]>([]);
+  const sseRef = useRef<EventSource | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [livePrice, setLivePrice] = useState<number | null>(null);
+  const [priceFlash, setPriceFlash] = useState<'up' | 'down' | null>(null);
+  const prevPriceRef = useRef<number | null>(null);
 
   // Initial chart setup
   useEffect(() => {
@@ -118,33 +125,74 @@ export default function LivePriceChart({
     };
   }, [data, targetPrice, color, height]);
 
-  // Live price polling — every 3 seconds, update chart with latest oracle price
-  const appendLivePrice = useCallback(async () => {
-    if (!asset || !seriesRef.current) return;
-    try {
-      const res = await fetch(`${API_BASE}/oracle`);
-      if (!res.ok) return;
-      const { prices } = await res.json();
-      const key = asset.toLowerCase();
-      const price = prices[key];
-      if (price === undefined) return;
+  // Live price via SSE — streams every ~15s, falls back to REST polling
+  const updatePrice = useCallback((price: number) => {
+    if (!seriesRef.current) return;
+    const timeSec = Math.floor(Date.now() / 1000) as any;
+    seriesRef.current.update({ time: timeSec, value: price });
 
-      const now = Date.now();
-      const timeSec = Math.floor(now / 1000) as any;
-
-      // Update chart
-      seriesRef.current.update({ time: timeSec, value: price });
-    } catch { /* ignore */ }
-  }, [asset]);
+    // Flash up/down
+    if (prevPriceRef.current !== null) {
+      if (price > prevPriceRef.current) setPriceFlash('up');
+      else if (price < prevPriceRef.current) setPriceFlash('down');
+    }
+    prevPriceRef.current = price;
+    setLivePrice(price);
+    setTimeout(() => setPriceFlash(null), 500);
+  }, []);
 
   useEffect(() => {
     if (!asset) return;
-    pollRef.current = setInterval(appendLivePrice, 3000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [asset, appendLivePrice]);
+    const key = asset.toLowerCase();
+
+    // Try SSE first
+    const sseUrl = `${API_BASE}/oracle/stream`;
+    const es = new EventSource(sseUrl);
+    let sseActive = false;
+
+    es.onmessage = (event) => {
+      sseActive = true;
+      try {
+        const prices = JSON.parse(event.data);
+        const price = prices[key];
+        if (price !== undefined) updatePrice(price);
+      } catch { /* ignore */ }
+    };
+
+    es.onerror = () => {
+      // If SSE fails, fall back to REST polling
+      if (!sseActive) {
+        es.close();
+        pollRef.current = setInterval(async () => {
+          try {
+            const res = await fetch(`${API_BASE}/oracle`);
+            if (!res.ok) return;
+            const { prices } = await res.json();
+            const price = prices[key];
+            if (price !== undefined) updatePrice(price);
+          } catch { /* ignore */ }
+        }, 3000);
+      }
+    };
+
+    sseRef.current = es;
+
+    return () => {
+      es.close();
+      sseRef.current = null;
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    };
+  }, [asset, updatePrice]);
 
   return (
-    <div className="w-full rounded-xl overflow-hidden border border-white/[0.04] bg-dark-300/30">
+    <div className="relative w-full rounded-xl overflow-hidden border border-white/[0.04] bg-dark-300/30">
+      {showTicker && livePrice !== null && (
+        <div className={`absolute top-3 right-3 z-10 px-3 py-1.5 rounded-lg bg-dark-400/80 backdrop-blur-sm border border-white/[0.06] font-mono text-sm transition-colors duration-300 ${
+          priceFlash === 'up' ? 'text-green-400' : priceFlash === 'down' ? 'text-red-400' : 'text-white'
+        }`}>
+          ${livePrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </div>
+      )}
       <div ref={containerRef} className="w-full" />
     </div>
   );

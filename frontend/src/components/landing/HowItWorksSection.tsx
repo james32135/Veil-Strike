@@ -11,7 +11,7 @@ const steps = [
   {
     num: '02',
     title: 'Choose a Market',
-    desc: 'Browse live prediction markets — crypto, sports, world events, politics, and more. Or try 15-minute Strike Rounds.',
+    desc: 'Browse live prediction markets — crypto, sports, world events, politics, and more. Or try 5-minute Strike Rounds.',
     detail: 'All markets are powered by FPMM (Fixed-Product Market Maker) with automated price discovery.',
   },
   {

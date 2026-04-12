@@ -15,7 +15,7 @@ export default function CreateMarket() {
           <CreateEventForm />
         </Card>
         <p className="text-xs text-smoke/40 text-center mt-4">
-          Strike Rounds are created automatically every 15 minutes by the Round Bot.
+          Strike Rounds are created automatically every 5 minutes by the Round Bot.
         </p>
       </div>
     </div>

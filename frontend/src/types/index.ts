@@ -157,6 +157,6 @@ export type MarketCategory =
   | 'Culture'
   | 'Other';
 
-export type LightningDuration = '5min' | '15min' | '1hr' | '4hr';
+export type LightningDuration = '5min' | '1hr' | '4hr';
 
 export type MarketSortBy = 'volume' | 'liquidity' | 'newest' | 'ending';

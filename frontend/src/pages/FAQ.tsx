@@ -18,7 +18,7 @@ const faqs = [
   },
   {
     q: 'What are Strike Rounds?',
-    a: 'Strike Rounds are 15-minute price prediction markets where you bet UP or DOWN on crypto prices (BTC, ETH, ALEO). The Round Bot automatically creates 3 concurrent markets every 15 minutes using delegated proving. After the timer expires, it compares oracle start vs end price and calls flash_settle on-chain — all markets are settled, even empty ones. Your position and payout are fully private via ZK proofs.',
+    a: 'Strike Rounds are 5-minute price prediction markets where you bet UP or DOWN on crypto prices (BTC, ETH, ALEO). The Round Bot automatically creates 3 concurrent markets every 5 minutes using delegated proving. After the timer expires, it compares oracle start vs end price and calls flash_settle on-chain — all markets are settled, even empty ones. Your position and payout are fully private via ZK proofs.',
   },
   {
     q: 'How is privacy maintained?',
@@ -42,11 +42,11 @@ const faqs = [
   },
   {
     q: 'Can I create my own market?',
-    a: 'Yes! Go to the Create page to set up an event market with your question, outcomes, deadline, and initial liquidity. The market is created on-chain and appears in the list once confirmed by the indexer. Strike Rounds are created automatically by the Round Bot every 15 minutes.',
+    a: 'Yes! Go to the Create page to set up an event market with your question, outcomes, deadline, and initial liquidity. The market is created on-chain and appears in the list once confirmed by the indexer. Strike Rounds are created automatically by the Round Bot every 5 minutes.',
   },
   {
     q: 'How does resolution work?',
-    a: 'Strike Rounds are auto-resolved by the Round Bot every 15 minutes. The bot compares oracle start vs end prices and calls flash_settle on-chain via delegated proving (~30s). All rounds are settled on-chain — including empty ones to keep state clean. Admin can also manually resolve via the Admin page. For event markets, the resolver calls render_verdict then ratify_verdict after a 12-hour challenge window.',
+    a: 'Strike Rounds are auto-resolved by the Round Bot every 5 minutes. The bot compares oracle start vs end prices and calls flash_settle on-chain via delegated proving (~30s). All rounds are settled on-chain — including empty ones to keep state clean. Admin can also manually resolve via the Admin page. For event markets, the resolver calls render_verdict then ratify_verdict after a 12-hour challenge window.',
   },
   {
     q: 'How do I get started?',

@@ -384,10 +384,14 @@ export function updateMarketMeta(marketId: string, partial: Partial<MarketMeta>)
   const fields: string[] = [];
   const vals: unknown[] = [];
   let i = 1;
-  if (partial.imageUrl !== undefined)   { fields.push(`image_url = $${i++}`);    vals.push(partial.imageUrl || null); }
-  if (partial.question !== undefined)   { fields.push(`question = $${i++}`);     vals.push(partial.question); }
-  if (partial.tokenType !== undefined)  { fields.push(`token_type = $${i++}`);   vals.push(partial.tokenType); }
-  if (partial.isLightning !== undefined){ fields.push(`is_lightning = $${i++}`); vals.push(partial.isLightning); }
+  if (partial.imageUrl !== undefined)    { fields.push(`image_url = $${i++}`);    vals.push(partial.imageUrl || null); }
+  if (partial.question !== undefined)    { fields.push(`question = $${i++}`);     vals.push(partial.question); }
+  if (partial.tokenType !== undefined)   { fields.push(`token_type = $${i++}`);   vals.push(partial.tokenType); }
+  if (partial.isLightning !== undefined) { fields.push(`is_lightning = $${i++}`); vals.push(partial.isLightning); }
+  if (partial.startPrice !== undefined)  { fields.push(`start_price = $${i++}`);  vals.push(partial.startPrice); }
+  if (partial.seriesId !== undefined)    { fields.push(`series_id = $${i++}`);    vals.push(partial.seriesId || null); }
+  if (partial.roundNumber !== undefined) { fields.push(`round_number = $${i++}`); vals.push(partial.roundNumber); }
+  if (partial.timeSlot !== undefined)    { fields.push(`time_slot = $${i++}`);    vals.push(partial.timeSlot || null); }
   if (fields.length > 0) {
     vals.push(marketId);
     query(`UPDATE markets SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${i}`, vals)

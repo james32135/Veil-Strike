@@ -56,9 +56,9 @@ Veil Strike is a three-tier application:
 
 ### Oracle Flow
 
-1. Backend cron job fetches prices from CoinGecko every minute
-2. Admin calls `update_oracle_prices(btc, eth, aleo)` transition
-3. Finalize function validates admin and writes to `oracle_prices` mapping
+1. Backend cron job fetches prices every 15 seconds via 7-source fallback chain (CoinGecko → OKX → KuCoin → Gate.io → Binance → CoinCap → CryptoCompare)
+2. Prices broadcast to frontend via SSE (`/oracle/stream`)
+3. Strike Round bot uses oracle start/end prices for automated settlement
 4. Lightning markets reference oracle prices for auto-resolution
 
 ### Privacy Guarantees

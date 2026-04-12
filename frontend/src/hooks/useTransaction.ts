@@ -7,6 +7,32 @@ import type { AleoTransaction } from '@/types';
 
 const EXPLORER_BASE = 'https://explorer.provable.com/transaction';
 
+// ── Client-side record dedup ────────────────────────────────────────────────
+// Track recently-used record plaintexts to avoid resubmitting a record
+// that was already consumed on-chain but the wallet hasn't refreshed yet.
+const usedRecordKeys = new Map<string, number>(); // key → timestamp
+const RECORD_EXPIRY_MS = 120_000; // 2 minutes
+
+function recordKey(plaintext: string): string {
+  // Use first 80 chars as a stable identifier (includes owner + unique fields)
+  return plaintext.slice(0, 80);
+}
+
+export function markRecordUsed(plaintext: string) {
+  usedRecordKeys.set(recordKey(plaintext), Date.now());
+}
+
+export function isRecordRecentlyUsed(plaintext: string): boolean {
+  const key = recordKey(plaintext);
+  const ts = usedRecordKeys.get(key);
+  if (!ts) return false;
+  if (Date.now() - ts > RECORD_EXPIRY_MS) {
+    usedRecordKeys.delete(key);
+    return false;
+  }
+  return true;
+}
+
 export interface ShareRecord {
   plaintext: string;
   marketId: string;
@@ -67,6 +93,11 @@ export function useTransaction() {
           console.log('[fetchCreditsRecord] Record:', { plaintext: plaintext?.slice(0, 80), amount, spent, minMicrocredits });
 
           if (amount >= minMicrocredits && plaintext) {
+            if (isRecordRecentlyUsed(plaintext)) {
+              console.log('[fetchCreditsRecord] Skipping recently-used record');
+              continue;
+            }
+            markRecordUsed(plaintext);
             return plaintext;
           }
         }
@@ -120,6 +151,11 @@ export function useTransaction() {
           }
 
           if (amount >= minAmount && plaintext) {
+            if (isRecordRecentlyUsed(plaintext)) {
+              console.log(`[fetchUsdcxRecord] Skipping recently-used ${label} record`);
+              continue;
+            }
+            markRecordUsed(plaintext);
             return plaintext;
           }
         }
@@ -136,7 +172,7 @@ export function useTransaction() {
   );
 
   const execute = useCallback(
-    async (transaction: AleoTransaction, onConfirmed?: (realTxId: string) => void) => {
+    async (transaction: AleoTransaction, onConfirmed?: (realTxId: string) => void, onRejected?: (rawTxId: string) => void) => {
       if (!connected) {
         addNotification('error', 'Wallet Not Connected', 'Please connect your Shield Wallet first.');
         return null;
@@ -197,34 +233,47 @@ export function useTransaction() {
             setTimeout(() => onConfirmed(rawId), 3000);
           }
 
-          // Background: resolve real at1... ID then upgrade toast with explorer link
+          // Background: resolve real at1... ID then upgrade toast with explorer link.
+          // If resolution fails after all retries, the TX was likely rejected on-chain.
           (async () => {
             try {
               const realId = await resolveShieldTxId(rawId);
-              const confirmedId = (realId && realId.startsWith('at1')) ? realId : rawId;
-              const explorerUrl = confirmedId.startsWith('at1')
-                ? `${EXPLORER_BASE}/${confirmedId}`
-                : undefined;
-
-              setTxId(confirmedId);
-              updateNotification(toastId, {
-                type: 'success',
-                title: 'Transaction Confirmed',
-                message: confirmedId.startsWith('at1')
-                  ? `TX: ${confirmedId.slice(0, 12)}...${confirmedId.slice(-8)}`
-                  : 'Transaction accepted by the network',
-                currentStep: 5,
-                link: explorerUrl,
-                linkLabel: 'View on Explorer',
-              });
+              if (realId && realId.startsWith('at1')) {
+                const explorerUrl = `${EXPLORER_BASE}/${realId}`;
+                setTxId(realId);
+                updateNotification(toastId, {
+                  type: 'success',
+                  title: 'Transaction Confirmed',
+                  message: `TX: ${realId.slice(0, 12)}...${realId.slice(-8)}`,
+                  currentStep: 5,
+                  link: explorerUrl,
+                  linkLabel: 'View on Explorer',
+                });
+              } else {
+                // Could not resolve → likely rejected on-chain
+                console.warn('[TX] Could not resolve TX ID — may be rejected:', rawId);
+                setStatus('error');
+                updateNotification(toastId, {
+                  type: 'error',
+                  title: 'Transaction Rejected',
+                  message: 'The network rejected this transaction. Your record may have been spent by a previous operation. Please try again.',
+                  steps: undefined,
+                  currentStep: undefined,
+                });
+                if (onRejected) onRejected(rawId);
+              }
             } catch {
-              // Resolution failed — toast already shows success
+              // Resolution failed — likely rejected
+              console.warn('[TX] Resolution error — may be rejected:', rawId);
+              setStatus('error');
               updateNotification(toastId, {
-                type: 'success',
-                title: 'Transaction Confirmed',
-                message: 'Transaction accepted. Explorer link unavailable.',
-                currentStep: 5,
+                type: 'error',
+                title: 'Transaction Rejected',
+                message: 'Could not confirm transaction on-chain. Your record may have been spent. Please try again.',
+                steps: undefined,
+                currentStep: undefined,
               });
+              if (onRejected) onRejected(rawId);
             }
           })();
 

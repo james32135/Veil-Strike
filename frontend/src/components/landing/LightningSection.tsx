@@ -9,7 +9,7 @@ const rounds = [
 ];
 
 const features = [
-  { title: 'Auto-Resolved', desc: 'Every round resolves automatically after 15 minutes via on-chain oracles. No waiting.' },
+  { title: 'Auto-Resolved', desc: 'Every round resolves automatically after 5 minutes via on-chain oracles. No waiting.' },
   { title: 'USDCx Bets', desc: 'Bet with USDCx — private, backed 1:1 by USDC. Your balance stays encrypted.' },
   { title: 'Delegated Proving', desc: 'Our prover network handles ZK proof generation. You just click and bet.' },
   { title: 'Non-Stop', desc: 'Rounds open 24/7. As soon as one ends, the next begins. Always a live round.' },
@@ -30,11 +30,11 @@ export default function LightningSection() {
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}>
             <span className="inline-block text-[11px] font-heading text-teal uppercase tracking-[0.3em] mb-4">Strike Rounds</span>
             <h2 className="section-title mb-4">
-              15-Minute{' '}
+              5-Minute{' '}
               <span className="gradient-text">Lightning Rounds</span>
             </h2>
             <p className="text-smoke/55 leading-relaxed mb-8 max-w-md">
-              Predict whether BTC, ETH, or ALEO will go up or down in 15 minutes. 
+              Predict whether BTC, ETH, or ALEO will go up or down in 5 minutes. 
               Each round locks automatically, resolves via oracle price feeds, and pays winners instantly — all on-chain, all private.
             </p>
 
@@ -87,7 +87,7 @@ export default function LightningSection() {
                     </div>
                     <div>
                       <p className="text-sm font-heading text-white/80">{r.pair}</p>
-                      <p className="text-[10px] text-smoke/30">15-min round</p>
+                      <p className="text-[10px] text-smoke/30">5-min round</p>
                     </div>
                   </div>
                   <div className="flex gap-2">

@@ -70,17 +70,18 @@ Both stablecoins feature **encrypted balances and transfers** by default on Aleo
 
 ---
 
-## ⚡ Strike Rounds — 15-Minute Lightning Markets
+## ⚡ Strike Rounds — 5-Minute Lightning Markets
 
-The flagship feature: **automated 15-minute prediction rounds** on BTC, ETH, and ALEO prices.
+The flagship feature: **automated 5-minute prediction rounds** on BTC, ETH, and ALEO prices.
 
 - 🤖 Bot creates 3 concurrent USDCx rounds automatically
-- ⏱️ Each round locks after 15 minutes, settles via oracle price comparison
+- ⏱️ Each round locks after 5 minutes, settles via oracle price comparison
 - 🔄 Settlement + next round creation is fully automated 24/7
 - 🛡️ Delegated proving handles ZK proofs (~15-30s per transaction)
 - 📊 Oracle feeds from 7 sources with automatic fallback chain
+- 📡 Real-time SSE price streaming for instant chart updates
 
-**How it works:** Bet UP or DOWN on whether BTC/ETH/ALEO price will rise or fall in 15 minutes. If you're right, claim your encrypted winnings instantly.
+**How it works:** Bet UP or DOWN on whether BTC/ETH/ALEO price will rise or fall in 5 minutes. If you're right, claim your encrypted winnings instantly.
 
 ---
 
@@ -113,7 +114,7 @@ Landing · Markets · Trade · Strike Rounds · Series Charts · Portfolio · Cr
 ## ✅ What's Working
 
 - 53 on-chain transitions on Aleo Mainnet (Leo v4)
-- USDCx Strike Rounds — 15-min auto cycles with delegated proving
+- USDCx Strike Rounds — 5-min auto cycles with delegated proving
 - FPMM AMM with complete-set minting and dynamic fees
 - 12-hour dispute window with 5 ALEO bond
 - Executable governance (quorum 3, timelock 2h)

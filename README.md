@@ -23,7 +23,7 @@ Veil Strike is a **zero-knowledge prediction market protocol** built on **Aleo**
 
 **The Problem:** On Polymarket and Azuro, every bet you place is public. Anyone can see your wallet, your positions, your PnL. Whales get front-run. Strategies get copied. Your financial activity is permanently visible on-chain.
 
-**The Solution:** Veil Strike encrypts everything. Your identity, bet sizes, positions, and payouts are invisible to everyone — including validators, other traders, and MEV bots. The protocol uses a **Fixed Product Market Maker (FPMM)**, supports three tokens (ALEO, USDCx, USAD), features **Strike Rounds** with 15-minute auto-resolved cycles (3 concurrent slots: BTC, ETH, ALEO) using delegated proving, and includes a 12-hour dispute window for event markets.
+**The Solution:** Veil Strike encrypts everything. Your identity, bet sizes, positions, and payouts are invisible to everyone — including validators, other traders, and MEV bots. The protocol uses a **Fixed Product Market Maker (FPMM)**, supports three tokens (ALEO, USDCx, USAD), features **Strike Rounds** with 5-minute auto-resolved cycles (3 concurrent slots: BTC, ETH, ALEO) using delegated proving with real-time SSE price streaming, and includes a 12-hour dispute window for event markets.
 
 Every trade generates a zero-knowledge proof. Your identity, position size, and payout are encrypted on-chain — only you can decrypt them.
 
@@ -176,7 +176,7 @@ Same 15-transition market flow as main (1-15) but using stablecoin tokens. Gover
    → Encrypted OutcomeShare record (UP or DOWN position)
    → 40-second cooldown before next bet (prevents UTXO reuse errors)
 
-3. [15-minute round timer expires]
+3. [5-minute round timer expires]
    → Frontend shows "Settling..." with progress info
 
 4. Round Bot: compare oracle start vs end price → flash_settle via delegated proving
@@ -224,7 +224,7 @@ The resolver address (`aleo19za49scmhufst9q8lhwka5hmkvzx5ersrue3gjwcs705542daurs
 ### Automated Round Bot — Strike Rounds
 The `services/round-bot.ts` automates the full Strike Round lifecycle using **delegated proving** (Provable API):
 1. Creates 3 concurrent markets on startup (BTC-ALEO, ETH-ALEO, ALEO-ALEO)
-2. Every 15 minutes, the round timer expires
+2. Every 5 minutes, the round timer expires
 3. Bot compares oracle start vs end price → `flash_settle` via delegated proving (~30s)
 4. ALL markets are settled on-chain, including empty ones (ensures clean state)
 5. Bot immediately creates the next round
@@ -252,7 +252,7 @@ Both the round bot and the proof dispatcher use the **Provable API** for delegat
 | `/` | Landing | Hero, features, architecture, how-it-works, comparison |
 | `/markets` | Markets | Browse all prediction markets with filters |
 | `/markets/:id` | Market Detail | Chart, trade panel, buy/sell/LP |
-| `/rounds` | Strike Rounds | 15-min auto-resolved price rounds with live oracle feed |
+| `/rounds` | Strike Rounds | 5-min auto-resolved price rounds with live SSE oracle feed |
 | `/portfolio` | Portfolio | Your encrypted positions, history, PnL |
 | `/create` | Create | Create event market (Strike Rounds are auto-created) |
 | `/governance` | Governance | On-chain proposals and voting |
@@ -276,7 +276,7 @@ Both the round bot and the proof dispatcher use the **Provable API** for delegat
 | Resolver | `services/resolver.ts` | Re-fetches market cache after on-chain resolution |
 | Auto-Resolver | `services/auto-resolver.ts` | Cron: auto-closes + resolves + finalizes event markets |
 | Lightning Mgr | `services/lightning-manager.ts` | Tracks active Strike Rounds, admin resolve/replacement |
-| Round Bot | `services/round-bot.ts` | Automated 15-min round lifecycle (create → settle → repeat) |
+| Round Bot | `services/round-bot.ts` | Automated 5-min round lifecycle (create → settle → repeat) |
 | Delegated Prover | `services/delegated-prover.ts` | Provable API delegated proving (~30s per tx) |
 | Proof Dispatcher | `services/proof-dispatcher.ts` | Routes to delegated prover (fast) or local worker (fallback) |
 | Chain Executor | `services/chain-executor.ts` | Aleo SDK transaction execution |
@@ -362,7 +362,7 @@ contract/
 **Deployed & Working:**
 - ✅ 3 Leo programs on Aleo Mainnet (53 transitions, Leo v4 syntax)
 - ✅ Event prediction markets (2–4 outcomes, any category)
-- ✅ Strike Rounds — 15-minute auto-resolved cycles via delegated proving (3 slots: BTC, ETH, ALEO)
+- ✅ Strike Rounds — 5-minute auto-resolved cycles via delegated proving (3 slots: BTC, ETH, ALEO)
 - ✅ FPMM AMM with complete-set minting
 - ✅ Dispute system (contest_verdict + recover_bond)
 - ✅ Executable governance (submit → vote → execute with quorum 3 + timelock)

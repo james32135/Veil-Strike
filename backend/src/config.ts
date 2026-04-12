@@ -21,7 +21,7 @@ export const config = {
   provableApiKey: process.env.PROVABLE_API_KEY || '',
   provableConsumerId: process.env.PROVABLE_CONSUMER_ID || '',
   // Round bot
-  roundDurationMinutes: parseInt(process.env.ROUND_DURATION_MINUTES || '15', 10),
+  roundDurationMinutes: parseInt(process.env.ROUND_DURATION_MINUTES || '5', 10),
   roundBotEnabled: process.env.ROUND_BOT_ENABLED !== 'false',
   roundInitialLiquidity: parseInt(process.env.ROUND_INITIAL_LIQUIDITY || '10000', 10), // 0.01 token in microcredits
 };

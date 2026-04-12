@@ -187,28 +187,28 @@ export async function seedDefaultSeries(): Promise<void> {
   const defaults = [
     {
       id: 'series-btc', slug: 'btc-up-or-down',
-      title: 'Bitcoin Up or Down', subtitle: '15 Minutes',
-      asset: 'BTC', description: 'Predict whether Bitcoin price will go up or down in the next 15 minutes. Fully private on Aleo.',
-      category: 'Crypto', duration_seconds: 900, token_type: 'USDCX',
+      title: 'Bitcoin Up or Down', subtitle: '5 Minutes',
+      asset: 'BTC', description: 'Predict whether Bitcoin price will go up or down in the next 5 minutes. Fully private on Aleo.',
+      category: 'Crypto', duration_seconds: 300, token_type: 'USDCX',
     },
     {
       id: 'series-eth', slug: 'eth-up-or-down',
-      title: 'Ethereum Up or Down', subtitle: '15 Minutes',
-      asset: 'ETH', description: 'Predict whether Ethereum price will go up or down in the next 15 minutes. Fully private on Aleo.',
-      category: 'Crypto', duration_seconds: 900, token_type: 'USDCX',
+      title: 'Ethereum Up or Down', subtitle: '5 Minutes',
+      asset: 'ETH', description: 'Predict whether Ethereum price will go up or down in the next 5 minutes. Fully private on Aleo.',
+      category: 'Crypto', duration_seconds: 300, token_type: 'USDCX',
     },
     {
       id: 'series-aleo', slug: 'aleo-up-or-down',
-      title: 'ALEO Up or Down', subtitle: '15 Minutes',
-      asset: 'ALEO', description: 'Predict whether ALEO price will go up or down in the next 15 minutes. Fully private on Aleo.',
-      category: 'Crypto', duration_seconds: 900, token_type: 'USDCX',
+      title: 'ALEO Up or Down', subtitle: '5 Minutes',
+      asset: 'ALEO', description: 'Predict whether ALEO price will go up or down in the next 5 minutes. Fully private on Aleo.',
+      category: 'Crypto', duration_seconds: 300, token_type: 'USDCX',
     },
   ];
   for (const s of defaults) {
     await pool.query(
       `INSERT INTO series (id, slug, title, subtitle, asset, description, category, duration_seconds, token_type)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-       ON CONFLICT (id) DO UPDATE SET token_type = EXCLUDED.token_type`,
+       ON CONFLICT (id) DO UPDATE SET token_type = EXCLUDED.token_type, subtitle = EXCLUDED.subtitle, duration_seconds = EXCLUDED.duration_seconds, description = EXCLUDED.description`,
       [s.id, s.slug, s.title, s.subtitle, s.asset, s.description, s.category, s.duration_seconds, s.token_type],
     );
   }

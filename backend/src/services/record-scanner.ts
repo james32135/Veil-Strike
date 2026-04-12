@@ -15,6 +15,26 @@ let jwtExpiration: number = 0;
 let scannerUuid: string | null = null;
 let viewKeyStr: string | null = null;
 
+// Track nonces of records that have been used in pending transactions
+// to prevent re-using the same record before the chain confirms the spend.
+const pendingNonces = new Set<string>();
+const NONCE_EXPIRY_MS = 10 * 60 * 1000; // auto-clear after 10 min
+
+/** Mark a record's nonce as spent locally (after successful tx submission) */
+export function markRecordSpent(recordPlaintext: string): void {
+  const nonceMatch = recordPlaintext.match(/_nonce:\s*(\d+)/);
+  if (nonceMatch) {
+    pendingNonces.add(nonceMatch[1]);
+    setTimeout(() => pendingNonces.delete(nonceMatch[1]), NONCE_EXPIRY_MS);
+  }
+}
+
+/** Check if a record's nonce is in the pending-spent set */
+function isRecordPendingSpent(recordPlaintext: string): boolean {
+  const nonceMatch = recordPlaintext.match(/_nonce:\s*(\d+)/);
+  return nonceMatch ? pendingNonces.has(nonceMatch[1]) : false;
+}
+
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 async function getJwt(): Promise<string> {
@@ -226,6 +246,12 @@ export async function findUsdcxRecord(
       }
     }
     if (!plaintext) continue;
+
+    // Skip records already used in pending transactions
+    if (isRecordPendingSpent(plaintext)) {
+      console.log(`[RecordScanner] Skipping record — nonce is pending-spent`);
+      continue;
+    }
 
     const match = plaintext.match(/amount:\s*([\d_]+)u128/);
     if (match) {

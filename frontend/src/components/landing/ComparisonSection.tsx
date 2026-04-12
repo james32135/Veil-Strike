@@ -8,7 +8,7 @@ const rows = [
   { feature: 'Blockchain', vs: ['Aleo (ZK-native)', 'Polygon', 'Gnosis Chain'] },
   { feature: 'Bet Visibility', vs: ['Encrypted on-chain', 'Public on-chain', 'Public on-chain'] },
   { feature: 'Balance Privacy', vs: ['Hidden by default', 'Visible to all', 'Visible to all'] },
-  { feature: 'Fast Rounds', vs: ['15-min Strike Rounds', 'None', 'None'] },
+  { feature: 'Strike Rounds', vs: ['5-min Strike Rounds', 'None', 'None'] },
   { feature: 'Stablecoins', vs: ['USDCx + USAD (private)', 'USDC (public)', 'xDAI (public)'] },
   { feature: 'Market Maker', vs: ['FPMM on-chain', 'Central order book', 'FPMM on-chain'] },
   { feature: 'Proof System', vs: ['Delegated ZK proofs', 'N/A', 'N/A'] },

@@ -208,7 +208,7 @@ export default function HeroSection() {
             </span>
           </Link>
           <Link to="/rounds" className="btn-secondary text-sm px-8 py-4 flex items-center gap-2">
-            <BoltIcon className="w-4 h-4 text-teal" />Strike Rounds &mdash; 15min
+            <BoltIcon className="w-4 h-4 text-teal" />Strike Rounds &mdash; 5min
           </Link>
         </motion.div>
 

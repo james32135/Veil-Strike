@@ -94,7 +94,7 @@ export default function Docs() {
           </div>
         </Card>
 
-        {/* Lightning Markets */}
+        {/* Strike Rounds */}
         <Card className="p-6">
           <div className="flex items-center gap-3 mb-4">
             <BoltIcon className="w-6 h-6 text-amber-400" />
@@ -102,13 +102,14 @@ export default function Docs() {
           </div>
           <div className="text-sm text-gray-400 space-y-3 leading-relaxed">
             <p>
-              Strike Rounds are 15-minute price prediction markets where you bet UP or DOWN
+              Strike Rounds are 5-minute price prediction markets where you bet UP or DOWN
               on BTC, ETH, or ALEO prices. Three concurrent slots run — all denominated in USDCx.
+              Real-time prices stream via SSE for instant chart updates.
             </p>
             <p>
               The <strong className="text-white">Round Bot</strong> automates the full lifecycle using
               <strong className="text-teal"> delegated proving</strong> (~30s per transaction via Provable API).
-              Every 15 minutes the bot creates 3 markets (BTC-USDCx, ETH-USDCx, ALEO-USDCx), waits for the
+              Every 5 minutes the bot creates 3 markets (BTC-USDCx, ETH-USDCx, ALEO-USDCx), waits for the
               timer to expire, compares oracle start vs end price, and calls
               <code className="text-teal/80 bg-dark-200 px-1 rounded text-xs mx-1">flash_settle</code>
               on-chain for every market — including empty ones (ensures clean on-chain state). After settlement

@@ -173,6 +173,7 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
   const oraclePrices = useOracleStore((s) => s.prices);
   const addTrade     = useTradeStore((s) => s.addTrade);
   const addBet       = useLightningBetStore((s) => s.addBet);
+  const removeBet    = useLightningBetStore((s) => s.removeBet);
   const allBets      = useLightningBetStore((s) => s.bets);
   const roundBets    = allBets.filter((b) => b.marketId === market.id);
 
@@ -202,14 +203,14 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
   const upPct    = totalRes > 0 ? Math.round((rDown / totalRes) * 100) : 50;
   const downPct  = 100 - upPct;
 
-  // Real-time win estimate
+  // Real-time win estimate — Strike Rounds redeem winning shares at face
+  // value (1 share = 1 microcredit), NOT through AMM sell-back which
+  // under-reports for small pools.
   const amountMicro   = Math.max(0, Math.floor((parseFloat(betAmount) || 0) * 1_000_000));
   const estSharesUp   = amountMicro > 0 ? estimateBuySharesExact(liveReserves, 0, amountMicro) : 0n;
   const estSharesDown = amountMicro > 0 ? estimateBuySharesExact(liveReserves, 1, amountMicro) : 0n;
-  const { tokensOut: winUp }   = estSharesUp   > 0n ? estimateSellTokensOut(liveReserves, 0, Number(estSharesUp))   : { tokensOut: 0 };
-  const { tokensOut: winDown } = estSharesDown > 0n ? estimateSellTokensOut(liveReserves, 1, Number(estSharesDown)) : { tokensOut: 0 };
-  const potWinUp   = calculateFees(winUp).amountAfterFee;
-  const potWinDown = calculateFees(winDown).amountAfterFee;
+  const potWinUp   = Number(estSharesUp);
+  const potWinDown = Number(estSharesDown);
 
   const userBet = roundBets[0];
   useEffect(() => { if (userBet)              setPendingDir(null); }, [userBet]);
@@ -227,7 +228,7 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
   );
 
   const handleBet = async (direction: 'up' | 'down') => {
-    if (amountMicro < 1000) return;
+    if (amountMicro < 1000 || onCooldown) return;
     setPendingDir(direction);
     const outcome     = direction === 'up' ? 0 : 1;
     const exactShares = estimateBuySharesExact(liveReserves, outcome, amountMicro);
@@ -246,10 +247,16 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
       if (!record) { setPendingDir(null); return; }
       tx = buildBuySharesPrivateTx(market.id, outcome, `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce, record);
     }
-    const txId = await execute(tx, refreshChain);
+    // Start cooldown BEFORE execute so other cards are immediately blocked,
+    // preventing concurrent bets that would reuse the same token record.
+    startCooldown();
+    const txId = await execute(tx, refreshChain, (rejectedId) => {
+      // On-chain rejection detected — remove the local bet so UI doesn't
+      // show "Your Bet" for a transaction that didn't actually land.
+      removeBet(rejectedId);
+    });
     if (txId) {
-      startCooldown();
-      addBet({ roundId: market.id, marketId: market.id, asset, direction, amount: amountMicro, shares: Number(exactShares), timestamp: Date.now(), startPrice: currentPrice, tokenType });
+      addBet({ roundId: market.id, marketId: market.id, asset, direction, amount: amountMicro, shares: Number(exactShares), timestamp: Date.now(), startPrice: currentPrice, tokenType, txId });
       addTrade({ marketId: market.id, type: 'buy', outcome: direction === 'up' ? 'Up' : 'Down', amount: amountMicro, shares: Number(exactShares), price: 0.5, timestamp: Date.now() });
       refreshChain();
     } else { setPendingDir(null); }
@@ -563,11 +570,7 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-500">Potential Return</span>
-                    <span className="font-mono" style={{ color: cfg.color }}>{(() => {
-                      const out = userBet.direction === 'up' ? 0 : 1;
-                      const { tokensOut } = estimateSellTokensOut(liveReserves, out, userBet.shares);
-                      return formatAleo(calculateFees(tokensOut).amountAfterFee);
-                    })()} {tokenLabel}</span>
+                    <span className="font-mono" style={{ color: cfg.color }}>{formatAleo(userBet.shares)} {tokenLabel}</span>
                   </div>
                 </div>
               </motion.div>
@@ -623,7 +626,7 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
                 <div className="grid grid-cols-2 gap-2">
                   <motion.button
                     onClick={() => handleBet('up')}
-                    disabled={amountMicro < 1000 || isTxInProgress}
+                    disabled={amountMicro < 1000 || isTxInProgress || onCooldown}
                     whileHover={{ scale: 1.02, y: -1 }}
                     whileTap={{ scale: 0.97 }}
                     className="relative py-4 rounded-xl border border-accent-green/25 overflow-hidden
@@ -648,7 +651,7 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
 
                   <motion.button
                     onClick={() => handleBet('down')}
-                    disabled={amountMicro < 1000 || isTxInProgress}
+                    disabled={amountMicro < 1000 || isTxInProgress || onCooldown}
                     whileHover={{ scale: 1.02, y: -1 }}
                     whileTap={{ scale: 0.97 }}
                     className="relative py-4 rounded-xl border border-accent-red/25 overflow-hidden

@@ -13,7 +13,7 @@ import { initSeedLightningRounds } from './services/lightning-manager';
 import { warmupWorker } from './services/proof-dispatcher';
 import { startRoundBot } from './services/round-bot';
 import marketsRouter from './routes/markets';
-import oracleRouter from './routes/oracle';
+import oracleRouter, { broadcastPrices } from './routes/oracle';
 import statsRouter from './routes/stats';
 import healthRouter from './routes/health';
 import lightningRouter from './routes/lightning';
@@ -98,9 +98,11 @@ async function initialize() {
 }
 
 // Cron jobs
-cron.schedule(`*/${config.oracleIntervalMinutes} * * * *`, async () => {
+// Oracle price refresh every 15 seconds (fast for 5-min rounds)
+cron.schedule('*/15 * * * * *', async () => {
   await fetchOraclePrices();
   recordPriceSnapshot();
+  broadcastPrices();
 });
 
 cron.schedule(`*/${config.resolverIntervalMinutes} * * * *`, async () => {

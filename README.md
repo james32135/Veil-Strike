@@ -11,7 +11,7 @@
 
 **Trade outcomes. Stay private. Win on-chain.**
 
-[🌐 Live App](https://veil-strike.netlify.app) · [🔍 Explorer](https://explorer.provable.com/program/veil_strike_v7.aleo) · [⚡ API](https://veil-strike-api.onrender.com/api/health)
+[🌐 Live App](https://veil-strike.vercel.app) · [🔍 Explorer](https://explorer.provable.com/program/veil_strike_v7.aleo) · [⚡ API](https://veil-strike-api.onrender.com/api/health)
 
 </div>
 

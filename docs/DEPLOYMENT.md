@@ -88,7 +88,7 @@ Open http://localhost:5173 in your browser.
 
 ## Production Deployment
 
-### Frontend (Vercel/Netlify)
+### Frontend (Vercel)
 
 ```bash
 cd frontend

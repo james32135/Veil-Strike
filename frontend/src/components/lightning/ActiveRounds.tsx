@@ -744,6 +744,13 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
     setShareRecords(records);
   };
 
+  // Re-render every 5s so settling cards auto-hide after 45s expiry
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 5_000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     // Only fetch markets if store is empty (parent Rounds handles polling)
     if (allMarkets.length === 0) fetchMarkets().catch(() => {});
@@ -756,6 +763,13 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
   const activeMarkets  = strikeMarkets.filter((m) => m.status === 'active');
   const resolvedMarkets = strikeMarkets.filter((m) => m.status === 'resolved').slice(0, 6);
 
+  // Split active into truly-live (has time left) vs settling (expired, waiting for chain)
+  const now = Date.now();
+  const liveMarkets     = activeMarkets.filter((m) => m.endTime > now);
+  const settlingMarkets = activeMarkets.filter((m) => m.endTime <= now && (now - m.endTime) < 45_000);
+  // Auto-hide settling cards after 45s — backend now marks resolved immediately
+  // after flash_settle succeeds, so cards should disappear within one SSE cycle (≤15s).
+
   // Loading skeleton only on first load with zero data
   if (storeLoading && allMarkets.length === 0) {
     return (
@@ -767,7 +781,7 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
     );
   }
 
-  if (activeMarkets.length === 0 && resolvedMarkets.length === 0) {
+  if (liveMarkets.length === 0 && settlingMarkets.length === 0 && resolvedMarkets.length === 0) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -789,7 +803,7 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
         <RefreshButton onRefresh={async () => { await fetchMarkets(); await loadShareRecordsRef.current?.(); }} label="Refresh" />
       </div>
 
-      {activeMarkets.length === 0 && resolvedMarkets.length > 0 && (
+      {liveMarkets.length === 0 && settlingMarkets.length === 0 && resolvedMarkets.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -807,7 +821,7 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
         </motion.div>
       )}
 
-      {activeMarkets.length > 0 && (
+      {liveMarkets.length > 0 && (
         <div>
           <div className="flex items-center gap-3 mb-4">
             <div className="flex items-center gap-1.5">
@@ -815,7 +829,7 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
               <h3 className="text-xs text-gray-400 uppercase tracking-widest font-heading">Active Rounds</h3>
             </div>
             <div className="flex-1 h-px bg-white/[0.04]" />
-            <span className="text-xs font-mono text-gray-600">{activeMarkets.length} live</span>
+            <span className="text-xs font-mono text-gray-600">{liveMarkets.length} live</span>
           </div>
           <motion.div
             variants={gridVariants}
@@ -823,7 +837,29 @@ export default function ActiveRounds({ }: ActiveRoundsProps) {
             animate="visible"
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
-            {activeMarkets.map((market) => (
+            {liveMarkets.map((market) => (
+              <StrikeRoundCard key={market.id} market={market} shareRecords={shareRecords} onClaimed={() => loadShareRecordsRef.current?.()} />
+            ))}
+          </motion.div>
+        </div>
+      )}
+
+      {settlingMarkets.length > 0 && (
+        <div>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex items-center gap-1.5">
+              <motion.div animate={{ scale: [1, 1.3, 1], opacity: [1, 0.5, 1] }} transition={{ duration: 1.4, repeat: Infinity }} className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              <h3 className="text-xs text-amber-400/60 uppercase tracking-widest font-heading">Settling On-Chain</h3>
+            </div>
+            <div className="flex-1 h-px bg-white/[0.04]" />
+          </div>
+          <motion.div
+            variants={gridVariants}
+            initial="hidden"
+            animate="visible"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          >
+            {settlingMarkets.map((market) => (
               <StrikeRoundCard key={market.id} market={market} shareRecords={shareRecords} onClaimed={() => loadShareRecordsRef.current?.()} />
             ))}
           </motion.div>

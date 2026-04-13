@@ -164,7 +164,7 @@ export default function Rounds() {
     // Connect SSE for real-time prices
     connectSSE();
 
-    const marketInterval = setInterval(fetchMarkets, 10_000);
+    const marketInterval = setInterval(fetchMarkets, 6_000);
     const roundInterval = setInterval(fetchAllRounds, 8_000);
     const historyInterval = setInterval(fetchHistory, 30_000);
 
@@ -205,9 +205,10 @@ export default function Rounds() {
     }
   }, [allRounds, bets, markets, resolveBets]);
 
-  // Count active rounds from market store (consistent with ActiveRounds component)
+  // Count only truly-live rounds (not expired/settling) for the badge
   const totalActive = useMemo(() => {
-    return markets.filter((m) => m.isLightning && m.status === 'active' && m.question.toLowerCase().includes('strike round')).length;
+    const now = Date.now();
+    return markets.filter((m) => m.isLightning && m.status === 'active' && m.question.toLowerCase().includes('strike round') && m.endTime > now).length;
   }, [markets]);
 
   return (

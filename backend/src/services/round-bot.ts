@@ -5,7 +5,7 @@
 import { config } from '../config';
 import { fetchWithTimeout } from './fetch-timeout';
 import { getCachedPrices } from './oracle';
-import { registerMarket, persistRegistry, clearStaleLightningFlags, getCachedMarkets, updateMarketMeta } from './indexer';
+import { registerMarket, persistRegistry, clearStaleLightningFlags, getCachedMarkets, updateMarketMeta, markMarketResolved } from './indexer';
 import { savePendingMeta, deletePendingMeta } from './scanner';
 import { delegatedSettle, delegatedCreateMarket, isDelegatedProvingAvailable, getResolverAddressFromKey } from './delegated-prover';
 import { fetchCurrentBlock } from './chain-executor';
@@ -452,6 +452,7 @@ async function settleSlot(slot: MarketSlot): Promise<void> {
   if (result.success && result.txId) {
     slot.lastSettleTxId = result.txId;
     const seriesId = assetToSeriesId(slot.asset);
+    const settledMarketId = slot.marketId!; // Save before nulling
     if (isEmpty) {
       botState!.totalRoundsSkipped++;
       console.log(`[RoundBot] ${slot.id} EMPTY settled tx=${result.txId} (${result.durationMs}ms)`);
@@ -459,6 +460,9 @@ async function settleSlot(slot: MarketSlot): Promise<void> {
       botState!.totalRoundsSettled++;
       console.log(`[RoundBot] ${slot.id} settled tx=${result.txId} (${result.durationMs}ms)`);
     }
+
+    // Immediately mark resolved in indexer cache so frontend sees it on next SSE
+    markMarketResolved(settledMarketId, winningOutcome);
 
     // Update series cumulative stats
     updateSeriesStats(seriesId, slot.totalVolume).catch(() => {});

@@ -302,6 +302,31 @@ export function getCachedMarkets(): MarketInfo[] {
   return marketsCache;
 }
 
+// Track markets we've locally resolved (via round-bot flash_settle success)
+// so the chain re-fetch doesn't overwrite them back to "active" before on-chain
+// status catches up. Entries are cleaned up once the chain confirms resolved.
+const locallyResolvedIds = new Map<string, number>(); // marketId → resolvedOutcome (0-indexed)
+
+/**
+ * Immediately mark a market as resolved in the in-memory cache.
+ * Called by round-bot right after a successful flash_settle so the frontend
+ * sees the status change on the next SSE broadcast (≤15s) instead of waiting
+ * for a full chain re-fetch of 1000+ markets.
+ */
+export function markMarketResolved(marketId: string, outcome: number): void {
+  const resolvedOutcome = outcome - 1; // on-chain 1=UP,2=DOWN → frontend 0=UP,1=DOWN
+  locallyResolvedIds.set(marketId, resolvedOutcome);
+  const idx = marketsCache.findIndex((m) => m.id === marketId);
+  if (idx >= 0) {
+    marketsCache[idx] = {
+      ...marketsCache[idx],
+      status: 'resolved',
+      resolvedOutcome,
+    };
+    console.log(`[Indexer] Marked market ${marketId.slice(0, 16)}... as resolved (outcome=${outcome}) in cache`);
+  }
+}
+
 /**
  * Update the market cache by merging new data instead of blindly replacing.
  * The Aleo mapping API is flaky and can return partial results (35 instead of 66).
@@ -315,7 +340,23 @@ export function setCachedMarkets(markets: MarketInfo[]): void {
     return;
   }
 
-  const newById = new Map(markets.map((m) => [m.id, m]));
+  // Apply local overrides: markets we've resolved via flash_settle but chain
+  // hasn't caught up yet. Once chain confirms (status !== 'active'), clean up.
+  const finalMarkets = markets.map((m) => {
+    const localOutcome = locallyResolvedIds.get(m.id);
+    if (localOutcome !== undefined) {
+      if (m.status === 'resolved' || m.status === 'cancelled') {
+        // Chain caught up — remove local override
+        locallyResolvedIds.delete(m.id);
+        return m;
+      }
+      // Chain still shows active — keep our local resolved status
+      return { ...m, status: 'resolved' as const, resolvedOutcome: localOutcome };
+    }
+    return m;
+  });
+
+  const newById = new Map(finalMarkets.map((m) => [m.id, m]));
 
   // Preserve active / pending_resolution markets from old cache that are missing
   // from the new fetch (likely dropped by a partial Aleo API response).
@@ -326,7 +367,7 @@ export function setCachedMarkets(markets: MarketInfo[]): void {
     }
   }
 
-  marketsCache = [...markets, ...preserved];
+  marketsCache = [...finalMarkets, ...preserved];
   if (preserved.length > 0) {
     console.log(`[Indexer] Preserved ${preserved.length} active market(s) missing from chain fetch`);
   }

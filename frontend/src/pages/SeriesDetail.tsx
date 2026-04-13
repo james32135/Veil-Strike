@@ -235,38 +235,50 @@ export default function SeriesDetail() {
     const exactShares = estimateBuySharesExact(liveReserves, outcome, amountMicro);
     if (exactShares <= 0n) return;
     const minShares = exactShares * 95n / 100n;
-    const nonce = generateNonce();
-
-    let tx;
-    if (marketToken === 'usdcx' || marketToken === 'usad') {
-      const stableType = marketToken === 'usad' ? 'USAD' : 'USDCX';
-      const tokenRecord = await fetchUsdcxRecord(amountMicro, stableType);
-      if (!tokenRecord) return;
-      const proofs = await getUsdcxProofs(stableType);
-      tx = buildBuySharesStableTx(
-        stableType, round.id, outcome,
-        `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce,
-        tokenRecord, proofs
-      );
-    } else {
-      const record = await fetchCreditsRecord(amountMicro);
-      if (!record) return;
-      tx = buildBuySharesPrivateTx(
-        round.id, outcome,
-        `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce,
-        record
-      );
-    }
 
     // Silent delayed refresh — gives chain scanner time to index the tx
     const silentRefresh = () => {
       setTimeout(() => fetchMarkets().catch(() => {}), 5_000);
     };
 
+    // Helper: fetch record, build tx, execute. Returns txId or null.
+    const attemptBet = async (): Promise<string | null> => {
+      const nonce = generateNonce();
+      let tx;
+      if (marketToken === 'usdcx' || marketToken === 'usad') {
+        const stableType = marketToken === 'usad' ? 'USAD' : 'USDCX';
+        const tokenRecord = await fetchUsdcxRecord(amountMicro, stableType);
+        if (!tokenRecord) return null;
+        const proofs = await getUsdcxProofs(stableType);
+        tx = buildBuySharesStableTx(
+          stableType, round.id, outcome,
+          `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce,
+          tokenRecord, proofs
+        );
+      } else {
+        const record = await fetchCreditsRecord(amountMicro);
+        if (!record) return null;
+        tx = buildBuySharesPrivateTx(
+          round.id, outcome,
+          `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce,
+          record
+        );
+      }
+      return execute(tx, silentRefresh, (rejectedId) => {
+        removeBet(rejectedId);
+      });
+    };
+
     startCooldown();
-    const txId = await execute(tx, silentRefresh, (rejectedId) => {
-      removeBet(rejectedId);
-    });
+    let txId = await attemptBet();
+
+    // Auto-retry once if the record was stale (blacklisted by execute)
+    if (!txId && txStatus === 'error') {
+      console.log('[SeriesDetail] Auto-retrying with fresh record...');
+      await new Promise(r => setTimeout(r, 1000));
+      txId = await attemptBet();
+    }
+
     if (txId) {
       // Immediately record the bet so panel switches to "Your Bet" view
       addBet({

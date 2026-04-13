@@ -11,7 +11,12 @@ const EXPLORER_BASE = 'https://explorer.provable.com/transaction';
 // Track recently-used record plaintexts to avoid resubmitting a record
 // that was already consumed on-chain but the wallet hasn't refreshed yet.
 const usedRecordKeys = new Map<string, number>(); // key → timestamp
-const RECORD_EXPIRY_MS = 120_000; // 2 minutes
+const RECORD_EXPIRY_MS = 30_000; // 30s — blocks concurrent bets on same record
+
+// Permanently blacklisted records — these caused "input ID already exists" on-chain.
+// Shield wallet keeps returning them as unspent, so we must skip them forever
+// (until page reload when the wallet will hopefully have synced).
+const blacklistedRecords = new Set<string>();
 
 function recordKey(plaintext: string): string {
   // Use first 80 chars as a stable identifier (includes owner + unique fields)
@@ -22,8 +27,16 @@ export function markRecordUsed(plaintext: string) {
   usedRecordKeys.set(recordKey(plaintext), Date.now());
 }
 
+/** Permanently blacklist a record that was rejected on-chain. */
+export function blacklistRecord(plaintext: string) {
+  blacklistedRecords.add(recordKey(plaintext));
+  console.log(`[Record] Blacklisted dead record: ${plaintext.slice(0, 40)}...`);
+}
+
 export function isRecordRecentlyUsed(plaintext: string): boolean {
   const key = recordKey(plaintext);
+  // Permanently blacklisted records are always blocked
+  if (blacklistedRecords.has(key)) return true;
   const ts = usedRecordKeys.get(key);
   if (!ts) return false;
   if (Date.now() - ts > RECORD_EXPIRY_MS) {
@@ -33,7 +46,7 @@ export function isRecordRecentlyUsed(plaintext: string): boolean {
   return true;
 }
 
-/** Clear all dedup entries — call after a rejection so next attempt can find records. */
+/** Clear dedup entries (not blacklist) — for retry attempts. */
 export function clearUsedRecords() {
   usedRecordKeys.clear();
 }
@@ -209,7 +222,7 @@ export function useTransaction() {
   );
 
   const execute = useCallback(
-    async (transaction: AleoTransaction, onConfirmed?: (realTxId: string) => void, onRejected?: (rawTxId: string) => void) => {
+    async (transaction: AleoTransaction, onConfirmed?: (realTxId: string) => void, onRejected?: (rawTxId: string) => void): Promise<string | null> => {
       if (!connected) {
         addNotification('error', 'Wallet Not Connected', 'Please connect your Shield Wallet first.');
         return null;
@@ -234,8 +247,14 @@ export function useTransaction() {
         undefined,
         undefined,
       );
-      // Set steps on the toast
+      // Set steps on the toast  
       updateNotification(toastId, { steps: TX_STEPS, currentStep: 0 });
+
+      // Extract the record plaintext from inputs so we can blacklist it on rejection.
+      // Records are always the first input that starts with "{ owner:" or contains "microcredits:" or "amount:".
+      const usedRecordInput = transaction.inputs.find(
+        (inp) => typeof inp === 'string' && (inp.includes('owner:') || inp.includes('microcredits:') || inp.includes('amount:'))
+      );
 
       try {
         // Step 1 → 2: Waiting for wallet
@@ -328,8 +347,10 @@ export function useTransaction() {
 
         if (raw.includes('input ID') && raw.includes('already exists')) {
           title = 'Record Already Spent';
-          message = 'This record was already consumed on-chain. Please try again — a fresh record will be used.';
-          // Clear dedup map so the next attempt can find a different record
+          message = 'Stale record detected — blacklisted. Please try again.';
+          // Blacklist the specific record that caused this rejection permanently
+          if (usedRecordInput) blacklistRecord(usedRecordInput);
+          // Also clear dedup so next attempt finds a different record
           clearUsedRecords();
         } else if (raw.includes('insufficient') || raw.includes('balance')) {
           title = 'Insufficient Balance';

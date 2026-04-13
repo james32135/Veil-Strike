@@ -234,27 +234,41 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
     const exactShares = estimateBuySharesExact(liveReserves, outcome, amountMicro);
     if (exactShares <= 0n) { setPendingDir(null); return; }
     const minShares = exactShares * 95n / 100n;
-    const nonce     = generateNonce();
-    let tx;
-    if (tokenType === 'usdcx' || tokenType === 'usad') {
-      const st = tokenType === 'usad' ? 'USAD' : 'USDCX';
-      const tokenRecord = await fetchUsdcxRecord(amountMicro, st);
-      if (!tokenRecord) { setPendingDir(null); return; }
-      const proofs = await getUsdcxProofs(st);
-      tx = buildBuySharesStableTx(st, market.id, outcome, `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce, tokenRecord, proofs);
-    } else {
-      const record = await fetchCreditsRecord(amountMicro);
-      if (!record) { setPendingDir(null); return; }
-      tx = buildBuySharesPrivateTx(market.id, outcome, `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce, record);
-    }
+
+    // Helper: fetch record, build tx, and execute. Returns txId or null.
+    const attemptBet = async (): Promise<string | null> => {
+      const nonce = generateNonce();
+      let tx;
+      if (tokenType === 'usdcx' || tokenType === 'usad') {
+        const st = tokenType === 'usad' ? 'USAD' : 'USDCX';
+        const tokenRecord = await fetchUsdcxRecord(amountMicro, st);
+        if (!tokenRecord) return null;
+        const proofs = await getUsdcxProofs(st);
+        tx = buildBuySharesStableTx(st, market.id, outcome, `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce, tokenRecord, proofs);
+      } else {
+        const record = await fetchCreditsRecord(amountMicro);
+        if (!record) return null;
+        tx = buildBuySharesPrivateTx(market.id, outcome, `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce, record);
+      }
+      return execute(tx, silentRefresh, (rejectedId) => {
+        removeBet(rejectedId);
+      });
+    };
+
     // Start cooldown BEFORE execute so other cards are immediately blocked,
     // preventing concurrent bets that would reuse the same token record.
     startCooldown();
-    const txId = await execute(tx, silentRefresh, (rejectedId) => {
-      // On-chain rejection detected — remove the local bet so UI doesn't
-      // show "Your Bet" for a transaction that didn't actually land.
-      removeBet(rejectedId);
-    });
+
+    let txId = await attemptBet();
+
+    // Auto-retry once if the record was stale (blacklisted by execute).
+    // The dead record is now blacklisted, so fetchRecord will skip it.
+    if (!txId && txStatus === 'error') {
+      console.log('[handleBet] Auto-retrying with fresh record...');
+      await new Promise(r => setTimeout(r, 1000));
+      txId = await attemptBet();
+    }
+
     if (txId) {
       addBet({ roundId: market.id, marketId: market.id, asset, direction, amount: amountMicro, shares: Number(exactShares), timestamp: Date.now(), startPrice: currentPrice, tokenType, txId });
       addTrade({ marketId: market.id, type: 'buy', outcome: direction === 'up' ? 'Up' : 'Down', amount: amountMicro, shares: Number(exactShares), price: 0.5, timestamp: Date.now() });

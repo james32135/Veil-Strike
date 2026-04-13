@@ -50,45 +50,54 @@ export default function TradePanel({ market }: TradePanelProps) {
     if (mode === 'buy') {
       if (amountMicro < 1000 || exactShares <= 0n) return;
 
-      const nonce = generateNonce();
       const minShares = exactShares * 95n / 100n;
       const typeSuffix = 'u128';
 
-      let tx;
-      if (isStable) {
-        const stableType = market.tokenType as 'USDCX' | 'USAD';
-        const tokenRecord = await fetchUsdcxRecord(amountMicro, stableType);
-        if (!tokenRecord) return;
-        const proofs = await getUsdcxProofs(stableType);
-        tx = buildBuySharesStableTx(
-          stableType,
-          market.id, selectedOutcome,
-          `${amountMicro}${typeSuffix}`, `${exactShares}${typeSuffix}`, `${minShares}${typeSuffix}`,
-          nonce, tokenRecord, proofs
-        );
-      } else {
-        const record = await fetchCreditsRecord(amountMicro);
-        if (!record) return;
-        tx = buildBuySharesPrivateTx(
-          market.id, selectedOutcome,
-          `${amountMicro}${typeSuffix}`, `${exactShares}${typeSuffix}`, `${minShares}${typeSuffix}`,
-          nonce, record
-        );
+      // Helper: fetch record, build tx, execute. Returns txId or null.
+      const attemptBuy = async (): Promise<string | null> => {
+        const nonce = generateNonce();
+        let tx;
+        if (isStable) {
+          const stableType = market.tokenType as 'USDCX' | 'USAD';
+          const tokenRecord = await fetchUsdcxRecord(amountMicro, stableType);
+          if (!tokenRecord) return null;
+          const proofs = await getUsdcxProofs(stableType);
+          tx = buildBuySharesStableTx(
+            stableType,
+            market.id, selectedOutcome,
+            `${amountMicro}${typeSuffix}`, `${exactShares}${typeSuffix}`, `${minShares}${typeSuffix}`,
+            nonce, tokenRecord, proofs
+          );
+        } else {
+          const record = await fetchCreditsRecord(amountMicro);
+          if (!record) return null;
+          tx = buildBuySharesPrivateTx(
+            market.id, selectedOutcome,
+            `${amountMicro}${typeSuffix}`, `${exactShares}${typeSuffix}`, `${minShares}${typeSuffix}`,
+            nonce, record
+          );
+        }
+        // Capture values before async — they may change by the time callback fires
+        const tradeOutcome = market.outcomes[selectedOutcome];
+        const tradePrice = prices[selectedOutcome] / PRECISION;
+        const tradeShares = Number(exactShares);
+        const tradeIdx = selectedOutcome;
+        return execute(tx, () => {
+          addTrade({ marketId: market.id, type: 'buy', outcome: tradeOutcome, amount: amountMicro, shares: tradeShares, price: tradePrice, timestamp: Date.now() });
+          optimisticBetUpdate(market.id, tradeIdx, amountMicro, tradeShares, 'buy');
+          const bgRefresh = () => fetchMarkets().catch(() => {});
+          setTimeout(bgRefresh, 5000);
+          setTimeout(bgRefresh, 15000);
+        });
+      };
+
+      let txId = await attemptBuy();
+      // Auto-retry once if the record was stale (blacklisted by execute)
+      if (!txId && status === 'error') {
+        console.log('[TradePanel] Auto-retrying buy with fresh record...');
+        await new Promise(r => setTimeout(r, 1000));
+        txId = await attemptBuy();
       }
-      // Capture values before async — they may change by the time callback fires
-      const tradeOutcome = market.outcomes[selectedOutcome];
-      const tradePrice = prices[selectedOutcome] / PRECISION;
-      const tradeShares = Number(exactShares);
-      const tradeIdx = selectedOutcome;
-      const txId = await execute(tx, () => {
-        // onConfirmed — fires ~3s after wallet signs, chain has accepted the TX
-        addTrade({ marketId: market.id, type: 'buy', outcome: tradeOutcome, amount: amountMicro, shares: tradeShares, price: tradePrice, timestamp: Date.now() });
-        optimisticBetUpdate(market.id, tradeIdx, amountMicro, tradeShares, 'buy');
-        // Background chain refresh for accurate reserves
-        const bgRefresh = () => fetchMarkets().catch(() => {});
-        setTimeout(bgRefresh, 5000);
-        setTimeout(bgRefresh, 15000);
-      });
       if (txId) {
         setAmount('');
       }

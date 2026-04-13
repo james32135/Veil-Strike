@@ -178,7 +178,7 @@ export default function Rounds() {
 
   // Expire stale PENDING bets on mount only
   useEffect(() => {
-    expireStaleBets(30 * 60 * 1000);
+    expireStaleBets(2 * 60 * 60 * 1000);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-resolve bets when markets resolve

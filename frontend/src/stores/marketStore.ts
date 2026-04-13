@@ -12,6 +12,7 @@ interface MarketState {
   searchQuery: string;
   selectedToken: TokenFilter;
   fetchMarkets: () => Promise<void>;
+  optimisticBetUpdate: (marketId: string, outcomeIndex: number, amount: number, shares: number, mode: 'buy' | 'sell') => void;
   setCategory: (category: string) => void;
   setSortBy: (sortBy: MarketSortBy) => void;
   setSearchQuery: (query: string) => void;
@@ -71,6 +72,43 @@ export const useMarketStore = create<MarketState>((set, get) => ({
         }
       });
     }
+  },
+
+  optimisticBetUpdate: (marketId, outcomeIndex, amount, shares, mode) => {
+    const prev = get().markets;
+    const updated = prev.map((m) => {
+      if (m.id !== marketId) return m;
+      const newReserves = [...m.reserves];
+      if (mode === 'buy') {
+        // After buy: outcome reserve decreases by shares, others increase by net amount
+        const feeAmount = Math.floor(amount * 0.01); // ~1% total fees
+        const net = amount - feeAmount;
+        for (let i = 0; i < newReserves.length; i++) {
+          if (i === outcomeIndex) {
+            newReserves[i] = Math.max(1, newReserves[i] - shares);
+          } else {
+            newReserves[i] = newReserves[i] + net;
+          }
+        }
+      } else {
+        // After sell: outcome reserve increases, others decrease
+        for (let i = 0; i < newReserves.length; i++) {
+          if (i === outcomeIndex) {
+            newReserves[i] = newReserves[i] + shares;
+          } else {
+            newReserves[i] = Math.max(1, newReserves[i] - amount);
+          }
+        }
+      }
+      return {
+        ...m,
+        reserves: newReserves,
+        totalVolume: m.totalVolume + amount,
+        tradeCount: m.tradeCount + 1,
+        totalLiquidity: mode === 'buy' ? m.totalLiquidity + amount : m.totalLiquidity - amount,
+      };
+    });
+    set({ markets: updated });
   },
 
   setCategory: (category) => set({ selectedCategory: category }),

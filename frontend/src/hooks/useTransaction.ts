@@ -250,30 +250,25 @@ export function useTransaction() {
                   linkLabel: 'View on Explorer',
                 });
               } else {
-                // Could not resolve → likely rejected on-chain
-                console.warn('[TX] Could not resolve TX ID — may be rejected:', rawId);
-                setStatus('error');
+                // Could not resolve — doesn't mean rejected; API may be slow or ID format unsupported.
+                // Keep the bet in the store — auto-resolve on Rounds page will handle it.
+                console.warn('[TX] Could not resolve TX ID (keeping bet):', rawId);
                 updateNotification(toastId, {
-                  type: 'error',
-                  title: 'Transaction Rejected',
-                  message: 'The network rejected this transaction. Your record may have been spent by a previous operation. Please try again.',
-                  steps: undefined,
-                  currentStep: undefined,
+                  type: 'success',
+                  title: 'Transaction Accepted',
+                  message: 'Wallet signed successfully. Explorer link unavailable — your bet is saved.',
+                  currentStep: 4,
                 });
-                if (onRejected) onRejected(rawId);
               }
             } catch {
-              // Resolution failed — likely rejected
-              console.warn('[TX] Resolution error — may be rejected:', rawId);
-              setStatus('error');
+              // Resolution error — network issue, not necessarily rejection.
+              console.warn('[TX] Resolution error (keeping bet):', rawId);
               updateNotification(toastId, {
-                type: 'error',
-                title: 'Transaction Rejected',
-                message: 'Could not confirm transaction on-chain. Your record may have been spent. Please try again.',
-                steps: undefined,
-                currentStep: undefined,
+                type: 'success',
+                title: 'Transaction Accepted',
+                message: 'Wallet signed successfully. Explorer link unavailable — your bet is saved.',
+                currentStep: 4,
               });
-              if (onRejected) onRejected(rawId);
             }
           })();
 

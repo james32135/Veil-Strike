@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Market } from '@/types';
 import { calculatePrices, estimateBuySharesExact, estimateSellTokensOut, calculateFees } from '@/utils/fpmm';
 import { formatAleo, parseAleoInput } from '@/utils/format';
-import { PRECISION, API_BASE } from '@/constants';
+import { PRECISION } from '@/constants';
 import { useTransaction } from '@/hooks/useTransaction';
 import { buildBuySharesPrivateTx, buildBuySharesStableTx, buildSellSharesTx, generateNonce } from '@/utils/transactions';
 import { getUsdcxProofs } from '@/utils/freezeListProof';
@@ -22,6 +22,7 @@ export default function TradePanel({ market }: TradePanelProps) {
   const [selectedShareRecord, setSelectedShareRecord] = useState<string | null>(null);
   const { status, execute, fetchCreditsRecord, fetchUsdcxRecord, fetchShareRecords } = useTransaction();
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
+  const optimisticBetUpdate = useMarketStore((s) => s.optimisticBetUpdate);
   const addTrade = useTradeStore((s) => s.addTrade);
 
   const isStable = market.tokenType === 'USDCX' || market.tokenType === 'USAD';
@@ -86,10 +87,12 @@ export default function TradePanel({ market }: TradePanelProps) {
           timestamp: Date.now(),
         });
         setAmount('');
-        const refreshChain = () => fetch(`${API_BASE}/markets/refresh`, { method: 'POST' }).then(() => fetchMarkets()).catch(() => fetchMarkets());
-        refreshChain();
-        setTimeout(refreshChain, 15000);
-        setTimeout(refreshChain, 30000);
+        // Optimistic update — instantly reflect new prices in UI
+        optimisticBetUpdate(market.id, selectedOutcome, amountMicro, Number(exactShares), 'buy');
+        // Background chain refresh — lightweight, no blocking
+        const bgRefresh = () => fetchMarkets().catch(() => {});
+        setTimeout(bgRefresh, 8000);
+        setTimeout(bgRefresh, 20000);
       }
     } else {
       // Sell mode: user enters shares to sell, we find matching record
@@ -127,10 +130,12 @@ export default function TradePanel({ market }: TradePanelProps) {
         });
         setAmount('');
         setSelectedShareRecord(null);
-        const refreshChain = () => fetch(`${API_BASE}/markets/refresh`, { method: 'POST' }).then(() => fetchMarkets()).catch(() => fetchMarkets());
-        refreshChain();
-        setTimeout(refreshChain, 15000);
-        setTimeout(refreshChain, 30000);
+        // Optimistic update — instantly reflect new prices in UI
+        optimisticBetUpdate(market.id, selectedOutcome, sellEstimate.tokensOut, amountMicro, 'sell');
+        // Background chain refresh — lightweight, no blocking
+        const bgRefresh = () => fetchMarkets().catch(() => {});
+        setTimeout(bgRefresh, 8000);
+        setTimeout(bgRefresh, 20000);
       }
     }
   };

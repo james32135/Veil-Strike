@@ -258,9 +258,7 @@ export default function SeriesDetail() {
       );
     }
 
-    const refreshChain = () => fetch(`${API_BASE}/markets/refresh`, { method: 'POST' })
-      .then(() => fetchMarkets())
-      .catch(() => fetchMarkets());
+    const refreshChain = () => fetchMarkets().catch(() => {});
 
     startCooldown();
     const txId = await execute(tx, refreshChain, (rejectedId) => {

@@ -17,7 +17,6 @@ import { useOracleStore } from '@/stores/oracleStore';
 import { useTradeStore } from '@/stores/tradeStore';
 import { useLightningBetStore } from '@/stores/lightningBetStore';
 import { useBetCooldownStore } from '@/stores/betCooldownStore';
-import { API_BASE } from '@/constants';
 import type { Market } from '@/types';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -223,7 +222,7 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
     ? shareRecords.filter((r) => r.marketId === market.id) : [];
 
   const refreshChain = useCallback(
-    () => fetch(`${API_BASE}/markets/refresh`, { method: 'POST' }).then(() => fetchMarkets()).catch(() => fetchMarkets()),
+    () => fetchMarkets().catch(() => {}),
     [fetchMarkets],
   );
 

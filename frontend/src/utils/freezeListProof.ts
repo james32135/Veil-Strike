@@ -100,7 +100,15 @@ export async function generateFreezeListProof(
   }
 }
 
+// Cache proofs per token type — freeze list rarely changes.
+// Cleared after 5 minutes so a freeze-list update is eventually picked up.
+const proofCache = new Map<string, { value: string; ts: number }>();
+const PROOF_CACHE_TTL = 5 * 60_000; // 5 min
+
 export async function getUsdcxProofs(tokenType: 'USDCX' | 'USAD' = 'USDCX'): Promise<string> {
+  const cached = proofCache.get(tokenType);
+  if (cached && Date.now() - cached.ts < PROOF_CACHE_TTL) return cached.value;
+
   const count = await getFreezeListCount(tokenType);
   const firstIndex = count > 0 ? await getFreezeListIndex(0, tokenType) : null;
 
@@ -118,5 +126,7 @@ export async function getUsdcxProofs(tokenType: 'USDCX' | 'USAD' = 'USDCX'): Pro
   }
 
   const proof = await generateFreezeListProof(1, index0FieldStr);
-  return `[${proof}, ${proof}]`;
+  const result = `[${proof}, ${proof}]`;
+  proofCache.set(tokenType, { value: result, ts: Date.now() });
+  return result;
 }

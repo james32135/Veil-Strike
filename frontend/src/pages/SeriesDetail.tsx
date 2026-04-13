@@ -251,9 +251,9 @@ export default function SeriesDetail() {
       let tx;
       if (marketToken === 'usdcx' || marketToken === 'usad') {
         const stableType = marketToken === 'usad' ? 'USAD' : 'USDCX';
-        const tokenRecord = await fetchUsdcxRecord(amountMicro, stableType);
+        // Fetch record + proofs in parallel to minimize delay before wallet popup
+        const [tokenRecord, proofs] = await Promise.all([fetchUsdcxRecord(amountMicro, stableType), getUsdcxProofs(stableType)]);
         if (!tokenRecord) return null;
-        const proofs = await getUsdcxProofs(stableType);
         tx = buildBuySharesStableTx(
           stableType, round.id, outcome,
           `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce,

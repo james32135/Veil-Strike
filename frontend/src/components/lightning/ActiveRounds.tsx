@@ -245,9 +245,9 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
       let tx;
       if (tokenType === 'usdcx' || tokenType === 'usad') {
         const st = tokenType === 'usad' ? 'USAD' : 'USDCX';
-        const tokenRecord = await fetchUsdcxRecord(amountMicro, st);
+        // Fetch record + proofs in parallel to minimize delay before wallet popup
+        const [tokenRecord, proofs] = await Promise.all([fetchUsdcxRecord(amountMicro, st), getUsdcxProofs(st)]);
         if (!tokenRecord) return null;
-        const proofs = await getUsdcxProofs(st);
         tx = buildBuySharesStableTx(st, market.id, outcome, `${amountMicro}u128`, `${exactShares}u128`, `${minShares}u128`, nonce, tokenRecord, proofs);
       } else {
         const record = await fetchCreditsRecord(amountMicro);

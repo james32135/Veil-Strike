@@ -58,9 +58,9 @@ export default function TradePanel({ market }: TradePanelProps) {
         let tx;
         if (isStable) {
           const stableType = market.tokenType as 'USDCX' | 'USAD';
-          const tokenRecord = await fetchUsdcxRecord(amountMicro, stableType);
+          // Fetch record + proofs in parallel to minimize delay before wallet popup
+          const [tokenRecord, proofs] = await Promise.all([fetchUsdcxRecord(amountMicro, stableType), getUsdcxProofs(stableType)]);
           if (!tokenRecord) return null;
-          const proofs = await getUsdcxProofs(stableType);
           tx = buildBuySharesStableTx(
             stableType,
             market.id, selectedOutcome,

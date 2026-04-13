@@ -213,13 +213,28 @@ function parsePoolStruct(raw: string): AleoPool | null {
   }
 }
 
+// Permanently cached resolved/cancelled markets — no need to re-fetch from chain
+const finalizedCache = new Map<string, MarketInfo>();
+
 export async function fetchMarketsFromChain(): Promise<MarketInfo[]> {
   const currentBlock = await fetchCurrentBlockHeight();
   const entries = Object.entries(MARKET_REGISTRY);
 
-  // Fetch all markets in parallel for dramatically faster loading
+  // Split: only fetch markets that aren't already finalized (resolved/cancelled)
+  const toFetch: [string, MarketMeta][] = [];
+  const reused: MarketInfo[] = [];
+  for (const [id, meta] of entries) {
+    const cached = finalizedCache.get(id);
+    if (cached) {
+      reused.push(cached);
+    } else {
+      toFetch.push([id, meta]);
+    }
+  }
+
+  // Fetch only non-finalized markets from chain
   const results = await Promise.allSettled(
-    entries.map(async ([marketId, meta]): Promise<MarketInfo | null> => {
+    toFetch.map(async ([marketId, meta]): Promise<MarketInfo | null> => {
       try {
         const pid = meta.tokenType === 'USDCX' ? config.programIdCx
           : meta.tokenType === 'USAD' ? config.programIdSd : config.programId;
@@ -283,17 +298,27 @@ export async function fetchMarketsFromChain(): Promise<MarketInfo[]> {
     })
   );
 
-  const markets = results
+  const freshMarkets = results
     .filter((r): r is PromiseFulfilledResult<MarketInfo | null> => r.status === 'fulfilled')
     .map(r => r.value)
     .filter((m): m is MarketInfo => m !== null);
 
+  // Move newly resolved/cancelled markets into permanent cache
+  for (const m of freshMarkets) {
+    if (m.status === 'resolved' || m.status === 'cancelled') {
+      finalizedCache.set(m.id, m);
+    }
+  }
+
+  // Merge fresh + reused
+  const allMarkets = [...freshMarkets, ...reused];
+
   // Filter out placeholder markets with no real metadata (scanner artifacts)
-  const realMarkets = markets.filter((m) => !m.question.match(/^Market \d{5,}\.\.\./));
+  const realMarkets = allMarkets.filter((m) => !m.question.match(/^Market \d{5,}\.\.\./));
 
   // Only log when count changes to reduce noise
-  if (realMarkets.length !== marketsCache.length) {
-    console.log(`[Indexer] Fetched ${realMarkets.length} markets from chain (${markets.length - realMarkets.length} placeholder(s) hidden)`);
+  if (realMarkets.length !== marketsCache.length || toFetch.length !== entries.length) {
+    console.log(`[Indexer] Fetched ${toFetch.length} active + ${reused.length} cached = ${realMarkets.length} total markets`);
   }
   return realMarkets;
 }
@@ -318,11 +343,14 @@ export function markMarketResolved(marketId: string, outcome: number): void {
   locallyResolvedIds.set(marketId, resolvedOutcome);
   const idx = marketsCache.findIndex((m) => m.id === marketId);
   if (idx >= 0) {
-    marketsCache[idx] = {
+    const resolved = {
       ...marketsCache[idx],
-      status: 'resolved',
+      status: 'resolved' as const,
       resolvedOutcome,
     };
+    marketsCache[idx] = resolved;
+    // Also add to finalized cache so we never re-fetch this market from chain
+    finalizedCache.set(marketId, resolved);
     console.log(`[Indexer] Marked market ${marketId.slice(0, 16)}... as resolved (outcome=${outcome}) in cache`);
   }
 }

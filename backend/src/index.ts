@@ -124,14 +124,21 @@ cron.schedule(`*/${config.resolverIntervalMinutes} * * * *`, async () => {
   await resolveExpiredMarkets();
 });
 
-// Refresh market data from chain every 15 seconds (keeps frontend data fresh via SSE)
+// Guard: prevent overlapping market refreshes (old fetch finishes after next cron fires)
+let marketRefreshRunning = false;
+
+// Refresh market data from chain every 15 seconds (with finalized-cache, only active markets are fetched)
 cron.schedule('*/15 * * * * *', async () => {
+  if (marketRefreshRunning) return;
+  marketRefreshRunning = true;
   try {
     const markets = await fetchMarketsFromChain();
     setCachedMarkets(markets);
     broadcastSSE('markets', markets);
   } catch (err) {
     console.error('[Cron] Market refresh failed:', err);
+  } finally {
+    marketRefreshRunning = false;
   }
 });
 
@@ -139,10 +146,15 @@ cron.schedule('*/15 * * * * *', async () => {
 cron.schedule('*/15 * * * * *', async () => {
   try {
     const found = await scanForNewMarkets(20);
-    if (found > 0) {
-      const markets = await fetchMarketsFromChain();
-      setCachedMarkets(markets);
-      broadcastSSE('markets', markets);
+    if (found > 0 && !marketRefreshRunning) {
+      marketRefreshRunning = true;
+      try {
+        const markets = await fetchMarketsFromChain();
+        setCachedMarkets(markets);
+        broadcastSSE('markets', markets);
+      } finally {
+        marketRefreshRunning = false;
+      }
     }
   } catch (err) {
     console.error('[Cron] Market scan failed:', err);

@@ -5,7 +5,10 @@ import { savePendingMeta } from '../services/scanner';
 const router = Router();
 
 router.get('/', (_req, res) => {
-  const markets = getCachedMarkets();
+  // Filter out placeholder scanner artifacts (no real metadata) server-side
+  const markets = getCachedMarkets().filter(
+    (m) => !m.question.match(/^Market \d{5,}\.\.\./) && !m.question.match(/^Market [a-f0-9]{10,}/i),
+  );
   res.json({ markets });
 });
 

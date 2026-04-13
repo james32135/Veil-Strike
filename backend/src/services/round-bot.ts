@@ -279,6 +279,7 @@ async function createMarketForSlot(slot: MarketSlot): Promise<void> {
     outcomes: ['Up', 'Down'],
     isLightning: true,
     createdAt: Date.now(),
+    tokenType: slot.tokenType === 'ALEO' ? undefined : slot.tokenType,
   });
 
   // For USDCX/USAD, fetch a private Token record and compute MerkleProofs
@@ -373,11 +374,13 @@ async function createMarketForSlot(slot: MarketSlot): Promise<void> {
       const timeSlot = buildTimeSlotLabel(slot.startTime, slot.endTime);
       if (slot.marketId) {
         // Update both in-memory registry and DB so API returns startPrice immediately
+        // Include botEndTime in case scanner registered first without it
         updateMarketMeta(slot.marketId, {
           startPrice: slot.startPrice,
           seriesId,
           roundNumber: slot.roundNumber,
           timeSlot,
+          botEndTime: slot.endTime,
         });
       }
 

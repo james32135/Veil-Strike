@@ -24,9 +24,9 @@ export interface MarketMeta {
 /** Load all market metadata from PostgreSQL on startup */
 export async function loadRegistryFromDB(): Promise<void> {
   try {
-    // Remove known test/dev event markets that were created during local testing
+    // Remove known test/dev event markets and placeholder scanner artifacts
     await query(
-      `DELETE FROM markets WHERE question ILIKE '%US forces enter Iran%' OR question ILIKE '%Fed Decision in June%'`
+      `DELETE FROM markets WHERE question ILIKE '%US forces enter Iran%' OR question ILIKE '%Fed Decision in June%' OR question ~ '^Market [0-9]{5,}'`
     );
 
     const { rows } = await query('SELECT * FROM markets');
@@ -342,7 +342,16 @@ export function registerMarket(marketId: string, meta: MarketMeta): boolean {
       Object.assign(existing, meta);
       return true;
     }
-    return false; // Already has real metadata
+    // Merge missing fields — scanner registers partial data first,
+    // then round-bot fills in botEndTime, startPrice, seriesId, etc.
+    let merged = false;
+    for (const key of Object.keys(meta) as (keyof MarketMeta)[]) {
+      if (meta[key] !== undefined && meta[key] !== null && existing[key] === undefined) {
+        (existing as any)[key] = meta[key];
+        merged = true;
+      }
+    }
+    return merged;
   }
   MARKET_REGISTRY[marketId] = meta;
   return true;
@@ -426,6 +435,7 @@ export function updateMarketMeta(marketId: string, partial: Partial<MarketMeta>)
   if (partial.seriesId !== undefined)    { fields.push(`series_id = $${i++}`);    vals.push(partial.seriesId || null); }
   if (partial.roundNumber !== undefined) { fields.push(`round_number = $${i++}`); vals.push(partial.roundNumber); }
   if (partial.timeSlot !== undefined)    { fields.push(`time_slot = $${i++}`);    vals.push(partial.timeSlot || null); }
+  if (partial.botEndTime !== undefined)  { fields.push(`bot_end_time = $${i++}`); vals.push(partial.botEndTime); }
   if (fields.length > 0) {
     vals.push(marketId);
     query(`UPDATE markets SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${i}`, vals)

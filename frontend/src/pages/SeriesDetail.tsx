@@ -236,9 +236,13 @@ export default function SeriesDetail() {
     if (exactShares <= 0n) return;
     const minShares = exactShares * 95n / 100n;
 
-    // Silent delayed refresh — gives chain scanner time to index the tx
+    // Aggressive chain refresh — multiple waves to catch indexer delay
     const silentRefresh = () => {
-      setTimeout(() => fetchMarkets().catch(() => {}), 5_000);
+      const bg = () => fetchMarkets().catch(() => {});
+      setTimeout(bg, 3_000);
+      setTimeout(bg, 8_000);
+      setTimeout(bg, 15_000);
+      setTimeout(bg, 25_000);
     };
 
     // Helper: fetch record, build tx, execute. Returns txId or null.

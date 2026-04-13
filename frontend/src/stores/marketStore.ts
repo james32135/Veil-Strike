@@ -23,16 +23,11 @@ interface MarketState {
 // SSE subscription singleton — set up once
 let sseInitialized = false;
 
-// Track when each market was last optimistically updated.
-// During this window, fetchMarkets will NOT overwrite the optimistic reserves.
-const optimisticTimestamps = new Map<string, number>();
-const OPTIMISTIC_PROTECT_MS = 18_000; // 18s — enough for chain to index the TX
-
 /**
  * Merge fresh market data with previous cache.
  * Keeps active/pending markets that were in the old set but missing from
  * the new set (Aleo API flakiness can drop markets from partial responses).
- * Also protects recently-optimistic-updated markets from being overwritten.
+ * Fresh chain data always wins — no local overrides.
  */
 function mergeMarkets(prev: Market[], fresh: Market[]): Market[] {
   if (prev.length === 0) return fresh;
@@ -41,23 +36,7 @@ function mergeMarkets(prev: Market[], fresh: Market[]): Market[] {
   const preserved = prev.filter(
     (m) => !freshIds.has(m.id) && (m.status === 'active' || m.status === 'pending_resolution'),
   );
-  const merged = [...fresh, ...preserved];
-
-  // Protect recently-optimistic markets: keep prev reserves until protection window expires
-  const now = Date.now();
-  return merged.map((m) => {
-    const ts = optimisticTimestamps.get(m.id);
-    if (ts && now - ts < OPTIMISTIC_PROTECT_MS) {
-      const prevMarket = prev.find((p) => p.id === m.id);
-      if (prevMarket) {
-        // Keep optimistic reserves but allow other metadata to update
-        return { ...m, reserves: prevMarket.reserves, totalVolume: prevMarket.totalVolume, tradeCount: prevMarket.tradeCount, totalLiquidity: prevMarket.totalLiquidity };
-      }
-    }
-    // Expired — clean up
-    if (ts && now - ts >= OPTIMISTIC_PROTECT_MS) optimisticTimestamps.delete(m.id);
-    return m;
-  });
+  return [...fresh, ...preserved];
 }
 
 export const useMarketStore = create<MarketState>((set, get) => ({
@@ -96,44 +75,9 @@ export const useMarketStore = create<MarketState>((set, get) => ({
     }
   },
 
-  optimisticBetUpdate: (marketId, outcomeIndex, amount, shares, mode) => {
-    // Mark this market as optimistically updated — protect from stale chain data
-    optimisticTimestamps.set(marketId, Date.now());
-    const prev = get().markets;
-    const updated = prev.map((m) => {
-      if (m.id !== marketId) return m;
-      const newReserves = [...m.reserves];
-      if (mode === 'buy') {
-        // After buy: outcome reserve decreases by shares, others increase by net amount
-        const feeAmount = Math.floor(amount * 0.01); // ~1% total fees
-        const net = amount - feeAmount;
-        for (let i = 0; i < newReserves.length; i++) {
-          if (i === outcomeIndex) {
-            newReserves[i] = Math.max(1, newReserves[i] - shares);
-          } else {
-            newReserves[i] = newReserves[i] + net;
-          }
-        }
-      } else {
-        // After sell: outcome reserve increases, others decrease
-        for (let i = 0; i < newReserves.length; i++) {
-          if (i === outcomeIndex) {
-            newReserves[i] = newReserves[i] + shares;
-          } else {
-            newReserves[i] = Math.max(1, newReserves[i] - amount);
-          }
-        }
-      }
-      return {
-        ...m,
-        reserves: newReserves,
-        totalVolume: m.totalVolume + amount,
-        tradeCount: m.tradeCount + 1,
-        totalLiquidity: mode === 'buy' ? m.totalLiquidity + amount : m.totalLiquidity - amount,
-      };
-    });
-    set({ markets: updated });
-  },
+  // No-op: optimistic reserve updates removed — chain data always wins.
+  // Kept as stub so existing callers don't break during cleanup.
+  optimisticBetUpdate: () => {},
 
   setCategory: (category) => set({ selectedCategory: category }),
   setSortBy: (sortBy) => set({ sortBy }),

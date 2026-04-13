@@ -22,7 +22,6 @@ export default function TradePanel({ market }: TradePanelProps) {
   const [selectedShareRecord, setSelectedShareRecord] = useState<string | null>(null);
   const { status, execute, fetchCreditsRecord, fetchUsdcxRecord, fetchShareRecords } = useTransaction();
   const fetchMarkets = useMarketStore((s) => s.fetchMarkets);
-  const optimisticBetUpdate = useMarketStore((s) => s.optimisticBetUpdate);
   const addTrade = useTradeStore((s) => s.addTrade);
 
   const isStable = market.tokenType === 'USDCX' || market.tokenType === 'USAD';
@@ -84,10 +83,11 @@ export default function TradePanel({ market }: TradePanelProps) {
         const tradeIdx = selectedOutcome;
         return execute(tx, () => {
           addTrade({ marketId: market.id, type: 'buy', outcome: tradeOutcome, amount: amountMicro, shares: tradeShares, price: tradePrice, timestamp: Date.now() });
-          optimisticBetUpdate(market.id, tradeIdx, amountMicro, tradeShares, 'buy');
           const bgRefresh = () => fetchMarkets().catch(() => {});
-          setTimeout(bgRefresh, 5000);
+          setTimeout(bgRefresh, 3000);
+          setTimeout(bgRefresh, 8000);
           setTimeout(bgRefresh, 15000);
+          setTimeout(bgRefresh, 25000);
         });
       };
 
@@ -127,13 +127,13 @@ export default function TradePanel({ market }: TradePanelProps) {
       const sellTradeOutcome = market.outcomes[selectedOutcome];
       const sellTradePrice = prices[selectedOutcome] / PRECISION;
       const sellTokensOut = sellEstimate.tokensOut;
-      const sellIdx = selectedOutcome;
       const txId = await execute(tx, () => {
         addTrade({ marketId: market.id, type: 'sell', outcome: sellTradeOutcome, amount: sellTokensOut, shares: amountMicro, price: sellTradePrice, timestamp: Date.now() });
-        optimisticBetUpdate(market.id, sellIdx, sellTokensOut, amountMicro, 'sell');
         const bgRefresh = () => fetchMarkets().catch(() => {});
-        setTimeout(bgRefresh, 5000);
+        setTimeout(bgRefresh, 3000);
+        setTimeout(bgRefresh, 8000);
         setTimeout(bgRefresh, 15000);
+        setTimeout(bgRefresh, 25000);
       });
       if (txId) {
         setAmount('');

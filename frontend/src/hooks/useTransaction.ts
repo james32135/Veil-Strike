@@ -284,9 +284,9 @@ export function useTransaction() {
             currentStep: 4,
           });
 
-          // Fire onConfirmed callback after short delay (data refresh)
+          // Fire onConfirmed immediately — each component schedules its own refresh cadence
           if (onConfirmed) {
-            setTimeout(() => onConfirmed(rawId), 3000);
+            onConfirmed(rawId);
           }
 
           // Background: resolve real at1... ID then upgrade toast with explorer link.

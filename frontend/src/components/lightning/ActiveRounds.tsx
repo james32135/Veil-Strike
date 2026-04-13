@@ -222,9 +222,13 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
     ? shareRecords.filter((r) => r.marketId === market.id) : [];
 
   // Silent delayed refresh — gives the chain scanner time to index the tx
-  // before fetching, so the UI doesn't flicker with stale data.
+  // Aggressive chain refresh after TX — multiple waves to catch indexer delay.
   const silentRefresh = useCallback(() => {
-    setTimeout(() => fetchMarkets().catch(() => {}), 5_000);
+    const bg = () => fetchMarkets().catch(() => {});
+    setTimeout(bg, 3_000);
+    setTimeout(bg, 8_000);
+    setTimeout(bg, 15_000);
+    setTimeout(bg, 25_000);
   }, [fetchMarkets]);
 
   const handleBet = async (direction: 'up' | 'down') => {

@@ -5,7 +5,7 @@
 import { config } from '../config';
 import { fetchWithTimeout } from './fetch-timeout';
 import { getCachedPrices } from './oracle';
-import { registerMarket, persistRegistry, clearStaleLightningFlags, getCachedMarkets, updateMarketMeta, markMarketResolved } from './indexer';
+import { registerMarket, persistRegistry, clearStaleLightningFlags, getCachedMarkets, updateMarketMeta, markMarketResolved, injectMarketIntoCache } from './indexer';
 import { savePendingMeta, deletePendingMeta } from './scanner';
 import { delegatedSettle, delegatedCreateMarket, isDelegatedProvingAvailable, getResolverAddressFromKey } from './delegated-prover';
 import { fetchCurrentBlock } from './chain-executor';
@@ -385,6 +385,31 @@ async function createMarketForSlot(slot: MarketSlot): Promise<void> {
       }
 
       console.log(`[RoundBot] ${slot.id} round #${slot.roundNumber} OPEN. Start price: $${slot.startPrice}`);
+
+      // Inject the new market directly into the cache so the frontend sees it
+      // immediately on the next SSE broadcast, instead of waiting for chain indexing.
+      if (slot.marketId) {
+        const initialLiquidity = config.roundInitialLiquidity;
+        injectMarketIntoCache({
+          id: slot.marketId,
+          question,
+          category: 'Crypto',
+          outcomes: ['Up', 'Down'],
+          reserves: [initialLiquidity, initialLiquidity],
+          totalLiquidity: initialLiquidity * 2,
+          totalVolume: 0,
+          tradeCount: 0,
+          status: 'active',
+          endTime: slot.endTime,
+          createdAt: Date.now(),
+          isLightning: true,
+          tokenType: slot.tokenType === 'ALEO' ? undefined : slot.tokenType,
+          startPrice: slot.startPrice,
+          seriesId: assetToSeriesId(slot.asset),
+          roundNumber: slot.roundNumber,
+          timeSlot: buildTimeSlotLabel(slot.startTime, slot.endTime),
+        });
+      }
     } else {
       slot.error = 'Transaction not confirmed in time';
       slot.state = 'idle';

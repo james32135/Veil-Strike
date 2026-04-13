@@ -328,6 +328,23 @@ export function markMarketResolved(marketId: string, outcome: number): void {
 }
 
 /**
+ * Inject a brand-new round into the cache so it appears on the frontend immediately
+ * instead of waiting for the chain indexer to discover it (which can take 30-90s).
+ * Called by the round-bot right after open_market TX is confirmed.
+ */
+export function injectMarketIntoCache(market: MarketInfo): void {
+  // Don't inject duplicates
+  const existing = marketsCache.findIndex((m) => m.id === market.id);
+  if (existing >= 0) {
+    // Update in place — chain may have partial data but ours is fresher
+    marketsCache[existing] = { ...marketsCache[existing], ...market };
+  } else {
+    marketsCache.push(market);
+  }
+  console.log(`[Indexer] Injected market ${market.id.slice(0, 16)}... into cache (${market.question})`);
+}
+
+/**
  * Update the market cache by merging new data instead of blindly replacing.
  * The Aleo mapping API is flaky and can return partial results (35 instead of 66).
  * If the new fetch is missing active/pending markets that exist in the old cache,

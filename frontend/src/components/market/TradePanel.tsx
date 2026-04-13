@@ -75,24 +75,22 @@ export default function TradePanel({ market }: TradePanelProps) {
           nonce, record
         );
       }
-      const txId = await execute(tx);
-      if (txId) {
-        addTrade({
-          marketId: market.id,
-          type: 'buy',
-          outcome: market.outcomes[selectedOutcome],
-          amount: amountMicro,
-          shares: Number(exactShares),
-          price: prices[selectedOutcome] / PRECISION,
-          timestamp: Date.now(),
-        });
-        setAmount('');
-        // Optimistic update — instantly reflect new prices in UI
-        optimisticBetUpdate(market.id, selectedOutcome, amountMicro, Number(exactShares), 'buy');
-        // Background chain refresh — lightweight, no blocking
+      // Capture values before async — they may change by the time callback fires
+      const tradeOutcome = market.outcomes[selectedOutcome];
+      const tradePrice = prices[selectedOutcome] / PRECISION;
+      const tradeShares = Number(exactShares);
+      const tradeIdx = selectedOutcome;
+      const txId = await execute(tx, () => {
+        // onConfirmed — fires ~3s after wallet signs, chain has accepted the TX
+        addTrade({ marketId: market.id, type: 'buy', outcome: tradeOutcome, amount: amountMicro, shares: tradeShares, price: tradePrice, timestamp: Date.now() });
+        optimisticBetUpdate(market.id, tradeIdx, amountMicro, tradeShares, 'buy');
+        // Background chain refresh for accurate reserves
         const bgRefresh = () => fetchMarkets().catch(() => {});
-        setTimeout(bgRefresh, 8000);
-        setTimeout(bgRefresh, 20000);
+        setTimeout(bgRefresh, 5000);
+        setTimeout(bgRefresh, 15000);
+      });
+      if (txId) {
+        setAmount('');
       }
     } else {
       // Sell mode: user enters shares to sell, we find matching record
@@ -117,25 +115,20 @@ export default function TradePanel({ market }: TradePanelProps) {
         ? buildSellSharesTx(shareRecord, tokensDesired, maxShares, market.tokenType as 'USDCX' | 'USAD')
         : buildSellSharesTx(shareRecord, tokensDesired, maxShares);
 
-      const txId = await execute(tx);
+      const sellTradeOutcome = market.outcomes[selectedOutcome];
+      const sellTradePrice = prices[selectedOutcome] / PRECISION;
+      const sellTokensOut = sellEstimate.tokensOut;
+      const sellIdx = selectedOutcome;
+      const txId = await execute(tx, () => {
+        addTrade({ marketId: market.id, type: 'sell', outcome: sellTradeOutcome, amount: sellTokensOut, shares: amountMicro, price: sellTradePrice, timestamp: Date.now() });
+        optimisticBetUpdate(market.id, sellIdx, sellTokensOut, amountMicro, 'sell');
+        const bgRefresh = () => fetchMarkets().catch(() => {});
+        setTimeout(bgRefresh, 5000);
+        setTimeout(bgRefresh, 15000);
+      });
       if (txId) {
-        addTrade({
-          marketId: market.id,
-          type: 'sell',
-          outcome: market.outcomes[selectedOutcome],
-          amount: sellEstimate.tokensOut,
-          shares: amountMicro,
-          price: prices[selectedOutcome] / PRECISION,
-          timestamp: Date.now(),
-        });
         setAmount('');
         setSelectedShareRecord(null);
-        // Optimistic update — instantly reflect new prices in UI
-        optimisticBetUpdate(market.id, selectedOutcome, sellEstimate.tokensOut, amountMicro, 'sell');
-        // Background chain refresh — lightweight, no blocking
-        const bgRefresh = () => fetchMarkets().catch(() => {});
-        setTimeout(bgRefresh, 8000);
-        setTimeout(bgRefresh, 20000);
       }
     }
   };

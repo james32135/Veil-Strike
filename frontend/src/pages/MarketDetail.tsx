@@ -10,7 +10,7 @@ import { ChartIcon } from '@/components/icons';
 export default function MarketDetail() {
   const { id } = useParams<{ id: string }>();
   const { markets, loading, fetchMarkets } = useMarketStore();
-  const getTradesForMarket = useTradeStore((s) => s.getTradesForMarket);
+  const allTrades = useTradeStore((s) => s.trades);
 
   useEffect(() => {
     if (markets.length === 0) fetchMarkets();
@@ -25,8 +25,8 @@ export default function MarketDetail() {
   );
 
   const trades = useMemo(
-    () => id ? getTradesForMarket(id) : [],
-    [id, getTradesForMarket]
+    () => id ? allTrades.filter((t) => t.marketId === id) : [],
+    [id, allTrades]
   );
 
   if (loading) return <Loading />;

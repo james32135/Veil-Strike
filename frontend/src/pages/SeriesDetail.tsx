@@ -258,10 +258,13 @@ export default function SeriesDetail() {
       );
     }
 
-    const refreshChain = () => fetchMarkets().catch(() => {});
+    // Silent delayed refresh — gives chain scanner time to index the tx
+    const silentRefresh = () => {
+      setTimeout(() => fetchMarkets().catch(() => {}), 5_000);
+    };
 
     startCooldown();
-    const txId = await execute(tx, refreshChain, (rejectedId) => {
+    const txId = await execute(tx, silentRefresh, (rejectedId) => {
       removeBet(rejectedId);
     });
     if (txId) {
@@ -277,7 +280,6 @@ export default function SeriesDetail() {
         amount: amountMicro, shares: Number(exactShares),
         price: 0.5, timestamp: Date.now(),
       });
-      refreshChain();
     } else {
       setPendingDirection(null);
     }

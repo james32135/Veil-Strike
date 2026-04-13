@@ -221,10 +221,11 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
   const sellableShares  = isExpired && !isResolved
     ? shareRecords.filter((r) => r.marketId === market.id) : [];
 
-  const refreshChain = useCallback(
-    () => fetchMarkets().catch(() => {}),
-    [fetchMarkets],
-  );
+  // Silent delayed refresh — gives the chain scanner time to index the tx
+  // before fetching, so the UI doesn't flicker with stale data.
+  const silentRefresh = useCallback(() => {
+    setTimeout(() => fetchMarkets().catch(() => {}), 5_000);
+  }, [fetchMarkets]);
 
   const handleBet = async (direction: 'up' | 'down') => {
     if (amountMicro < 1000 || onCooldown) return;
@@ -249,7 +250,7 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
     // Start cooldown BEFORE execute so other cards are immediately blocked,
     // preventing concurrent bets that would reuse the same token record.
     startCooldown();
-    const txId = await execute(tx, refreshChain, (rejectedId) => {
+    const txId = await execute(tx, silentRefresh, (rejectedId) => {
       // On-chain rejection detected — remove the local bet so UI doesn't
       // show "Your Bet" for a transaction that didn't actually land.
       removeBet(rejectedId);
@@ -257,7 +258,6 @@ function StrikeRoundCard({ market, shareRecords, onClaimed }: { market: Market; 
     if (txId) {
       addBet({ roundId: market.id, marketId: market.id, asset, direction, amount: amountMicro, shares: Number(exactShares), timestamp: Date.now(), startPrice: currentPrice, tokenType, txId });
       addTrade({ marketId: market.id, type: 'buy', outcome: direction === 'up' ? 'Up' : 'Down', amount: amountMicro, shares: Number(exactShares), price: 0.5, timestamp: Date.now() });
-      refreshChain();
     } else { setPendingDir(null); }
   };
 

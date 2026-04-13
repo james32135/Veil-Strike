@@ -69,7 +69,11 @@ export function useTransaction() {
       // Try up to 2 attempts — Shield wallet sometimes returns stale records on first call
       for (let attempt = 0; attempt < 2; attempt++) {
         if (attempt > 0) {
-          console.log('[fetchCreditsRecord] Retry after 1.5s...');
+          // Clear dedup on retry — wallet may return same records but they might
+          // be valid (change records, or wallet re-synced). If truly spent,
+          // the chain will reject and clearUsedRecords() handles it.
+          clearUsedRecords();
+          console.log('[fetchCreditsRecord] Retry after 1.5s (dedup cleared)...');
           await new Promise(r => setTimeout(r, 1500));
         }
         try {
@@ -146,7 +150,11 @@ export function useTransaction() {
       // Try up to 2 attempts — Shield wallet sometimes returns stale records on first call
       for (let attempt = 0; attempt < 2; attempt++) {
         if (attempt > 0) {
-          console.log(`[fetchUsdcxRecord] Retry ${label} after 1.5s...`);
+          // Clear dedup on retry — wallet may return same records but they might
+          // be valid (change records, or wallet re-synced). If truly spent,
+          // the chain will reject and clearUsedRecords() handles it.
+          clearUsedRecords();
+          console.log(`[fetchUsdcxRecord] Retry ${label} after 1.5s (dedup cleared)...`);
           await new Promise(r => setTimeout(r, 1500));
         }
         try {

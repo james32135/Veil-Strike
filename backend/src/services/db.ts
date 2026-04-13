@@ -10,6 +10,8 @@ export const pool = new Pool({
   idleTimeoutMillis: 20_000,     // Release idle connections faster
   connectionTimeoutMillis: 15_000, // Slightly more patient
   allowExitOnIdle: true,         // Let pool shrink to zero when idle
+  keepAlive: true,               // Prevent Render from killing idle TCP sockets
+  keepAliveInitialDelayMillis: 10_000,
 });
 
 pool.on('error', (err) => {

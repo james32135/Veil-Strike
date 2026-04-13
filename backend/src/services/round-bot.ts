@@ -100,7 +100,13 @@ function _doSaveState(): void {
   if (!botState) return;
   // Persist to DB in a single transaction (fire-and-forget async)
   (async () => {
-    const client = await (await import('./db')).pool.connect();
+    let client;
+    try {
+      client = await (await import('./db')).pool.connect();
+    } catch (err) {
+      console.error('[RoundBot] DB connect failed in saveState (will retry):', (err as Error).message);
+      return;
+    }
     try {
       await client.query('BEGIN');
 

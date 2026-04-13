@@ -3,6 +3,21 @@ import express from 'express';
 import cors from 'cors';
 import cron from 'node-cron';
 import { config } from './config';
+
+// ── Global error handlers — prevent DB/network timeouts from crashing the process ──
+process.on('unhandledRejection', (reason) => {
+  console.error('[Process] Unhandled rejection (kept alive):', reason);
+});
+process.on('uncaughtException', (err) => {
+  // Only survive known transient errors — rethrow truly fatal ones
+  const msg = err?.message || '';
+  if (msg.includes('timeout') || msg.includes('Connection terminated') || msg.includes('ECONNREFUSED') || msg.includes('ECONNRESET') || msg.includes('fetch failed')) {
+    console.error('[Process] Transient error caught (kept alive):', msg);
+  } else {
+    console.error('[Process] Fatal uncaught exception — exiting:', err);
+    process.exit(1);
+  }
+});
 import { initializeDatabase, seedDefaultSeries } from './services/db';
 import { fetchOraclePrices, recordPriceSnapshot, loadPriceHistory } from './services/oracle';
 import { fetchMarketsFromChain, setCachedMarkets, loadRegistryFromDB } from './services/indexer';

@@ -1,0 +1,47 @@
+🔥 VEIL STRIKE — LIVE ON ALEO MAINNET 🔥
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Zero-Knowledge Prediction Markets | Wave 5
+
+🌐 Live: https://veil-strike.vercel.app/
+🎬 Demo: https://youtu.be/tiyamg9Mzcs
+𝕏 Marketing: https://x.com/VeilStrike1aleo
+
+Privacy-first prediction market on Aleo Mainnet. Bet on crypto, sports, politics, AI using ALEO, USDCx, USAD — positions and payouts encrypted via ZK proofs. No KYC, no tracking.
+
+🔐 Privacy
+Wallet identity ZK-encrypted, bet positions (OutcomeShare records) private, payouts via encrypted transfers. Only AMM state public for pricing.
+
+⚡ Smart Contracts — 53 On-Chain Transitions
+• veil_strike_v7.aleo — ALEO markets + governance + resolver (23 tx)
+• veil_strike_v7_cx.aleo — USDCx stablecoin markets (15 tx)
+• veil_strike_v7_sd.aleo — USAD stablecoin markets (15 tx)
+3-program split overcoming Aleo's 2.1M variable limit (~3.1M total). Leo 4.0.0, ~105 ALEO.
+Key: open_market, acquire_shares, flash_settle, harvest_winnings, submit_proposal, cast_vote, register_resolver
+
+⚡ Strike Rounds — 5-Min Auto-Resolved USDCx
+Automated 5-min price rounds on BTC, ETH, ALEO. Bot creates 3 concurrent markets via delegated proving (~15s/tx), users bet UP/DOWN, oracle settles, next round auto-created. 24/7. Wave 5 migrated all rounds from ALEO to USDCx stablecoin.
+
+📊 FPMM + Governance + Disputes
+Fixed Product AMM, complete-set minting, dynamic fees (2-5%). Governance: 6 proposal types, 5 ALEO bond, 3-vote quorum, 2hr timelock. Resolver: 10 ALEO stake, 12hr dispute.
+
+🏗️ Architecture
+• Frontend: React 18 + Vite 6 + TypeScript + Tailwind + Framer Motion → Vercel
+• Backend: Express + PostgreSQL (10 tables) + 7-source oracle → Render
+• Services: Delegated Prover, Round Bot, Record Scanner (JWT + view key), Freeze List (MerkleProof), Indexer, Chain Executor
+• Wallet: Shield Wallet (Aleo native)
+
+━━━━━━ WAVE 5 ━━━━━━
+
+💰 ALEO→USDCx Round Migration — All Strike Rounds moved from ALEO to USDCx stablecoin via Provable Scanner API (JWT + view key + record decryption), server-side MerkleProof, batch-create timer sync
+
+🎨 Elite Landing — 13-section parallax hero, spotlight cursor, glass-morphism, scrolling market ticker
+
+🔧 Stability Hardening — fetchWithTimeout all calls, SDK 2-min timeouts, WASM cache, rejection guards, 401 recovery
+
+⚡ 5-Min Rounds — 15→5min, 5s tick, per-slot settlement, zero-gap cycles, 2hr stale bet expiry
+
+🎯 Bet UX — Optimistic reserve recalc, silent delayed refresh (no flicker), trade only after on-chain confirm, live updates
+
+🏛️ Governance — 6 types: General, Approve Resolver, Treasury Withdrawal, Fee Update, Market Override, Revoke Resolver
+
+📚 Mainnet — 50+ files testnet→mainnet, API v1→v2, 10 categories, docs

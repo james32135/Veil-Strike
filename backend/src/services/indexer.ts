@@ -288,11 +288,14 @@ export async function fetchMarketsFromChain(): Promise<MarketInfo[]> {
     .map(r => r.value)
     .filter((m): m is MarketInfo => m !== null);
 
+  // Filter out placeholder markets with no real metadata (scanner artifacts)
+  const realMarkets = markets.filter((m) => !m.question.match(/^Market \d{5,}\.\.\./));
+
   // Only log when count changes to reduce noise
-  if (markets.length !== marketsCache.length) {
-    console.log(`[Indexer] Fetched ${markets.length} markets from chain`);
+  if (realMarkets.length !== marketsCache.length) {
+    console.log(`[Indexer] Fetched ${realMarkets.length} markets from chain (${markets.length - realMarkets.length} placeholder(s) hidden)`);
   }
-  return markets;
+  return realMarkets;
 }
 
 export function getCachedMarkets(): MarketInfo[] {

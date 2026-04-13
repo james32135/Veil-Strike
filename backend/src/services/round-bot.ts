@@ -655,6 +655,10 @@ export async function startRoundBot(): Promise<void> {
           isLightning: true,
           tokenType: slot.tokenType === 'ALEO' ? undefined : slot.tokenType,
           botEndTime: slot.endTime,
+          startPrice: slot.startPrice || undefined,
+          seriesId: assetToSeriesId(slot.asset),
+          roundNumber: slot.roundNumber,
+          timeSlot: buildTimeSlotLabel(slot.startTime, slot.endTime),
         });
       } else if (slot.state === 'open' && slot.marketId && slot.endTime <= Date.now()) {
         // Round EXPIRED during restart — queue it for settling
